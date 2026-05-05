@@ -4,16 +4,12 @@ import { useState, useEffect } from 'react';
 import GenesisLockOnboarding from './components/GenesisLockOnboarding';
 import GracePeriodBuffer from './components/GracePeriodBuffer';
 
-// --- MESH STATE TYPING ---
 type MeshPhase = 'GENESIS' | 'OPERATIONAL' | 'INTERCEPT' | 'STASIS';
 
 export default function RepublicMasterNode() {
-  // --- MASTER MEMORY ---
-  // Defaulting to GENESIS for the Alpha Demo to show the full PCT workflow.
   const [currentPhase, setCurrentPhase] = useState<MeshPhase>('GENESIS');
   const [meshLogs, setMeshLogs] = useState<string[]>([]);
 
-  // --- TERMINAL LOGGING ---
   const addLog = (message: string) => {
     setMeshLogs((prev) => {
       const newLogs = [...prev, `[${new Date().toLocaleTimeString()}] ${message}`];
@@ -25,40 +21,48 @@ export default function RepublicMasterNode() {
     addLog("Vercel Bridge Active. MESH Routing Matrix Online.");
   }, []);
 
-  // --- PHASE ROUTING ENGINE ---
+  // --- ALPHA DEV TOOL: FOUNDER RESET LOGIC ---
+  const executeFounderReset = () => {
+    setCurrentPhase('GENESIS');
+    setMeshLogs([`[${new Date().toLocaleTimeString()}] [ALPHA DEV] FOUNDER OVERRIDE TRIGGERED. RAM FLUSHED.`]);
+  };
 
-  // PHASE 0: The Initialization (24-Word Forge)
+  // --- PHASE ROUTING ENGINE ---
   if (currentPhase === 'GENESIS') {
     return (
-      <GenesisLockOnboarding 
-        onVaultSecured={() => {
-          addLog("Republic Vault Key mathematically secured.");
-          setCurrentPhase('OPERATIONAL');
-        }} 
-      />
+      <div className="relative w-full min-h-screen">
+        <GenesisLockOnboarding 
+          onVaultSecured={() => {
+            addLog("Republic Vault Key mathematically secured.");
+            setCurrentPhase('OPERATIONAL');
+          }} 
+        />
+        <FounderResetButton onReset={executeFounderReset} />
+      </div>
     );
   }
 
-  // PHASE 2: The Interception Shield (60s Countdown)
   if (currentPhase === 'INTERCEPT') {
     return (
-      <GracePeriodBuffer 
-        abortFreeze={() => {
-          addLog("Freeze Aborted. Node returning to Operational State.");
-          setCurrentPhase('OPERATIONAL');
-        }}
-        executeImmediateLock={() => {
-          addLog("OVERRIDE ACCEPTED: Executing multi-sig rejection.");
-          setCurrentPhase('STASIS');
-        }}
-      />
+      <div className="relative w-full min-h-screen">
+        <GracePeriodBuffer 
+          abortFreeze={() => {
+            addLog("Freeze Aborted. Node returning to Operational State.");
+            setCurrentPhase('OPERATIONAL');
+          }}
+          executeImmediateLock={() => {
+            addLog("OVERRIDE ACCEPTED: Executing multi-sig rejection.");
+            setCurrentPhase('STASIS');
+          }}
+        />
+        <FounderResetButton onReset={executeFounderReset} />
+      </div>
     );
   }
 
   // --- VIEWPORT RENDERING (OPERATIONAL & STASIS STATES) ---
-  // Phases 1 and 3 are handled directly on the master dashboard viewport.
   return (
-    <div className="flex flex-col items-center justify-center w-full min-h-screen bg-gray-950 px-4 py-10 font-mono">
+    <div className="flex flex-col items-center justify-center w-full min-h-screen bg-gray-950 px-4 py-10 font-mono overflow-x-hidden relative">
       <div className={`w-full max-w-2xl border p-8 rounded-xl flex flex-col items-center shadow-lg transition-colors duration-500 ${
         currentPhase === 'STASIS' 
           ? 'bg-red-950 border-red-600 shadow-[0_0_40px_rgba(220,38,38,0.4)]' 
@@ -121,6 +125,23 @@ export default function RepublicMasterNode() {
         </div>
 
       </div>
+
+      {/* ALPHA DEV TOOL INJECTION */}
+      <FounderResetButton onReset={executeFounderReset} />
+    </div>
+  );
+}
+
+// --- SUB-COMPONENT: FLOATING DEV TOOL ---
+function FounderResetButton({ onReset }: { onReset: () => void }) {
+  return (
+    <div className="fixed bottom-4 right-4 z-50">
+      <button 
+        onClick={onReset}
+        className="px-3 py-2 bg-gray-900/80 backdrop-blur-sm border border-gray-600 text-gray-400 text-[10px] font-mono uppercase tracking-widest hover:text-white hover:border-white transition-all rounded shadow-lg"
+      >
+        [ F-Reset ]
+      </button>
     </div>
   );
 }
