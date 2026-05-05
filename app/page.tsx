@@ -1,12 +1,15 @@
 "use client";
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation'; // ADJUDICATOR FIX: Import the router
 import GenesisLockOnboarding from './components/GenesisLockOnboarding';
 import GracePeriodBuffer from './components/GracePeriodBuffer';
 
 type MeshPhase = 'GENESIS' | 'OPERATIONAL' | 'INTERCEPT' | 'STASIS';
 
 export default function RepublicMasterNode() {
+  const router = useRouter(); // Initialize the router
+  // ... rest of your state (currentPhase, meshLogs, etc.)
   const [currentPhase, setCurrentPhase] = useState<MeshPhase>('GENESIS');
   const [meshLogs, setMeshLogs] = useState<string[]>([]);
 
@@ -108,12 +111,22 @@ export default function RepublicMasterNode() {
               Initiate Self-Freeze
             </button>
           ) : (
-            <button 
-              disabled
-              className="w-full py-5 bg-black text-red-700 border-2 border-red-900 font-extrabold text-xl tracking-widest rounded cursor-not-allowed uppercase"
-            >
-              Stasis Protocol Engaged
-            </button>
+            <div className="flex flex-col gap-4">
+              <button 
+                disabled
+                className="w-full py-4 bg-black text-red-700 border-2 border-red-900 font-extrabold text-lg tracking-widest rounded cursor-not-allowed uppercase"
+              >
+                Stasis Protocol Engaged
+              </button>
+              
+              {/* ADJUDICATOR FIX: The Escape Vector */}
+              <button 
+                onClick={() => router.push('/recovery')}
+                className="w-full py-5 bg-transparent border border-blue-600 text-blue-400 hover:bg-blue-900/30 hover:text-white font-black text-xl tracking-widest rounded transition-all shadow-[0_0_15px_rgba(37,99,235,0.2)] uppercase"
+              >
+                Initiate Recovery Bridge
+              </button>
+            </div>
           )}
         </div>
 

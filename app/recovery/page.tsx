@@ -1,191 +1,124 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 
-// --- MESH TYPING ---
-type PeerStatus = 'PENDING' | 'AUTHENTICATED';
+type RecoveryPhase = 'TRIBUNAL_SELECT' | 'CRYPTOGRAPHIC_CHALLENGE' | 'RESOLUTION';
+type RecoveryVector = 'PIONEER_RECLAIM' | 'HEIR_TRANSFER' | null;
 
-interface PeerNode {
-  id: string;
-  designation: string;
-  status: PeerStatus;
-}
-
-export default function TribunalRecoveryOverride() {
-  // --- STATE MEMORY ---
-  const [peers, setPeers] = useState<PeerNode[]>([
-    { id: 'Node-Alpha', designation: 'DAO Sentinel 1', status: 'PENDING' },
-    { id: 'Node-Beta', designation: 'DAO Sentinel 2', status: 'PENDING' },
-    { id: 'Node-Gamma', designation: 'Cold Storage Vault', status: 'PENDING' },
-    { id: 'Node-Delta', designation: 'Trusted Pioneer A', status: 'PENDING' },
-    { id: 'Node-Epsilon', designation: 'Trusted Pioneer B', status: 'PENDING' },
-  ]);
+export default function TribunalRecoveryBridge() {
+  const router = useRouter();
   
-  const [inputKey, setInputKey] = useState('');
-  const [isMigrating, setIsMigrating] = useState(false);
-  const [migrationComplete, setMigrationComplete] = useState(false);
-  const [meshLogs, setMeshLogs] = useState<string[]>([]);
+  // --- STATE MACHINE ---
+  const [phase, setPhase] = useState<RecoveryPhase>('TRIBUNAL_SELECT');
+  const [vector, setVector] = useState<RecoveryVector>(null);
+  const [entropyInput, setEntropyInput] = useState('');
+  const [authLog, setAuthLog] = useState<string>("Awaiting Vector Selection...");
 
-  const REQUIRED_THRESHOLD = 3;
-  const currentSignatures = peers.filter(p => p.status === 'AUTHENTICATED').length;
-  const thresholdMet = currentSignatures >= REQUIRED_THRESHOLD;
-
-  // --- TERMINAL LOGGING ---
-  const addLog = (message: string) => {
-    setMeshLogs((prev) => {
-      const newLogs = [...prev, `[${new Date().toLocaleTimeString()}] ${message}`];
-      return newLogs.length > 6 ? newLogs.slice(1) : newLogs; 
-    });
+  // --- LOGIC GATES ---
+  const handleVectorSelect = (selectedVector: RecoveryVector) => {
+    setVector(selectedVector);
+    setPhase('CRYPTOGRAPHIC_CHALLENGE');
+    setAuthLog(`Vector: ${selectedVector}. Awaiting 24-Word Genesis Phrase...`);
   };
 
-  useEffect(() => {
-    addLog("System Boot: Tribunal Recovery Route Active.");
-    addLog("WARNING: Stasis Lock detected. 5-Tier Equilibrium required for override.");
-    addLog(`Multi-Sig Threshold: ${REQUIRED_THRESHOLD} of 5 authenticated nodes required.`);
-  }, []);
-
-  // --- CRYPTOGRAPHIC INJECTION (Mock Logic) ---
-  const handleSignatureInjection = () => {
-    if (!inputKey.trim() || inputKey.length < 8) {
-      addLog("ERROR: Invalid cryptographic string. Rejection logged.");
-      return;
-    }
-
-    // Find the next pending node to authenticate
-    const nextNodeIndex = peers.findIndex(p => p.status === 'PENDING');
-    
-    if (nextNodeIndex !== -1) {
-      const updatedPeers = [...peers];
-      updatedPeers[nextNodeIndex].status = 'AUTHENTICATED';
-      setPeers(updatedPeers);
-      addLog(`SUCCESS: ${updatedPeers[nextNodeIndex].id} signature verified.`);
-      setInputKey('');
+  const executeVerification = () => {
+    // In Alpha, any string longer than 20 chars simulates a successful 24-word paste.
+    if (entropyInput.length > 20) {
+      setPhase('RESOLUTION');
+      setAuthLog("HANDSHAKE ACCEPTED. Stasis Lock disengaged. Routing assets...");
+    } else {
+      setAuthLog("ADJUDICATOR ERROR: Cryptographic signature invalid or incomplete.");
     }
   };
 
-  // --- ASSET MIGRATION EXECUTION ---
-  const executeMigration = () => {
-    setIsMigrating(true);
-    addLog("INITIATING: Vercel Bridge receiving 3-of-5 Multi-Sig payload...");
-    addLog("Soroban Smart Contract executing asset transfer...");
-
-    // Simulate backend ledger transaction
-    setTimeout(() => {
-      setIsMigrating(false);
-      setMigrationComplete(true);
-      addLog("L1 LEDGER CONFIRMED: Stasis Lock broken.");
-      addLog("Assets successfully migrated to clean Republic Vault.");
-    }, 3500);
+  const returnToMainnet = () => {
+    router.push('/');
   };
 
   // --- VIEWPORT RENDERING ---
   return (
-    <div className="flex flex-col items-center justify-center w-full min-h-screen bg-gray-950 px-4 py-10 font-mono">
-      <div className={`w-full max-w-3xl border p-8 rounded-xl flex flex-col items-center shadow-lg transition-colors duration-1000 ${
-        migrationComplete 
-          ? 'bg-green-950 border-green-500 shadow-[0_0_40px_rgba(34,197,94,0.3)]' 
-          : 'bg-black border-cyan-900 shadow-[0_0_30px_rgba(8,145,178,0.2)]'
-      }`}>
+    // ADJUDICATOR FIX: Master Wrapper Shield applied for S23 (384x854)
+    <div className="flex flex-col items-center justify-center w-full min-h-screen bg-gray-950 px-4 py-10 font-mono overflow-x-hidden relative text-white">
+      <div className="w-full max-w-2xl border border-blue-900 bg-black p-8 rounded-xl flex flex-col items-center shadow-[0_0_30px_rgba(30,58,138,0.3)]">
         
         {/* Header Dashboard */}
-        <div className={`text-center mb-8 w-full border-b pb-4 ${migrationComplete ? 'border-green-800' : 'border-cyan-900'}`}>
-          <h1 className={`font-black tracking-widest uppercase text-3xl ${migrationComplete ? 'text-green-500' : 'text-cyan-500'}`}>
-            {migrationComplete ? 'Migration Successful' : 'Tribunal Recovery Protocol'}
+        <div className="text-center mb-8 w-full border-b border-blue-900 pb-4">
+          <h1 className="font-black tracking-widest uppercase text-3xl text-blue-500 animate-pulse">
+            Tribunal Bridge
           </h1>
           <p className="text-gray-400 text-sm mt-2 uppercase tracking-wider">
-            {migrationComplete ? 'E-Network Vault Secured' : '5-Tier Equilibrium • MESH Multi-Sig'}
+            TYPE-2 DEFENSE: SECURE RECOVERY SECTOR
           </p>
         </div>
 
-        {!migrationComplete ? (
-          <>
-            {/* 5-Tier Equilibrium Visualizer */}
-            <div className="w-full mb-8">
-              <div className="flex justify-between items-center mb-2">
-                <span className="text-cyan-400 text-xs font-bold uppercase tracking-widest">
-                  Consensus Matrix
-                </span>
-                <span className={`text-xs font-black ${thresholdMet ? 'text-green-400 animate-pulse' : 'text-cyan-600'}`}>
-                  {currentSignatures} / {REQUIRED_THRESHOLD} SECURED
-                </span>
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
-                {peers.map((peer) => (
-                  <div key={peer.id} className={`p-3 rounded border text-center ${
-                    peer.status === 'AUTHENTICATED' 
-                      ? 'bg-cyan-900 border-cyan-500 text-cyan-200' 
-                      : 'bg-gray-900 border-gray-700 text-gray-500'
-                  }`}>
-                    <div className="text-[10px] uppercase tracking-wider mb-1">{peer.designation}</div>
-                    <div className="text-xs font-bold">{peer.id}</div>
-                    <div className="mt-2 text-[9px] tracking-widest">
-                      {peer.status === 'AUTHENTICATED' ? '✓ VERIFIED' : 'PENDING'}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
+        {/* MESH Terminal Output */}
+        <div className="w-full bg-gray-900 border border-gray-700 p-4 rounded mb-8 text-xs text-blue-400 font-mono">
+          {">_"} {authLog}
+        </div>
 
-            {/* Cryptographic Injection Terminal */}
-            <div className="w-full bg-gray-900 p-6 rounded border border-gray-700 mb-8">
-              <label className="block text-gray-400 text-xs uppercase tracking-widest mb-3">
-                Inject Peer Node Signature
-              </label>
-              <div className="flex gap-4">
-                <input 
-                  type="text" 
-                  value={inputKey}
-                  onChange={(e) => setInputKey(e.target.value)}
-                  disabled={thresholdMet}
-                  placeholder="Paste 64-char ed25519 hash..."
-                  className="flex-1 bg-black border border-gray-600 rounded px-4 py-3 text-cyan-400 focus:outline-none focus:border-cyan-500 text-sm disabled:opacity-50"
-                />
-                <button 
-                  onClick={handleSignatureInjection}
-                  disabled={thresholdMet || !inputKey}
-                  className="px-6 py-3 bg-cyan-800 hover:bg-cyan-700 text-white font-bold tracking-widest uppercase rounded disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  Verify
-                </button>
-              </div>
-            </div>
-
-            {/* Execution Command */}
-            <div className="w-full">
-              <button 
-                onClick={executeMigration}
-                disabled={!thresholdMet || isMigrating}
-                className={`w-full py-5 font-extrabold text-xl tracking-widest rounded transition-all uppercase ${
-                  !thresholdMet 
-                    ? 'bg-black text-gray-600 border border-gray-800 cursor-not-allowed' 
-                    : isMigrating
-                      ? 'bg-yellow-700 text-yellow-200 cursor-wait'
-                      : 'bg-red-700 hover:bg-red-600 text-white border border-red-500 shadow-[0_0_20px_rgba(220,38,38,0.5)]'
-                }`}
-              >
-                {isMigrating ? 'Forging Blockchain Ledger...' : 'Execute Asset Migration'}
-              </button>
-            </div>
-          </>
-        ) : (
-          <div className="w-full text-center py-10">
-            <div className="text-6xl mb-6">🛡️</div>
-            <h2 className="text-2xl font-bold text-green-400 mb-4 uppercase tracking-widest">
-              Recovery Complete
-            </h2>
-            <p className="text-gray-400 text-sm max-w-md mx-auto">
-              The Type-2 Stasis Lock has been successfully bypassed via decentralized consensus. Your assets have been securely routed to your designated cold storage node.
-            </p>
+        {/* PHASE 1: TRIBUNAL SELECT */}
+        {phase === 'TRIBUNAL_SELECT' && (
+          <div className="w-full flex flex-col gap-4">
+            <button 
+              onClick={() => handleVectorSelect('PIONEER_RECLAIM')}
+              className="w-full py-4 bg-transparent border-2 border-green-700 text-green-500 hover:bg-green-900/30 font-bold uppercase tracking-widest transition-all"
+            >
+              [ Vector Alpha ] Pioneer Reclaim
+            </button>
+            <button 
+              onClick={() => handleVectorSelect('HEIR_TRANSFER')}
+              className="w-full py-4 bg-transparent border-2 border-purple-700 text-purple-500 hover:bg-purple-900/30 font-bold uppercase tracking-widest transition-all"
+            >
+              [ Vector Beta ] Transfer to Heirs
+            </button>
           </div>
         )}
 
-        {/* MESH Terminal Output */}
-        <div className="mt-8 w-full bg-black p-4 rounded h-36 overflow-y-auto border border-gray-800 text-[11px] text-gray-500">
-          {meshLogs.map((log, index) => (
-             <div key={index} className="mb-1">{log}</div>
-          ))}
-        </div>
+        {/* PHASE 2: CRYPTOGRAPHIC CHALLENGE */}
+        {phase === 'CRYPTOGRAPHIC_CHALLENGE' && (
+          <div className="w-full flex flex-col gap-4">
+            <p className="text-sm text-gray-400 mb-2">Paste the 24-Word Genesis Phrase to authenticate {vector === 'HEIR_TRANSFER' ? 'the Deadman Switch' : 'ownership'}.</p>
+            <textarea 
+              className="w-full h-32 bg-gray-950 border border-gray-700 text-white p-3 rounded font-mono text-sm focus:outline-none focus:border-blue-500 resize-none"
+              placeholder="word1 word2 word3..."
+              value={entropyInput}
+              onChange={(e) => setEntropyInput(e.target.value)}
+            />
+            <button 
+              onClick={executeVerification}
+              className="w-full py-4 bg-blue-900 hover:bg-blue-800 text-white border border-blue-500 font-bold uppercase tracking-widest rounded transition-all mt-4"
+            >
+              Execute Handshake
+            </button>
+            <button 
+              onClick={() => setPhase('TRIBUNAL_SELECT')}
+              className="w-full py-2 bg-transparent text-gray-500 text-xs uppercase hover:text-white mt-2"
+            >
+              Abort & Reselect Vector
+            </button>
+          </div>
+        )}
+
+        {/* PHASE 3: RESOLUTION */}
+        {phase === 'RESOLUTION' && (
+          <div className="w-full flex flex-col items-center gap-6">
+            <div className="text-green-500 text-center border border-green-800 bg-green-950/30 p-6 rounded w-full">
+              <h2 className="text-2xl font-black uppercase mb-2">Stasis Lifted</h2>
+              <p className="text-sm text-green-400">
+                {vector === 'HEIR_TRANSFER' 
+                  ? "Deadman protocol verified. Assets securely routed to designated heirs." 
+                  : "Ownership verified. Master node access restored to Pioneer."}
+              </p>
+            </div>
+            <button 
+              onClick={returnToMainnet}
+              className="w-full py-4 bg-black border-2 border-white text-white hover:bg-white hover:text-black font-extrabold uppercase tracking-widest rounded transition-all"
+            >
+              Return to E-Network
+            </button>
+          </div>
+        )}
 
       </div>
     </div>
