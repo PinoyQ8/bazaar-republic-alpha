@@ -62,33 +62,37 @@ export default function RepublicMasterNode() {
         addLog(`Incomplete payment detected: ${incompletePayment.identifier}`);
       });
 
-      if (auth && auth.user) {
-        addLog("Pi Core Auth Success. Token Secured.");
-        
-        // ADJUDICATOR FIX: Determine the correct API bridge URL
-        // If we are on Vercel, use the absolute URL to prevent localhost 404s
-        const baseUrl = process.env.NODE_ENV === 'production' 
-          ? 'https://mesh-academy-alpha.vercel.app' 
-          : ''; 
+      // Inside executePiHandshake function...
+if (auth && auth.user) {
+  addLog("Pi Core Auth Success. Token Secured.");
 
-        const response = await fetch(`${baseUrl}/api/register-citizen`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            uid: auth.user.uid, 
-            username: auth.user.username,
-            walletAddress: auth.user.walletAddress || "PENDING"
-          }),
-        });
+  // Inside J:\Project-Bazaar\bazaar-republic-alpha\app\page.tsx
 
-        if (response.ok) {
-          addLog("VAULT ACCESSED: Citizen Registry Updated.");
-          setCurrentPhase('OPERATIONAL');
-        } else {
-          const errorData = await response.json();
-          addLog(`VAULT REJECTED: ${errorData.message}`);
-        }
-      }
+const response = await fetch('/api/register-citizen', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ 
+    // THE DUAL-KEY FIX:
+    pi_uid: auth.user.uid,             // Maps to 'pi_uid' (text)
+    citizen_uid: auth.user.uid,        // Maps to 'citizen_uid' (character varying)
+    
+    // THE IDENTITY DATA:
+    username: auth.user.username,      // Maps to 'username'
+    pi_wallet_address: auth.user.walletAddress || "PENDING", // Maps to 'pi_wallet_address'
+    
+    // THE DEFAULT STATE (Optional - ensure backend handles these if not sent):
+    defense_status: 'OPERATIONAL'      // Maps to 'defense_status'
+  }),
+});
+
+  if (response.ok) {
+    addLog("VAULT ACCESSED: Citizen Registry Updated.");
+    setCurrentPhase('OPERATIONAL');
+  } else {
+    const errorData = await response.json();
+    addLog(`VAULT REJECTED: ${errorData.message || 'Data Constraint Violation'}`);
+  }
+}
     } catch (error) {
       addLog("HANDSHAKE REJECTED: SDK Connection Error.");
       console.error("MESH Error:", error);
