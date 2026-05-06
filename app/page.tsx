@@ -53,47 +53,44 @@ export default function RepublicMasterNode() {
   }, []);
 
   // --- THE GLOBAL HANDSHAKE PROTOCOL ---
-  const igniteHandshake = async () => {
+  const executePiHandshake = async () => {
     try {
       addLog("Initiating Pi Core Authentication...");
       
-      const scopes = ['username'];
-      const onIncompletePaymentFound = (payment: any) => { };
+      // Ensure we request the wallet_address scope explicitly
+      const scopes = ['username', 'payments', 'wallet_address'];
       
-      const authResults = await window.Pi.authenticate(scopes, onIncompletePaymentFound);
-      const uid = authResults.user.uid;
-      const username = authResults.user.username;
-      const token = authResults.accessToken; // CAPTURE KEY
-
-      setAccessToken(token); // Store in RAM
-      addLog(`Pi Core Auth Success. Token Secured.`);
-
-      addLog("Pinging Fortified Vault...");
-      const vaultResponse = await fetch('/api/sync-citizen', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ uid: uid, username: username, token: token }) // PASS TOKEN
+      const auth = await window.Pi.authenticate(scopes, (incompletePayment: any) => {
+        addLog(`Incomplete payment detected: ${incompletePayment.identifier}`);
       });
 
-      const vaultData = await vaultResponse.json();
-
-      if (vaultResponse.ok && vaultData.mesh_status === "SUCCESS") {
-        setCitizenUID(uid);
-        setCitizenUsername(username); 
-        setDefenseStatus(vaultData.defense_status);
+      if (auth && auth.user) {
+        addLog("Pi Core Auth Success. Token Secured.");
         
-        if (vaultData.is_new_citizen) {
-           addLog(`Welcome to the Republic. Profile Minted.`);
-           setCurrentPhase('OPERATIONAL'); 
+        // ADJUDICATOR FIX: Extract the wallet address if available
+        const walletAddress = auth.user.walletAddress || "PI_WALLET_PENDING";
+        
+        // This is where we call your backend API
+        const response = await fetch('/api/register-citizen', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            uid: auth.user.uid, 
+            username: auth.user.username,
+            walletAddress: walletAddress // PASSING THE CRITICAL DATA
+          }),
+        });
+
+        if (response.ok) {
+          addLog("VAULT ACCESSED: Citizen Registry Updated.");
+          setCurrentPhase('OPERATIONAL');
         } else {
-           addLog(`Welcome back. Status: [${vaultData.defense_status}]`);
-           setCurrentPhase(vaultData.defense_status === 'STASIS' ? 'STASIS' : 'OPERATIONAL');
+          const errorData = await response.json();
+          addLog(`VAULT REJECTED: ${errorData.message}`);
         }
-      } else {
-        addLog(`VAULT REJECTED: ${vaultData.message}`);
       }
     } catch (error) {
-      addLog("Handshake Failed. User rejected or Sandbox error.");
+      addLog("HANDSHAKE REJECTED: SDK Connection Error.");
     }
   };
 
@@ -145,12 +142,12 @@ export default function RepublicMasterNode() {
           </div>
           <h1 className="text-3xl font-black text-green-500 uppercase tracking-widest mb-8">Bazaar Republic</h1>
           <button 
-            onClick={igniteHandshake}
-            className="w-full py-5 bg-green-900 hover:bg-green-800 text-white border-2 border-green-500 font-extrabold text-xl tracking-widest rounded flex items-center justify-center gap-4 uppercase"
-          >
-            <Image src="/mBZR_icon.png" alt="mBZR" width={24} height={24} />
-            Connect Pi Wallet
-          </button>
+  onClick={executePiHandshake} // FIXED: Matches the function name in your logic block
+  className="w-full py-5 bg-green-900 hover:bg-green-800 text-white border-2 border-green-500 font-extrabold text-xl tracking-widest rounded transition-all shadow-[0_0_15px_rgba(34,197,94,0.4)] flex items-center justify-center gap-4 uppercase"
+>
+  <Image src="/mBZR_icon.png" alt="mBZR" width={24} height={24} />
+  Connect Pi Wallet
+</button>
           <div className="mt-8 w-full bg-gray-900 p-4 rounded h-32 overflow-y-auto border border-gray-700 text-xs text-green-400">
             {meshLogs.map((log, index) => <div key={index}>{">_"} {log}</div>)}
           </div>
