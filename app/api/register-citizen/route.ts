@@ -17,12 +17,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: "Invalid UID" }, { status: 400 });
     }
 
-    // ADJUDICATOR LOGIC: Upsert the citizen
+    // ADJUDICATOR LOGIC: Ensure these names match the SQL columns exactly
     await sql`
       INSERT INTO citizen_registry (pi_uid, username, pi_wallet_address, last_login)
       VALUES (${uid}, ${username}, ${walletAddress}, NOW())
       ON CONFLICT (pi_uid) 
       DO UPDATE SET 
+        username = EXCLUDED.username,
         pi_wallet_address = EXCLUDED.pi_wallet_address,
         last_login = NOW();
     `;
