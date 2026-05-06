@@ -1,55 +1,31 @@
+import { db } from '@vercel/postgres'; // Ensure you're using the Vercel Postgres client
 import { NextResponse } from 'next/server';
-import { sql } from '@vercel/postgres'; // MUST use the forward slash
 
 export async function POST(request: Request) {
-  // 1. Create the response object
-  const response = NextResponse.json({ message: "Process Initiated" });
-
-  // 2. Inject CORS Headers to satisfy the Pi Browser Sandbox
-  response.headers.set('Access-Control-Allow-Origin', '*'); 
-  response.headers.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-
   try {
-    const { uid, username, walletAddress } = await request.json();
+    const body = await request.json();
+    const { citizen_uid, username, pi_wallet_address } = body;
 
-    if (!uid) {
-      return NextResponse.json({ message: "Invalid UID" }, { status: 400 });
+    // ADJUDICATOR DEBUG: Verify data presence
+    if (!citizen_uid) {
+      return NextResponse.json({ message: "FAULT: Missing Citizen UID" }, { status: 400 });
     }
 
-    // ADJUDICATOR LOGIC: Ensure these names match the SQL columns exactly
-    await sql`
-      INSERT INTO citizen_registry (pi_uid, username, pi_wallet_address, last_login)
-      VALUES (${uid}, ${username}, ${walletAddress}, NOW())
-      ON CONFLICT (pi_uid) 
-      DO UPDATE SET 
-        username = EXCLUDED.username,
-        pi_wallet_address = EXCLUDED.pi_wallet_address,
-        last_login = NOW();
+    const client = await db.connect();
+    
+    // Execute the Upsert (Update or Insert if not exists)
+    await client.sql`
+      INSERT INTO citizen_registry (citizen_uid, username, pi_wallet_address, onboarded_at)
+      VALUES (${citizen_uid}, ${username}, ${pi_wallet_address}, NOW())
+      ON CONFLICT (citizen_uid) DO UPDATE 
+      SET last_sync = NOW(), username = ${username}, pi_wallet_address = ${pi_wallet_address};
     `;
 
-    return NextResponse.json({ message: "SUCCESS: Citizen Registered" }, { 
-      status: 200,
-      headers: response.headers // Attach the CORS headers
-    });
+    return NextResponse.json({ message: "VAULT ACCESSED" }, { status: 200 });
 
   } catch (error: any) {
-    console.error("VAULT ERROR:", error);
-    return NextResponse.json({ message: error.message }, { 
-      status: 500,
-      headers: response.headers 
-    });
+    console.error("VAULT_CRASH:", error.message);
+    // ADJUDICATOR REPAIR: Send the raw error back to the terminal for diagnosis
+    return NextResponse.json({ message: `VAULT ERROR: ${error.message}` }, { status: 500 });
   }
-}
-
-// 3. Handle the 'OPTIONS' pre-flight request (Crucial for Pi Browser)
-export async function OPTIONS() {
-  return new NextResponse(null, {
-    status: 204,
-    headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    },
-  });
 }
