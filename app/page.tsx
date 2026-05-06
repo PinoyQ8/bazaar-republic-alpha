@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import GracePeriodBuffer from './components/GracePeriodBuffer';
@@ -15,11 +15,13 @@ declare global {
 type MeshPhase = 'GENESIS' | 'OPERATIONAL' | 'INTERCEPT' | 'STASIS';
 
 export default function RepublicMasterNode() {
-  // 1. STATE RECOVERY (The "Missing Names" Fix)
   const [currentPhase, setCurrentPhase] = useState<MeshPhase>('GENESIS');
   const [meshLogs, setMeshLogs] = useState<string[]>([]);
   const [citizenUID, setCitizenUID] = useState<string | null>(null);
   const [piWalletAddress, setPiWalletAddress] = useState<string | null>(null);
+
+  // ADJUDICATOR FIX: The Hardware Lock
+  const sdkInitialized = useRef(false);
 
   const addLog = (message: string) => {
     setMeshLogs((prev) => {
@@ -31,35 +33,31 @@ export default function RepublicMasterNode() {
   // 2. THE INIT CIRCUIT
   useEffect(() => {
     addLog("Vercel Bridge Active. MESH Routing Matrix Online.");
-    if (typeof window !== 'undefined' && window.Pi) {
-      try {
-        window.Pi.init({ version: "2.0", sandbox: true });
-        addLog("Pi SDK Handshake: Sandbox Mode INITIALIZED.");
-      } catch (err) {
-        addLog("ADJUDICATOR ERROR: Pi SDK Initialization Failed.");
-      }
-    }
-  }, []);
+    }, []);
 
-  // 3. THE GLOBAL HANDSHAKE (Fixed Fetch Logic)
+// 3. THE GLOBAL HANDSHAKE
   const executePiHandshake = async () => {
-    // --- ALPHA DEV: X570 DIAGNOSTIC BYPASS ---
     if (typeof window === 'undefined' || !window.Pi) {
-      addLog("FOUNDER OVERRIDE: Booting Desktop Diagnostic Mode.");
-      setCitizenUID("SYS_ADMIN_X570");
-      setPiWalletAddress("DEBUG_WALLET_XYZ");
-      setCurrentPhase('OPERATIONAL');
-      return; // Stops the real Pi logic and forces you into the dashboard
+      addLog("ACCESS DENIED: You must access this node via the Pi Browser.");
+      return;
     }
 
     try {
+      // THE IGNITION LOCK: Only run init once, and only when button is clicked
+      if (!sdkInitialized.current) {
+        window.Pi.init({ version: "2.0", sandbox: true });
+        sdkInitialized.current = true;
+        addLog("Pi SDK Handshake: Sandbox Mode INITIALIZED.");
+      }
+
       addLog("Initiating Pi Core Authentication...");
-      // ... [Keep your existing auth and fetch logic below this]
       const scopes = ['username', 'payments', 'wallet_address'];
       
       const auth = await window.Pi.authenticate(scopes, (incompletePayment: any) => {
         addLog(`Incomplete payment: ${incompletePayment.identifier}`);
       });
+      
+      // ... [Keep the rest of your fetch logic below this exactly the same] ...
 
       if (auth && auth.user) {
         addLog("Pi Core Auth Success. Token Secured.");
