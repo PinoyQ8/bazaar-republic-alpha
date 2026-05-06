@@ -1,17 +1,24 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation'; // ADJUDICATOR FIX: Import the router
-import GenesisLockOnboarding from './components/GenesisLockOnboarding';
-import GracePeriodBuffer from './components/GracePeriodBuffer';
+import { useRouter } from 'next/navigation';
+import GracePeriodBuffer from './components/GracePeriodBuffer'; // Keep this import
+import Image from 'next/image'; // For your mBZR icon
+
+// --- TYPE-2 DEFENSE: TYPESCRIPT ADJUDICATOR SHIELD ---
+declare global {
+  interface Window {
+    Pi: any; // Bypasses TS strict mode for the external Pi SDK
+  }
+}
 
 type MeshPhase = 'GENESIS' | 'OPERATIONAL' | 'INTERCEPT' | 'STASIS';
 
 export default function RepublicMasterNode() {
-  const router = useRouter(); // Initialize the router
-  // ... rest of your state (currentPhase, meshLogs, etc.)
+  const router = useRouter();
   const [currentPhase, setCurrentPhase] = useState<MeshPhase>('GENESIS');
   const [meshLogs, setMeshLogs] = useState<string[]>([]);
+  const [citizenUID, setCitizenUID] = useState<string | null>(null);
 
   const addLog = (message: string) => {
     setMeshLogs((prev) => {
@@ -20,30 +27,93 @@ export default function RepublicMasterNode() {
     });
   };
 
+  // --- THE INIT CIRCUIT ---
   useEffect(() => {
     addLog("Vercel Bridge Active. MESH Routing Matrix Online.");
+    
+    // Attempt to initialize the Pi SDK if the script loaded
+    if (typeof window !== 'undefined' && window.Pi) {
+      try {
+        window.Pi.init({ version: "2.0", sandbox: true });
+        addLog("Pi SDK Handshake: Sandbox Mode INITIALIZED.");
+      } catch (err) {
+        addLog("ADJUDICATOR ERROR: Pi SDK Initialization Failed.");
+      }
+    } else {
+      addLog("WARNING: Pi Browser environment not detected. Running standard node.");
+    }
   }, []);
+
+  // --- THE GLOBAL HANDSHAKE (BETA FORGE) ---
+  const executePiHandshake = async () => {
+    if (typeof window === 'undefined' || !window.Pi) {
+      addLog("ACCESS DENIED: You must access this node via the Pi Browser.");
+      return;
+    }
+
+    try {
+      addLog("Initiating Zero-Knowledge Auth...");
+      
+      const scopes = ['username', 'payments', 'wallet_address'];
+      
+      // The core Pi Network Authentication Promise
+      const auth = await window.Pi.authenticate(scopes, (incompletePayment: any) => {
+        addLog(`Incomplete payment detected: ${incompletePayment.identifier}`);
+      });
+
+      if (auth && auth.user) {
+        setCitizenUID(auth.user.uid);
+        addLog(`HANDSHAKE ACCEPTED. UID: ${auth.user.uid.substring(0, 8)}...`);
+        setCurrentPhase('OPERATIONAL');
+      }
+    } catch (error) {
+      addLog("HANDSHAKE REJECTED: Connection severed by Pioneer or SDK.");
+      console.error("MESH Error:", error);
+    }
+  };
 
   // --- ALPHA DEV TOOL: FOUNDER RESET LOGIC ---
   const executeFounderReset = () => {
     setCurrentPhase('GENESIS');
+    setCitizenUID(null);
     setMeshLogs([`[${new Date().toLocaleTimeString()}] [ALPHA DEV] FOUNDER OVERRIDE TRIGGERED. RAM FLUSHED.`]);
   };
 
-  // --- PHASE ROUTING ENGINE ---
+  // --- PHASE 1: GENESIS ROUTING (NEW PI AUTH UI) ---
   if (currentPhase === 'GENESIS') {
     return (
-      <div className="relative w-full min-h-screen">
-        <GenesisLockOnboarding 
-          onVaultSecured={() => {
-            addLog("Republic Vault Key mathematically secured.");
-            setCurrentPhase('OPERATIONAL');
-          }} 
-        />
+      <div className="flex flex-col items-center justify-center w-full min-h-screen bg-gray-950 px-4 py-10 font-mono overflow-x-hidden relative">
+        <div className="w-full max-w-2xl border border-green-800 bg-black p-8 rounded-xl flex flex-col items-center shadow-[0_0_30px_rgba(20,83,45,0.3)]">
+          
+          {/* Logo Integration */}
+          <div className="mb-6 relative w-24 h-24">
+            <Image src="/bazaar-logo.png" alt="Bazaar Republic" fill className="object-contain" />
+          </div>
+
+          <h1 className="text-3xl font-black text-green-500 uppercase tracking-widest text-center mb-2">Bazaar Republic</h1>
+          <p className="text-gray-400 text-sm uppercase tracking-wider mb-8 text-center">Type-2 Defense Node</p>
+
+          <button 
+            onClick={executePiHandshake}
+            className="w-full py-5 bg-green-900 hover:bg-green-800 text-white border-2 border-green-500 font-extrabold text-xl tracking-widest rounded transition-all shadow-[0_0_15px_rgba(34,197,94,0.4)] flex items-center justify-center gap-4 uppercase"
+          >
+            <Image src="/mBZR_icon.png" alt="mBZR" width={24} height={24} />
+            Connect Pi Wallet
+          </button>
+
+          {/* MESH Terminal Output */}
+          <div className="mt-8 w-full bg-gray-900 p-4 rounded h-32 overflow-y-auto border border-gray-700 text-xs text-green-400 font-mono">
+            {meshLogs.map((log, index) => (
+               <div key={index} className="mb-1">{">_"} {log}</div>
+            ))}
+          </div>
+
+        </div>
         <FounderResetButton onReset={executeFounderReset} />
       </div>
     );
   }
+  // ... [KEEP YOUR EXISTING `INTERCEPT`, `OPERATIONAL`, AND `STASIS` CODE EXACTLY THE SAME BELOW THIS LINE] ...
 
   if (currentPhase === 'INTERCEPT') {
     return (
