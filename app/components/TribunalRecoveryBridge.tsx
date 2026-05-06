@@ -27,34 +27,32 @@ export default function TribunalRecoveryBridge({ citizenUID }: { citizenUID: str
   // --- THE IRON KEY: DATABASE UNLOCK BRIDGE ---
   const executeVerification = async () => {
     if (entropyInput.length <= 20) {
-      setAuthLog("ADJUDICATOR ERROR: Cryptographic signature invalid or incomplete.");
-      return;
-    }
-
-    if (!citizenUID) {
-      setAuthLog("CRITICAL FAULT: Citizen UID missing from RAM. Cannot target Vault.");
+      setAuthLog("ADJUDICATOR ERROR: Cryptographic signature invalid.");
       return;
     }
 
     setIsProcessing(true);
-    setAuthLog("Verifying Cryptographic Signature... Pinging Vault.");
+    setAuthLog(`Transmitting ${vector} Handshake...`);
 
     try {
       const response = await fetch('/api/lift-stasis', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ citizen_uid: citizenUID }),
+        body: JSON.stringify({ 
+          citizen_uid: citizenUID,
+          vector: vector // Sends 'PIONEER_RECLAIM' or 'HEIR_TRANSFER'
+        }),
       });
 
       if (response.ok) {
         setPhase('RESOLUTION');
-        setAuthLog("HANDSHAKE ACCEPTED. Stasis Lock disengaged. Routing assets...");
+        setAuthLog(`HANDSHAKE ACCEPTED. ${vector === 'HEIR_TRANSFER' ? 'Deadman Switch triggered.' : 'Sovereignty restored.'}`);
       } else {
         const errorData = await response.json();
         setAuthLog(`TRIBUNAL REJECTED: ${errorData.message}`);
       }
     } catch (error) {
-      setAuthLog("NETWORK FAULT: Could not reach the Tribunal Vault.");
+      setAuthLog("NETWORK FAULT: Vault unreachable.");
     } finally {
       setIsProcessing(false);
     }

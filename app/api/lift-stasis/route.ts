@@ -3,26 +3,32 @@ import { NextResponse } from 'next/server';
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
-    const { citizen_uid } = body;
+    const { citizen_uid, vector } = await request.json();
 
-    if (!citizen_uid) {
-      return NextResponse.json({ message: "FAULT: Missing Citizen UID" }, { status: 400 });
+    if (!citizen_uid || !vector) {
+      return NextResponse.json({ message: "FAULT: Missing Payload Credentials" }, { status: 400 });
     }
 
     const client = await db.connect();
     
-    // MATHEMATICAL REVERSAL: Lift the lock and restore the node
+    // LOGIC GATE: Determine the new status based on the selected vector
+    // Vector Alpha: Pioneer returns to Operational status
+    // Vector Beta: Heir initiates Transfer status (Deadman Switch)
+    const targetStatus = vector === 'PIONEER_RECLAIM' ? 'OPERATIONAL' : 'HEIR_TRANSFER_PENDING';
+
     await client.sql`
       UPDATE citizen_registry 
-      SET vault_status = 'OPERATIONAL', last_sync = NOW()
+      SET vault_status = ${targetStatus}, 
+          last_sync = NOW()
       WHERE citizen_uid = ${citizen_uid};
     `;
 
-    return NextResponse.json({ message: "IRON SHIELD LIFTED" }, { status: 200 });
+    return NextResponse.json({ 
+      message: "VAULT UPDATED", 
+      new_status: targetStatus 
+    }, { status: 200 });
 
   } catch (error: any) {
-    console.error("TRIBUNAL_CRASH:", error.message);
     return NextResponse.json({ message: `VAULT ERROR: ${error.message}` }, { status: 500 });
   }
 }
