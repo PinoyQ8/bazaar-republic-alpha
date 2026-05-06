@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
+import GracePeriodBuffer from './components/GracePeriodBuffer';
 
 // --- TYPE-2 DEFENSE: TYPESCRIPT ADJUDICATOR SHIELD ---
 declare global {
@@ -96,43 +97,82 @@ export default function RepublicMasterNode() {
     setMeshLogs([`[ALPHA DEV] FOUNDER OVERRIDE: RAM FLUSHED.`]);
   };
 
-  // 4. UI RENDERING PHASES
-  if (currentPhase === 'GENESIS') {
+  // --- PHASE 2: OPERATIONAL (THE DASHBOARD) ---
+  if (currentPhase === 'OPERATIONAL') {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-black text-green-500 font-mono p-4">
+        <div className="w-full max-w-2xl border border-green-800 bg-black p-8 rounded-xl shadow-[0_0_30px_rgba(20,83,45,0.2)]">
+          <h1 className="text-2xl font-bold mb-4 uppercase tracking-widest text-center">NODE OPERATIONAL</h1>
+          
+          <div className="bg-gray-900 border border-gray-800 p-4 rounded mb-8">
+            <p className="mb-2 text-sm text-gray-400">Citizen UID: <span className="text-green-400 font-bold">{citizenUID?.substring(0, 12)}...</span></p>
+            <p className="text-xs text-gray-500">Linked Wallet: {piWalletAddress}</p>
+          </div>
+
+          {/* THE TRIGGER: Initiating the Defense Buffer */}
+          <button 
+            onClick={() => setCurrentPhase('INTERCEPT')}
+            className="w-full py-4 bg-gray-900 hover:bg-yellow-900 text-yellow-500 font-bold border border-yellow-700 uppercase tracking-widest rounded transition-all mb-4 shadow-[0_0_10px_rgba(234,179,8,0.2)]"
+          >
+            Initiate Transfer (Test Shield)
+          </button>
+        </div>
+        
+        <button 
+          onClick={executeFounderReset}
+          className="mt-8 px-6 py-2 border border-red-900 text-red-500 hover:bg-red-950 transition-all uppercase text-xs"
+        >
+          Flush RAM & Restart
+        </button>
+      </div>
+    );
+  }
+
+  // --- PHASE 3: INTERCEPT (THE 60-SECOND TIMER) ---
+  if (currentPhase === 'INTERCEPT') {
     return (
       <div className="flex flex-col items-center justify-center w-full min-h-screen bg-gray-950 px-4 py-10 font-mono">
-        <div className="w-full max-w-2xl border border-green-800 bg-black p-8 rounded-xl flex flex-col items-center shadow-[0_0_30px_rgba(20,83,45,0.3)]">
-          <div className="mb-6 relative w-24 h-24">
-            <Image src="/bazaar-logo.png" alt="Bazaar Republic" fill className="object-contain" />
-          </div>
-          <h1 className="text-3xl font-black text-green-500 uppercase mb-8">Bazaar Republic</h1>
-          
-          <button 
-            onClick={executePiHandshake}
-            className="w-full py-5 bg-green-900 hover:bg-green-800 text-white border-2 border-green-500 font-extrabold text-xl rounded flex items-center justify-center gap-4 uppercase"
-          >
-            <Image src="/mBZR_icon.png" alt="mBZR" width={24} height={24} />
-            Connect Pi Wallet
-          </button>
-
-          <div className="mt-8 w-full bg-gray-900 p-4 rounded h-32 overflow-y-auto border border-gray-700 text-xs text-green-400">
-            {meshLogs.map((log, i) => <div key={i}>{">_"} {log}</div>)}
-          </div>
+        <div className="w-full max-w-2xl">
+          <GracePeriodBuffer 
+            onAuthorize={() => {
+              addLog("Transaction Authorized via Interception Buffer.");
+              setCurrentPhase('OPERATIONAL'); // Returns to dashboard upon success
+            }}
+            onStasis={() => {
+              addLog("CRITICAL: Stasis Lock Engaged by Pioneer.");
+              setCurrentPhase('STASIS'); // Triggers the Vault deadbolt
+            }}
+          />
         </div>
       </div>
     );
   }
 
-  return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-black text-green-500 font-mono p-4">
-      <h1 className="text-2xl font-bold mb-4">NODE OPERATIONAL</h1>
-      <p className="mb-2">Citizen: {citizenUID?.substring(0, 8)}...</p>
-      <p className="mb-8 text-xs text-gray-500">Wallet: {piWalletAddress}</p>
-      <button 
-        onClick={executeFounderReset}
-        className="px-6 py-2 border border-red-500 text-red-500 hover:bg-red-950 transition-all uppercase text-xs"
-      >
-        Flush RAM & Restart
-      </button>
-    </div>
-  );
+  // --- PHASE 4: STASIS (THE VAULT DEADBOLT) ---
+  if (currentPhase === 'STASIS') {
+    return (
+      <div className="flex flex-col items-center justify-center w-full min-h-screen bg-red-950 px-4 py-10 font-mono relative overflow-hidden">
+        <div className="absolute inset-0 bg-red-500 opacity-10 animate-pulse pointer-events-none"></div>
+        <div className="w-full max-w-2xl border-2 border-red-600 bg-black p-8 rounded-xl z-10 shadow-[0_0_50px_rgba(220,38,38,0.4)] text-center">
+          <h1 className="text-4xl font-black text-red-500 uppercase tracking-widest mb-4">STASIS LOCK ENGAGED</h1>
+          <p className="text-gray-300 mb-8 leading-relaxed">
+            All outbound transactions have been mathematically frozen at the protocol level. 
+            Your assets are secure.
+          </p>
+          <div className="w-full py-4 bg-gray-900 border border-red-900 text-red-700 font-bold uppercase tracking-widest rounded opacity-50 cursor-not-allowed">
+            Node Locked
+          </div>
+        </div>
+        
+        <button 
+          onClick={executeFounderReset}
+          className="mt-8 px-6 py-2 border border-red-900 text-red-500 hover:bg-red-950 transition-all uppercase text-xs z-10"
+        >
+          Flush RAM (Founder Override)
+        </button>
+      </div>
+    );
+  }
+
+  return null; // Safety Fallback
 }
