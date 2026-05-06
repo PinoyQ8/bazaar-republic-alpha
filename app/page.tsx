@@ -1,5 +1,7 @@
 "use client";
 
+// At the top of app/page.tsx
+import TribunalRecoveryBridge from './components/TribunalRecoveryBridge';
 import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
 
@@ -64,8 +66,6 @@ export default function RepublicMasterNode() {
   const [meshLogs, setMeshLogs] = useState<string[]>([]);
   const [citizenUID, setCitizenUID] = useState<string | null>(null);
   const [piWalletAddress, setPiWalletAddress] = useState<string | null>(null);
-
-  // THE HARDWARE LOCK: Prevents Pi SDK Double-Boot Crash
   const sdkInitialized = useRef(false);
 
   const addLog = (message: string) => {
@@ -75,16 +75,37 @@ export default function RepublicMasterNode() {
     });
   };
 
-  useEffect(() => {
-    addLog("Vercel Bridge Active. MESH Routing Matrix Online.");
-  }, []);
+  // --- THE IRON SHIELD: DATABASE LOCK BRIDGE (Moved to Top Level) ---
+  const executeDatabaseLock = async () => {
+    if (!citizenUID) {
+      addLog("FAULT: No Citizen UID found in RAM.");
+      return;
+    }
+
+    try {
+      addLog("Transmitting STASIS protocol to Vercel Vault...");
+      const response = await fetch('/api/engage-stasis', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ citizen_uid: citizenUID }),
+      });
+
+      if (response.ok) {
+        addLog("VAULT CONFIRMED: Database Record Sealed.");
+        setCurrentPhase('STASIS'); 
+      } else {
+        const errorData = await response.json();
+        addLog(`LOCK FAILED: ${errorData.message}`);
+      }
+    } catch (error) {
+      addLog("NETWORK FAULT: Could not reach Vault.");
+    }
+  };
 
   const executePiHandshake = async () => {
-    // ALPHA DEV BYPASS: If on local desktop, force OPERATIONAL phase
     if (typeof window === 'undefined' || !window.Pi) {
-      addLog("FOUNDER OVERRIDE: Booting Desktop Diagnostic Mode.");
+      addLog("FOUNDER OVERRIDE: Desktop Diagnostic Mode.");
       setCitizenUID("SYS_ADMIN_X570");
-      setPiWalletAddress("DEBUG_WALLET_XYZ");
       setCurrentPhase('OPERATIONAL');
       return;
     }
@@ -93,20 +114,20 @@ export default function RepublicMasterNode() {
       if (!sdkInitialized.current) {
         window.Pi.init({ version: "2.0", sandbox: true });
         sdkInitialized.current = true;
-        addLog("Pi SDK Handshake: Sandbox Mode INITIALIZED.");
+        addLog("Pi SDK Handshake: INITIALIZED.");
       }
 
       addLog("Initiating Pi Core Authentication...");
-      const scopes = ['username', 'payments', 'wallet_address'];
+      // ADJUDICATOR FIX: Restricted to valid Pi scopes
+      const scopes = ['username', 'payments']; 
       
       const auth = await window.Pi.authenticate(scopes, (incompletePayment: any) => {
         addLog(`Incomplete payment: ${incompletePayment.identifier}`);
       });
 
       if (auth && auth.user) {
-        addLog("Pi Core Auth Success. Token Secured.");
+        addLog("Pi Core Auth Success.");
         setCitizenUID(auth.user.uid);
-        setPiWalletAddress(auth.user.walletAddress || "PENDING");
         setCurrentPhase('OPERATIONAL');
       }
     } catch (error) {
@@ -114,17 +135,11 @@ export default function RepublicMasterNode() {
     }
   };
 
-  const executeFounderReset = () => {
-    setCurrentPhase('GENESIS');
-    setCitizenUID(null);
-    setMeshLogs([`[ALPHA DEV] FOUNDER OVERRIDE: RAM FLUSHED.`]);
-  };
-
-  // --- RENDERING PHASES ---
+  // --- VIEWPORT RENDERING MATRIX ---
   if (currentPhase === 'GENESIS') {
     return (
-      <div className="flex flex-col items-center justify-center w-full min-h-screen bg-gray-950 px-4 py-10 font-mono">
-        <div className="w-full max-w-2xl border border-green-800 bg-black p-8 rounded-xl shadow-[0_0_30px_rgba(20,83,45,0.3)] text-center">
+      <div className="flex flex-col items-center justify-center w-full min-h-screen bg-gray-950 px-4 font-mono">
+        <div className="w-full max-w-2xl border border-green-800 bg-black p-8 rounded-xl text-center">
           <h1 className="text-3xl font-black text-green-500 uppercase mb-8">Bazaar Republic</h1>
           <button onClick={executePiHandshake} className="w-full py-5 bg-green-900 text-white border border-green-500 font-bold rounded uppercase">
             Connect Pi Wallet
@@ -139,29 +154,28 @@ export default function RepublicMasterNode() {
 
   if (currentPhase === 'OPERATIONAL') {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-black text-green-500 font-mono p-4">
-        <div className="w-full max-w-2xl border border-green-800 p-8 rounded-xl text-center">
-          <h1 className="text-2xl font-bold mb-4 uppercase">NODE OPERATIONAL</h1>
-          <p className="mb-2 text-sm text-gray-400">Citizen UID: <span className="text-green-400 font-bold">{citizenUID?.substring(0, 12)}...</span></p>
-          
-          <button onClick={() => setCurrentPhase('INTERCEPT')} className="w-full py-4 mt-8 bg-yellow-900 text-yellow-500 font-bold border border-yellow-700 uppercase rounded">
-            Initiate Transfer (Test Shield)
+      <div className="flex flex-col items-center justify-center min-h-screen bg-gray-950 px-4 font-mono">
+        <div className="w-full max-w-2xl p-8 border border-green-800 bg-black rounded-xl">
+          <h2 className="text-2xl font-black text-green-500 uppercase mb-4">Vault Operational</h2>
+          <p className="text-gray-400 mb-6 font-xs">UID: {citizenUID}</p>
+          <button 
+            onClick={() => setCurrentPhase('INTERCEPT')}
+            className="w-full py-4 bg-yellow-900/50 hover:bg-yellow-900 text-yellow-500 font-bold border border-yellow-500 rounded uppercase"
+          >
+            Initiate Asset Transfer (Test Shield)
           </button>
         </div>
-        <button onClick={executeFounderReset} className="mt-8 px-6 py-2 border border-red-900 text-red-500 uppercase text-xs">
-          Flush RAM & Restart
-        </button>
       </div>
     );
   }
 
   if (currentPhase === 'INTERCEPT') {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-gray-950 px-4 font-mono">
+      <div className="flex flex-col items-center justify-center min-h-screen bg-black px-4 font-mono">
         <div className="w-full max-w-2xl">
           <GracePeriodBuffer 
-            onAuthorize={() => setCurrentPhase('OPERATIONAL')}
-            onStasis={() => setCurrentPhase('STASIS')}
+            onAuthorize={() => setCurrentPhase('OPERATIONAL')} 
+            onStasis={executeDatabaseLock} 
           />
         </div>
       </div>
@@ -169,17 +183,7 @@ export default function RepublicMasterNode() {
   }
 
   if (currentPhase === 'STASIS') {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-red-950 px-4 font-mono text-center">
-        <div className="w-full max-w-2xl border-2 border-red-600 bg-black p-8 rounded-xl shadow-[0_0_50px_rgba(220,38,38,0.4)]">
-          <h1 className="text-4xl font-black text-red-500 uppercase mb-4">STASIS LOCK ENGAGED</h1>
-          <p className="text-gray-300">All outbound transactions frozen at protocol level.</p>
-        </div>
-        <button onClick={executeFounderReset} className="mt-8 px-6 py-2 border border-red-900 text-red-500 uppercase text-xs">
-          Flush RAM
-        </button>
-      </div>
-    );
+    return <TribunalRecoveryBridge citizenUID={citizenUID || ""} />;
   }
 
   return null;
