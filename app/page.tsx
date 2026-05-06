@@ -8,7 +8,8 @@ import Image from 'next/image'; // For your mBZR icon
 // --- TYPE-2 DEFENSE: TYPESCRIPT ADJUDICATOR SHIELD ---
 declare global {
   interface Window {
-    Pi: any; // Bypasses TS strict mode for the external Pi SDK
+    Pi: any; 
+    __PI_INITIALIZED__: boolean; // ADJUDICATOR FIX: Global state lock
   }
 }
 
@@ -19,6 +20,7 @@ export default function RepublicMasterNode() {
   const [currentPhase, setCurrentPhase] = useState<MeshPhase>('GENESIS');
   const [meshLogs, setMeshLogs] = useState<string[]>([]);
   const [citizenUID, setCitizenUID] = useState<string | null>(null);
+  const [defenseStatus, setDefenseStatus] = useState<string>("UNKNOWN");
 
   const addLog = (message: string) => {
     setMeshLogs((prev) => {
@@ -31,44 +33,70 @@ export default function RepublicMasterNode() {
   useEffect(() => {
     addLog("Vercel Bridge Active. MESH Routing Matrix Online.");
     
-    // Attempt to initialize the Pi SDK if the script loaded
     if (typeof window !== 'undefined' && window.Pi) {
-      try {
-        window.Pi.init({ version: "2.0", sandbox: true });
-        addLog("Pi SDK Handshake: Sandbox Mode INITIALIZED.");
-      } catch (err) {
-        addLog("ADJUDICATOR ERROR: Pi SDK Initialization Failed.");
+      if (!window.__PI_INITIALIZED__) {
+        try {
+          window.Pi.init({ version: "2.0", sandbox: true });
+          window.__PI_INITIALIZED__ = true; // Lock the circuit
+          addLog("Pi SDK Handshake: Sandbox Mode INITIALIZED.");
+        } catch (err) {
+          addLog("ADJUDICATOR ERROR: Pi SDK Initialization Failed.");
+        }
+      } else {
+        // Silent pass: SDK is already running in the background
       }
     } else {
       addLog("WARNING: Pi Browser environment not detected. Running standard node.");
     }
   }, []);
 
-  // --- THE GLOBAL HANDSHAKE (BETA FORGE) ---
-  const executePiHandshake = async () => {
-    if (typeof window === 'undefined' || !window.Pi) {
-      addLog("ACCESS DENIED: You must access this node via the Pi Browser.");
-      return;
-    }
-
+  // --- THE GLOBAL HANDSHAKE PROTOCOL ---
+  const igniteHandshake = async () => {
     try {
-      addLog("Initiating Zero-Knowledge Auth...");
+      addLog("Initiating Pi Core Authentication...");
       
-      const scopes = ['username', 'payments', 'wallet_address'];
+      // Step 1: The Zero-Knowledge Handshake (Frontend)
+      const scopes = ['username'];
+      const onIncompletePaymentFound = (payment: any) => { /* Payment logic bypassed for Alpha */ };
       
-      // The core Pi Network Authentication Promise
-      const auth = await window.Pi.authenticate(scopes, (incompletePayment: any) => {
-        addLog(`Incomplete payment detected: ${incompletePayment.identifier}`);
+      const authResults = await window.Pi.authenticate(scopes, onIncompletePaymentFound);
+      const uid = authResults.user.uid;
+      const username = authResults.user.username;
+      
+      addLog(`Pi Core Auth Success. UID Captured.`);
+
+      // Step 2: The Vault Sync (Backend)
+      addLog("Pinging Type-2 Defense Vault...");
+      const vaultResponse = await fetch('/api/sync-citizen', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ uid: uid, username: username })
       });
 
-      if (auth && auth.user) {
-        setCitizenUID(auth.user.uid);
-        addLog(`HANDSHAKE ACCEPTED. UID: ${auth.user.uid.substring(0, 8)}...`);
-        setCurrentPhase('OPERATIONAL');
+      const vaultData = await vaultResponse.json();
+
+      if (vaultResponse.ok && vaultData.mesh_status === "SUCCESS") {
+        // Step 3: State Injection
+        setCitizenUID(uid);
+        setDefenseStatus(vaultData.defense_status);
+        
+        if (vaultData.is_new_citizen) {
+           addLog(`Welcome to the Republic, Pioneer. Profile Minted.`);
+           setCurrentPhase('OPERATIONAL'); // SHIFT UI TO DASHBOARD
+        } else {
+           addLog(`Welcome back. Status: [${vaultData.defense_status}]`);
+           // ADJUDICATOR ROUTING: Check if they are locked in STASIS
+           if (vaultData.defense_status === 'STASIS') {
+               setCurrentPhase('STASIS'); // SHIFT UI DIRECTLY TO RED LOCK SCREEN
+           } else {
+               setCurrentPhase('OPERATIONAL'); // SHIFT UI TO GREEN DASHBOARD
+           }
+        }
       }
+
     } catch (error) {
-      addLog("HANDSHAKE REJECTED: Connection severed by Pioneer or SDK.");
-      console.error("MESH Error:", error);
+      addLog("Handshake Failed. User rejected or Sandbox error.");
+      console.error(error);
     }
   };
 
@@ -81,6 +109,10 @@ export default function RepublicMasterNode() {
 
   // --- PHASE 1: GENESIS ROUTING (NEW PI AUTH UI) ---
   if (currentPhase === 'GENESIS') {
+    const executePiHandshake = () => {
+      igniteHandshake();
+    }
+
     return (
       <div className="flex flex-col items-center justify-center w-full min-h-screen bg-gray-950 px-4 py-10 font-mono overflow-x-hidden relative">
         <div className="w-full max-w-2xl border border-green-800 bg-black p-8 rounded-xl flex flex-col items-center shadow-[0_0_30px_rgba(20,83,45,0.3)]">
