@@ -43,13 +43,18 @@ export default function RepublicMasterNode() {
 
   // 3. THE GLOBAL HANDSHAKE (Fixed Fetch Logic)
   const executePiHandshake = async () => {
+    // --- ALPHA DEV: X570 DIAGNOSTIC BYPASS ---
     if (typeof window === 'undefined' || !window.Pi) {
-      addLog("ACCESS DENIED: You must access this node via the Pi Browser.");
-      return;
+      addLog("FOUNDER OVERRIDE: Booting Desktop Diagnostic Mode.");
+      setCitizenUID("SYS_ADMIN_X570");
+      setPiWalletAddress("DEBUG_WALLET_XYZ");
+      setCurrentPhase('OPERATIONAL');
+      return; // Stops the real Pi logic and forces you into the dashboard
     }
 
     try {
       addLog("Initiating Pi Core Authentication...");
+      // ... [Keep your existing auth and fetch logic below this]
       const scopes = ['username', 'payments', 'wallet_address'];
       
       const auth = await window.Pi.authenticate(scopes, (incompletePayment: any) => {

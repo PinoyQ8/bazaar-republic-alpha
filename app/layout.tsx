@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
-// ADJUDICATOR FIX: Removed Next.js 'Script' import. We bypass optimization here.
+import Script from "next/script"; // ADJUDICATOR FIX: Re-engaging standard Next.js protocol
 import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"] });
@@ -17,11 +17,12 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <head>
-        {/* THE GLOBAL HANDSHAKE: Raw HTML injection forces Pi SDK to mount first */}
-        <script src="https://sdk.minepi.com/pi-sdk.js" async={false}></script>
-      </head>
       <body className={`${inter.className} bg-black text-white overflow-x-hidden min-h-screen`}>
+        {/* THE GLOBAL HANDSHAKE: Official Next.js Integration */}
+        <Script 
+          src="https://sdk.minepi.com/pi-sdk.js" 
+          strategy="beforeInteractive" 
+        />
         {children}
       </body>
     </html>
