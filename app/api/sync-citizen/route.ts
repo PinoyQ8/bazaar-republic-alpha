@@ -3,7 +3,6 @@ import { NextResponse } from 'next/server';
 
 export async function POST(req: Request) {
   try {
-    // 1. DATA EXTRACTION: Capture the Token, UID, and Username
     const { uid, username, token } = await req.json();
 
     if (!uid || !token) {
@@ -11,7 +10,6 @@ export async function POST(req: Request) {
     }
 
     // --- SECURITY GATEKEEPER: PCT VERIFICATION ---
-    // This ensures no one can "guess" a UID to find a Citizen's status
     const piVerifyReq = await fetch('https://api.minepi.com/v2/me', {
       headers: { 'Authorization': `Bearer ${token}` }
     });
@@ -29,8 +27,7 @@ export async function POST(req: Request) {
     `;
 
     if (citizenCheck.rowCount === 0) {
-      // Step 2A: New Pioneer Detected. Generate Master Recovery Key.
-      // Math: Random 6-digit string between 100000 and 999999
+      // Step 2A: New Pioneer Detected. Generate 6-Digit Master Recovery Key.
       const generatedPin = Math.floor(100000 + Math.random() * 900000).toString();
 
       await sql`
@@ -38,12 +35,11 @@ export async function POST(req: Request) {
         VALUES (${uid}, ${username || 'PIONEER'}, 'OPERATIONAL', ${generatedPin})
       `;
       
-      // RETURN THE PIN ONLY ONCE (MINTING EVENT)
       return NextResponse.json({ 
         mesh_status: "SUCCESS", 
         defense_status: "OPERATIONAL",
         is_new_citizen: true,
-        recovery_pin: generatedPin // SHIPPED TO VIEWPORT
+        recovery_pin: generatedPin 
       }, { status: 200 });
 
     } else {
@@ -55,8 +51,11 @@ export async function POST(req: Request) {
       }, { status: 200 });
     }
 
-  } catch (error) {
-    console.error("Vault Sync Error:", error);
-    return NextResponse.json({ mesh_status: "ERROR", message: "Database connection failed" }, { status: 500 });
+  } catch (error: any) {
+    console.error("VAULT CRASH DETECTED:", error.message);
+    return NextResponse.json({ 
+      mesh_status: "ERROR", 
+      message: error.message || "Database connection failed"
+    }, { status: 500 });
   }
 }
