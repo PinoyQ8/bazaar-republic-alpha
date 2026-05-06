@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
-import Script from "next/script"; // ADJUDICATOR FIX: Re-engaging standard Next.js protocol
+import Script from "next/script";
 import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"] });
@@ -18,10 +18,10 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${inter.className} bg-black text-white overflow-x-hidden min-h-screen`}>
-        {/* THE GLOBAL HANDSHAKE: Official Next.js Integration */}
+        {/* ADJUDICATOR FIX: Changed to afterInteractive to prevent mobile black screen */}
         <Script 
           src="https://sdk.minepi.com/pi-sdk.js" 
-          strategy="beforeInteractive" 
+          strategy="afterInteractive" 
         />
         {children}
       </body>
