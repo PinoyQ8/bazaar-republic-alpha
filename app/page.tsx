@@ -57,9 +57,7 @@ export default function RepublicMasterNode() {
     try {
       addLog("Initiating Pi Core Authentication...");
       
-      // Ensure we request the wallet_address scope explicitly
       const scopes = ['username', 'payments', 'wallet_address'];
-      
       const auth = await window.Pi.authenticate(scopes, (incompletePayment: any) => {
         addLog(`Incomplete payment detected: ${incompletePayment.identifier}`);
       });
@@ -67,17 +65,19 @@ export default function RepublicMasterNode() {
       if (auth && auth.user) {
         addLog("Pi Core Auth Success. Token Secured.");
         
-        // ADJUDICATOR FIX: Extract the wallet address if available
-        const walletAddress = auth.user.walletAddress || "PI_WALLET_PENDING";
-        
-        // This is where we call your backend API
-        const response = await fetch('/api/register-citizen', {
+        // ADJUDICATOR FIX: Determine the correct API bridge URL
+        // If we are on Vercel, use the absolute URL to prevent localhost 404s
+        const baseUrl = process.env.NODE_ENV === 'production' 
+          ? 'https://mesh-academy-alpha.vercel.app' 
+          : ''; 
+
+        const response = await fetch(`${baseUrl}/api/register-citizen`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ 
             uid: auth.user.uid, 
             username: auth.user.username,
-            walletAddress: walletAddress // PASSING THE CRITICAL DATA
+            walletAddress: auth.user.walletAddress || "PENDING"
           }),
         });
 
@@ -91,6 +91,7 @@ export default function RepublicMasterNode() {
       }
     } catch (error) {
       addLog("HANDSHAKE REJECTED: SDK Connection Error.");
+      console.error("MESH Error:", error);
     }
   };
 
