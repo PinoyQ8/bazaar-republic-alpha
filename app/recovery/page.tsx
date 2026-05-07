@@ -1,13 +1,18 @@
 "use client";
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 
 type RecoveryPhase = 'TRIBUNAL_SELECT' | 'CRYPTOGRAPHIC_CHALLENGE' | 'RESOLUTION';
 type RecoveryVector = 'PIONEER_RECLAIM' | 'HEIR_TRANSFER' | null;
 
-export default function TribunalRecoveryBridge() {
+// The main logic wrapper
+function TribunalLogic() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  
+  // Extract the UID from the URL (e.g., /recovery?uid=XYZ123)
+  const citizenUID = searchParams.get('uid');
   
   // --- STATE MACHINE ---
   const [phase, setPhase] = useState<RecoveryPhase>('TRIBUNAL_SELECT');
