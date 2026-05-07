@@ -6,7 +6,7 @@ import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import HeirRegistryConsole from './components/HeirRegistryConsole';
 
-// --- TYPE-2 DEFENSE: TYPESCRIPT ADJUDICATOR SHIELD ---
+// 🛡️ TYPE DECLARATION: Silence the TS Adjudicator for the Pi Object
 declare global {
   interface Window {
     Pi: any;
@@ -63,6 +63,9 @@ function GracePeriodBuffer({ onAuthorize, onStasis }: GracePeriodProps) {
 // 2. THE MASTER NODE LOGIC
 // =========================================================================
 export default function RepublicMasterNode() {
+  // 🛡️ BAZAAR AUTH RAM (Master Node State)
+// currentUid is purged. We will use citizenUID exclusively.
+const [tokenFromPi, setTokenFromPi] = useState<string>("");
   const [currentPhase, setCurrentPhase] = useState<MeshPhase>('GENESIS');
   const [meshLogs, setMeshLogs] = useState<string[]>([]);
   const [citizenUID, setCitizenUID] = useState<string | null>(null);
@@ -107,6 +110,7 @@ export default function RepublicMasterNode() {
     if (typeof window === 'undefined' || !window.Pi) {
       addLog("FOUNDER OVERRIDE: Desktop Diagnostic Mode.");
       setCitizenUID("SYS_ADMIN_X570");
+      setTokenFromPi("DESKTOP_MOCK_TOKEN"); // Fallback for your X570 Sandbox
       setCurrentPhase('OPERATIONAL');
       return;
     }
@@ -119,7 +123,6 @@ export default function RepublicMasterNode() {
       }
 
       addLog("Initiating Pi Core Authentication...");
-      // ADJUDICATOR FIX: Restricted to valid Pi scopes
       const scopes = ['username', 'payments']; 
       
       const auth = await window.Pi.authenticate(scopes, (incompletePayment: any) => {
@@ -129,6 +132,7 @@ export default function RepublicMasterNode() {
       if (auth && auth.user) {
         addLog("Pi Core Auth Success.");
         setCitizenUID(auth.user.uid);
+        setTokenFromPi(auth.accessToken); // 🛡️ THE SHIELD: Capturing the live Mainnet token
         setCurrentPhase('OPERATIONAL');
       }
     } catch (error) {
@@ -168,7 +172,7 @@ export default function RepublicMasterNode() {
           </button>
 
           {/* THE NEW HEIR CONSOLE INJECTED HERE */}
-          <HeirRegistryConsole citizenUID={citizenUID || ""} />
+          <HeirRegistryConsole citizenUID={citizenUID || ""} liveAccessToken={tokenFromPi} />
 
         </div>
       </div>

@@ -8,13 +8,15 @@ interface Heir {
   percent: number;
 }
 
-export default function HeirRegistryConsole({ citizenUID }: { citizenUID: string }) {
+export default function HeirRegistryConsole({ citizenUID, liveAccessToken }: { citizenUID: string, liveAccessToken: string }) {
+  // 1. RAM ALLOCATION (All hooks strictly inside the component)
   const [heirs, setHeirs] = useState<Heir[]>([]);
   const [labelInput, setLabelInput] = useState('');
   const [addressInput, setAddressInput] = useState('');
   const [percentInput, setPercentInput] = useState<number | ''>('');
   
   const [consoleLog, setConsoleLog] = useState("Awaiting Heir Inputs...");
+  const [authLog, setAuthLog] = useState<string>(""); // Moved inside
   const [isProcessing, setIsProcessing] = useState(false);
 
   // MATHEMATICAL LOCK: Calculate current total allocation
@@ -45,31 +47,35 @@ export default function HeirRegistryConsole({ citizenUID }: { citizenUID: string
     setConsoleLog("Heir purged from RAM.");
   };
 
-  const executeRegistrySeal = async () => {
-    if (totalAllocation !== 100) {
-      setConsoleLog(`ADJUDICATOR BLOCK: Total allocation must equal exactly 100%. Currently at ${totalAllocation}%.`);
-      return;
-    }
+  // Example of the updated interface if you pass the token as a prop:
+// export default function HeirRegistryConsole({ citizenUID, liveAccessToken }: { citizenUID: string, liveAccessToken: string }) {
 
+  const executeRegistrySeal = async () => {
     setIsProcessing(true);
-    setConsoleLog("Transmitting Heir Matrix to Vercel Vault...");
+    setConsoleLog("Initiating Secure Handshake via Pi Network...");
+
+    // 🛡️ LIVE MAINNET VARIABLE (Replacing the sandbox mock)
+    // const userAccessToken = liveAccessToken; 
 
     try {
       const response = await fetch('/api/register-heir', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ citizen_uid: citizenUID, heirs }),
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${liveAccessToken}` // The real cryptographic signature
+        },
+        body: JSON.stringify({ 
+          citizen_uid: citizenUID, 
+          heirs: heirs 
+        }),
       });
 
-      if (response.ok) {
-        setConsoleLog("VAULT CONFIRMED: Heir Registry permanently sealed.");
-        // Optional: clear the form after successful save
-      } else {
-        const errorData = await response.json();
-        setConsoleLog(`FORGE FAILED: ${errorData.message}`);
-      }
+      const result = await response.json();
+      setConsoleLog(`>_ Status ${response.status}: ${result.message}`);
+      setAuthLog(`>_ ${result.message}`);
+
     } catch (error) {
-      setConsoleLog("NETWORK FAULT: Vault unreachable.");
+      setConsoleLog("NETWORK FAULT: Adjudicator unreachable.");
     } finally {
       setIsProcessing(false);
     }
@@ -99,7 +105,7 @@ export default function HeirRegistryConsole({ citizenUID }: { citizenUID: string
           id="heir-address"
           name="heirAddress"
           type="text" placeholder="Pi Wallet Address" 
-          autoComplete="off" /* Hard-coded to prevent Chrome from suggesting random data */
+          autoComplete="off" 
           className="bg-gray-950 border border-gray-700 text-white p-2 rounded text-sm focus:border-purple-500 outline-none md:col-span-2"
           value={addressInput} onChange={(e) => setAddressInput(e.target.value)}
         />
