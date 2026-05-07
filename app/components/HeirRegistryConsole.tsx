@@ -89,17 +89,24 @@ export default function HeirRegistryConsole({ citizenUID }: { citizenUID: string
       {/* INPUT MATRIX */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-2 mb-4">
         <input 
+          id="heir-label"
+          name="heirLabel"
           type="text" placeholder="Label (e.g. Reserve 1)" 
           className="bg-gray-950 border border-gray-700 text-white p-2 rounded text-sm focus:border-purple-500 outline-none md:col-span-1"
           value={labelInput} onChange={(e) => setLabelInput(e.target.value)}
         />
         <input 
+          id="heir-address"
+          name="heirAddress"
           type="text" placeholder="Pi Wallet Address" 
+          autoComplete="off" /* Hard-coded to prevent Chrome from suggesting random data */
           className="bg-gray-950 border border-gray-700 text-white p-2 rounded text-sm focus:border-purple-500 outline-none md:col-span-2"
           value={addressInput} onChange={(e) => setAddressInput(e.target.value)}
         />
         <div className="flex gap-2 md:col-span-1">
           <input 
+            id="heir-percent"
+            name="heirPercent"
             type="number" placeholder="%" max="100" min="1"
             className="w-16 bg-gray-950 border border-gray-700 text-white p-2 rounded text-sm focus:border-purple-500 outline-none"
             value={percentInput} onChange={(e) => setPercentInput(e.target.value === '' ? '' : Number(e.target.value))}
