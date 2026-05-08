@@ -157,66 +157,13 @@ const [tokenFromPi, setTokenFromPi] = useState<string>("");
     );
   }
 
-  // 🛡️ TIER 5 DIAGNOSTIC: Hardware Enclave Ping
-  const pingHardwareEnclave = async () => {
-    addLog("Pinging S23 Biometric Enclave...");
-
-    if (!window.PublicKeyCredential) {
-      addLog("ENCLAVE FAULT: WebAuthn API blocked by browser.");
-      return;
-    }
-
-    try {
-      // Forge a dummy cryptographic challenge
-      const challenge = new Uint8Array(32);
-      window.crypto.getRandomValues(challenge);
-      const userID = new Uint8Array(16);
-      window.crypto.getRandomValues(userID);
-
-      // Command the hardware to sign the challenge using biometrics
-      const credential = await navigator.credentials.create({
-        publicKey: {
-          challenge: challenge,
-          rp: { name: "Bazaar Republic", id: window.location.hostname },
-          user: {
-            id: userID,
-            name: "founder@bazaar",
-            displayName: "Bazaar Founder"
-          },
-          pubKeyCredParams: [{ alg: -7, type: "public-key" }], // ECDSA w/ SHA-256
-          authenticatorSelection: {
-            authenticatorAttachment: "platform", // Forces the phone's native scanner
-            userVerification: "required"
-          },
-          timeout: 60000
-        }
-      });
-
-      if (credential) {
-        addLog("VAULT CONFIRMED: Flesh Key (Biometrics) Accepted.");
-        alert("SUCCESS: The S23 Hardware Enclave is accessible!");
-      }
-
-    } catch (error: any) {
-      addLog(`ENCLAVE REJECTED: ${error.message}`);
-      alert(`DIAGNOSTIC FAILURE: ${error.message}`);
-    }
-  };
-
   if (currentPhase === 'OPERATIONAL') {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-gray-950 px-4 py-10 font-mono">
         <div className="w-full max-w-2xl p-8 border border-green-800 bg-black rounded-xl">
           <h2 className="text-2xl font-black text-green-500 uppercase mb-4">Vault Operational</h2>
           <p className="text-gray-400 mb-6 font-xs">UID: {citizenUID}</p>
-
-          <button 
-  onClick={pingHardwareEnclave}
-  className="w-full py-4 mb-4 bg-blue-900/50 hover:bg-blue-900 text-blue-400 font-bold border border-blue-500 rounded uppercase"
->
-  Test S23 Hardware Enclave (Biometrics)
-</button>
-          
+       
           <button 
             onClick={() => setCurrentPhase('INTERCEPT')}
             className="w-full py-4 bg-yellow-900/50 hover:bg-yellow-900 text-yellow-500 font-bold border border-yellow-500 rounded uppercase"
