@@ -4,6 +4,7 @@ import TribunalRecoveryBridge from './components/TribunalRecoveryBridge';
 import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import HeirRegistryConsole from './components/HeirRegistryConsole';
+import TreasuryDashboard from './components/TreasuryDashboard';
 
 // 🛡️ TYPE DECLARATION: Silence the TS Adjudicator for the Pi Object
 declare global {
@@ -251,20 +252,16 @@ export default function RepublicMasterNode() {
   if (currentPhase === 'OPERATIONAL') {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-gray-950 px-4 py-10 font-mono">
-        <div className="w-full max-w-2xl p-8 border border-green-800 bg-black rounded-xl">
+        <div className="w-full max-w-4xl p-8 border border-green-800 bg-black rounded-xl">
+          
+          {/* 🛡️ INJECTED TREASURY SECTOR */}
+          <TreasuryDashboard citizenUID={citizenUID || ""} liveAccessToken={tokenFromPi} />
+
           <h2 className="text-2xl font-black text-green-500 uppercase mb-4">Vault Operational</h2>
-          <p className="text-gray-400 mb-6 font-xs">UID: {citizenUID}</p>
-       
-          <button 
-            onClick={() => setCurrentPhase('INTERCEPT')}
-            className="w-full py-4 mb-8 bg-yellow-900/50 hover:bg-yellow-900 text-yellow-500 font-bold border border-yellow-500 rounded uppercase"
-          >
-            Initiate Asset Transfer (Test Shield)
-          </button>
+          
+          {/* ... Existing Initiate Asset Transfer Button ... */}
 
-          {/* THE NEW HEIR CONSOLE INJECTED HERE */}
           <HeirRegistryConsole citizenUID={citizenUID || ""} liveAccessToken={tokenFromPi} />
-
         </div>
       </div>
     );
