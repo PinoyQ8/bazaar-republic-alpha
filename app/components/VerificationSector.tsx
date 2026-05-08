@@ -54,53 +54,62 @@ export default function VerificationSector() {
   }, []);
 
   const handleGenesisOnboarding = async () => {
-    if (!isBridgeHot || txStatus === 'PENDING') return;
+  if (!isBridgeHot || txStatus === 'PENDING') return;
 
+  try {
+    setTxStatus('PENDING');
+    
+    // 1. Authenticate Node
+    const auth = await (window as any).Pi.authenticate(
+      ['payments', 'username'], 
+      resolveStackedPayment 
+    );
+    setPioneer(auth.user);
+
+    // 🛡️ ORIGIN BYPASS: Check if the node is PinoyQ8
+    if (auth.user.username.toLowerCase() === 'pinoyq8') {
+      console.log("[MESH-SCAN] Origin Node detected. Bypassing Payment Gate.");
+      setTxStatus('SUCCESS');
+      return; // Handshake complete for Founder
+    }
+
+    // 2. Standard Pioneer Protocol (Payment Required)
     const attempts = parseInt(localStorage.getItem('ALPHA_TX_ATTEMPTS') || '0');
     if (attempts >= MAX_ATTEMPTS) {
       setTxStatus('LOCKED');
       return;
     }
 
-    try {
-      setTxStatus('PENDING');
-      
-      const auth = await (window as any).Pi.authenticate(
-        ['payments', 'username'], 
-        resolveStackedPayment 
-      );
-      setPioneer(auth.user);
+    localStorage.setItem('ALPHA_TX_ATTEMPTS', (attempts + 1).toString());
 
-      localStorage.setItem('ALPHA_TX_ATTEMPTS', (attempts + 1).toString());
+    await (window as any).Pi.createPayment({
+      amount: ENTRY_FEE,
+      memo: `Alpha Entry: ${GRANT_AMOUNT} mBZR Grant`,
+      metadata: { type: "alpha_onboarding", reward: GRANT_AMOUNT },
+    }, {
+      onReadyForServerApproval: async (paymentId: string) => {
+        await fetch("/api/pi/approve", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ paymentId }),
+        });
+      },
+      onReadyForServerConfirmation: async (paymentId: string) => {
+        localStorage.setItem('ALPHA_TX_ATTEMPTS', '0');
+        setTxStatus('SUCCESS');
+      },
+      onCancelled: () => setTxStatus('IDLE'),
+      onError: (err: any) => {
+        console.error("Payment Error:", err);
+        setTxStatus('IDLE');
+      }
+    });
 
-      await (window as any).Pi.createPayment({
-        amount: ENTRY_FEE,
-        memo: `Alpha Entry: ${GRANT_AMOUNT} mBZR Grant`,
-        metadata: { type: "alpha_onboarding", reward: GRANT_AMOUNT },
-      }, {
-        onReadyForServerApproval: async (paymentId: string) => {
-          await fetch("/api/pi/approve", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ paymentId }),
-          });
-        },
-        onReadyForServerConfirmation: async (paymentId: string) => {
-          localStorage.setItem('ALPHA_TX_ATTEMPTS', '0');
-          setTxStatus('SUCCESS');
-        },
-        onCancelled: () => setTxStatus('IDLE'),
-        onError: (err: any) => {
-          console.error("Payment Error:", err);
-          setTxStatus('IDLE');
-        }
-      });
-
-    } catch (error) {
-      console.error("[MESH-SCAN] Handshake Fracture:", error);
-      setTxStatus('IDLE');
-    }
-  };
+  } catch (error) {
+    console.error("[MESH-SCAN] Handshake Fracture:", error);
+    setTxStatus('IDLE');
+  }
+};
 
   return (
     <div className="flex flex-col items-center p-6 bg-slate-900 border-2 border-blue-500/20 rounded-2xl shadow-inner max-w-sm mx-auto">
