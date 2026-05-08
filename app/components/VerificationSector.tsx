@@ -7,7 +7,6 @@ const ENTRY_FEE = 0.05;
 const MAX_ATTEMPTS = 3;
 const GRANT_AMOUNT = 50;
 
-// Explicitly defining the Status types to prevent "No Overlap" errors
 type BridgeStatus = 'IDLE' | 'PENDING' | 'SUCCESS' | 'LOCKED';
 
 export default function VerificationSector() {
@@ -16,6 +15,7 @@ export default function VerificationSector() {
   const [txStatus, setTxStatus] = useState<BridgeStatus>('IDLE');
   const initAttempted = useRef(false);
 
+  // 🛡️ RECOVERY: Purge Stacked Payments
   const resolveStackedPayment = async (paymentId: string) => {
     console.warn("[MESH-SCAN] Stacked payment detected. Purging:", paymentId);
     await fetch("/api/pi/incomplete", {
@@ -23,6 +23,13 @@ export default function VerificationSector() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ paymentId }),
     });
+  };
+
+  // 🛡️ SESSION TERMINATION: Reset Bridge
+  const handleLogout = () => {
+    console.log("[MESH-SCAN] Terminating Session. Purging Identity...");
+    setPioneer(null);
+    setTxStatus('IDLE');
   };
 
   useEffect(() => {
@@ -54,65 +61,65 @@ export default function VerificationSector() {
   }, []);
 
   const handleGenesisOnboarding = async () => {
-  if (!isBridgeHot || txStatus === 'PENDING') return;
+    if (!isBridgeHot || txStatus === 'PENDING') return;
 
-  try {
-    setTxStatus('PENDING');
-    
-    // 1. Authenticate Node
-    const auth = await (window as any).Pi.authenticate(
-      ['payments', 'username'], 
-      resolveStackedPayment 
-    );
-    setPioneer(auth.user);
+    try {
+      setTxStatus('PENDING');
+      
+      const auth = await (window as any).Pi.authenticate(
+        ['payments', 'username'], 
+        resolveStackedPayment 
+      );
+      setPioneer(auth.user);
 
-    // 🛡️ ORIGIN BYPASS: Check if the node is PinoyQ8
-    if (auth.user.username.toLowerCase() === 'pinoyq8') {
-      console.log("[MESH-SCAN] Origin Node detected. Bypassing Payment Gate.");
-      setTxStatus('SUCCESS');
-      return; // Handshake complete for Founder
-    }
-
-    // 2. Standard Pioneer Protocol (Payment Required)
-    const attempts = parseInt(localStorage.getItem('ALPHA_TX_ATTEMPTS') || '0');
-    if (attempts >= MAX_ATTEMPTS) {
-      setTxStatus('LOCKED');
-      return;
-    }
-
-    localStorage.setItem('ALPHA_TX_ATTEMPTS', (attempts + 1).toString());
-
-    await (window as any).Pi.createPayment({
-      amount: ENTRY_FEE,
-      memo: `Alpha Entry: ${GRANT_AMOUNT} mBZR Grant`,
-      metadata: { type: "alpha_onboarding", reward: GRANT_AMOUNT },
-    }, {
-      onReadyForServerApproval: async (paymentId: string) => {
-        await fetch("/api/pi/approve", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ paymentId }),
-        });
-      },
-      onReadyForServerConfirmation: async (paymentId: string) => {
-        localStorage.setItem('ALPHA_TX_ATTEMPTS', '0');
+      // 🛡️ FOUNDER BYPASS
+      if (auth.user.username.toLowerCase() === 'pinoyq8') {
+        console.log("[MESH-SCAN] Origin Node detected. Bypassing Gate.");
         setTxStatus('SUCCESS');
-      },
-      onCancelled: () => setTxStatus('IDLE'),
-      onError: (err: any) => {
-        console.error("Payment Error:", err);
-        setTxStatus('IDLE');
+        return;
       }
-    });
 
-  } catch (error) {
-    console.error("[MESH-SCAN] Handshake Fracture:", error);
-    setTxStatus('IDLE');
-  }
-};
+      // 🛡️ PIONEER PROTOCOL
+      const attempts = parseInt(localStorage.getItem('ALPHA_TX_ATTEMPTS') || '0');
+      if (attempts >= MAX_ATTEMPTS) {
+        setTxStatus('LOCKED');
+        return;
+      }
+
+      localStorage.setItem('ALPHA_TX_ATTEMPTS', (attempts + 1).toString());
+
+      await (window as any).Pi.createPayment({
+        amount: ENTRY_FEE,
+        memo: `Alpha Entry: ${GRANT_AMOUNT} mBZR Grant`,
+        metadata: { type: "alpha_onboarding", reward: GRANT_AMOUNT },
+      }, {
+        onReadyForServerApproval: async (paymentId: string) => {
+          await fetch("/api/pi/approve", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ paymentId }),
+          });
+        },
+        onReadyForServerConfirmation: async (paymentId: string) => {
+          localStorage.setItem('ALPHA_TX_ATTEMPTS', '0');
+          setTxStatus('SUCCESS');
+        },
+        onCancelled: () => setTxStatus('IDLE'),
+        onError: (err: any) => {
+          console.error("Payment Error:", err);
+          setTxStatus('IDLE');
+        }
+      });
+
+    } catch (error) {
+      console.error("[MESH-SCAN] Handshake Fracture:", error);
+      setTxStatus('IDLE');
+    }
+  };
 
   return (
     <div className="flex flex-col items-center p-6 bg-slate-900 border-2 border-blue-500/20 rounded-2xl shadow-inner max-w-sm mx-auto">
+      {/* 🛡️ BRIDGE STATUS INDICATOR */}
       <div className="flex items-center gap-2 mb-4">
         <div className={`w-2 h-2 rounded-full animate-pulse ${isBridgeHot ? 'bg-green-500' : 'bg-red-500'}`} />
         <span className="text-[10px] font-mono text-slate-400 uppercase tracking-widest">
@@ -120,12 +127,19 @@ export default function VerificationSector() {
         </span>
       </div>
 
+      {/* 🛡️ DYNAMIC UI LAYERS */}
       {txStatus === 'SUCCESS' ? (
-        <div className="text-center space-y-3">
+        <div className="text-center space-y-4">
           <div className="py-2 px-4 bg-green-500/10 border border-green-500/50 rounded text-green-400 font-mono text-sm">
             WELCOME ELITE::{pioneer?.username?.toUpperCase()}
           </div>
           <p className="text-xs text-slate-400 font-mono">50 mBZR CREDITED</p>
+          <button 
+            onClick={handleLogout}
+            className="text-[10px] text-slate-500 hover:text-red-400 font-mono uppercase tracking-tighter transition-colors"
+          >
+            [ TERMINATE SESSION ]
+          </button>
         </div>
       ) : txStatus === 'LOCKED' ? (
         <div className="py-3 px-6 bg-red-500/20 border border-red-500 text-red-400 rounded text-xs font-mono text-center">
