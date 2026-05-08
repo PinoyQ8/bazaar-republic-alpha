@@ -1,0 +1,36 @@
+// 🛡️ BAZAAR VAULT CONFIG (PRISMA 7 COMPLIANT)
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// 🛡️ RECOVERY STATES
+enum RecoveryStatus {
+  STASIS     // 24-hour countdown in progress
+  EXPIRED    // Stasis over, claimable by heir
+  ABORTED    // Original Pioneer cancelled the request
+  FINALIZED  // Ownership has been transferred
+}
+
+// 🛡️ THE RECOVERY LEDGER
+model RecoveryLedger {
+  id                String         @id @default(cuid())
+  citizenUid        String         @unique // The Pioneer being reclaimed
+  initiatorHeir     String         // The address of the heir who triggered it
+  
+  stasisStart       DateTime       @default(now())
+  stasisEnd         DateTime       // This will be calculated in the API
+  
+  status            RecoveryStatus @default(STASIS)
+  
+  ipAddress         String?
+  userAgent         String?
+  
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  @@index([citizenUid, status])
+}
