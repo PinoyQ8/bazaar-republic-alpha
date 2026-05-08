@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from 'react';
+import AuditLedger from './AuditLedger'; // 🛡️ RE-ESTABLISHED BRIDGE
 
 interface Heir {
   label: string;
@@ -9,14 +10,13 @@ interface Heir {
 }
 
 export default function HeirRegistryConsole({ citizenUID, liveAccessToken }: { citizenUID: string, liveAccessToken: string }) {
-  // 1. RAM ALLOCATION (All hooks strictly inside the component)
+  // 1. RAM ALLOCATION
   const [heirs, setHeirs] = useState<Heir[]>([]);
   const [labelInput, setLabelInput] = useState('');
   const [addressInput, setAddressInput] = useState('');
   const [percentInput, setPercentInput] = useState<number | ''>('');
   
   const [consoleLog, setConsoleLog] = useState("Awaiting Heir Inputs...");
-  const [authLog, setAuthLog] = useState<string>(""); // Moved inside
   const [isProcessing, setIsProcessing] = useState(false);
 
   // MATHEMATICAL LOCK: Calculate current total allocation
@@ -47,22 +47,16 @@ export default function HeirRegistryConsole({ citizenUID, liveAccessToken }: { c
     setConsoleLog("Heir purged from RAM.");
   };
 
-  // Example of the updated interface if you pass the token as a prop:
-// export default function HeirRegistryConsole({ citizenUID, liveAccessToken }: { citizenUID: string, liveAccessToken: string }) {
-
   const executeRegistrySeal = async () => {
     setIsProcessing(true);
     setConsoleLog("Initiating Secure Handshake via Pi Network...");
-
-    // 🛡️ LIVE MAINNET VARIABLE (Replacing the sandbox mock)
-    // const userAccessToken = liveAccessToken; 
 
     try {
       const response = await fetch('/api/register-heir', {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${liveAccessToken}` // The real cryptographic signature
+          'Authorization': `Bearer ${liveAccessToken}` 
         },
         body: JSON.stringify({ 
           citizen_uid: citizenUID, 
@@ -72,7 +66,6 @@ export default function HeirRegistryConsole({ citizenUID, liveAccessToken }: { c
 
       const result = await response.json();
       setConsoleLog(`>_ Status ${response.status}: ${result.message}`);
-      setAuthLog(`>_ ${result.message}`);
 
     } catch (error) {
       setConsoleLog("NETWORK FAULT: Adjudicator unreachable.");
@@ -82,9 +75,8 @@ export default function HeirRegistryConsole({ citizenUID, liveAccessToken }: { c
   };
 
   return (
-    <div className="w-full mt-8 border border-purple-900 bg-black p-6 rounded-lg shadow-[0_0_20px_rgba(88,28,135,0.2)] font-mono">
+    <div className="w-full mt-8 border border-purple-900 bg-black p-6 rounded-lg shadow-[0_0_20px_rgba(88,28,135,0.2)] font-mono text-left">
       <div className="flex items-center gap-2 mb-4 text-purple-500 border-b border-purple-900 pb-2">
-        <span className="material-icons">account_tree</span>
         <h3 className="text-lg font-bold uppercase tracking-widest">Deadman Registry</h3>
       </div>
 
@@ -95,15 +87,11 @@ export default function HeirRegistryConsole({ citizenUID, liveAccessToken }: { c
       {/* INPUT MATRIX */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-2 mb-4">
         <input 
-          id="heir-label"
-          name="heirLabel"
           type="text" placeholder="Label (e.g. Reserve 1)" 
           className="bg-gray-950 border border-gray-700 text-white p-2 rounded text-sm focus:border-purple-500 outline-none md:col-span-1"
           value={labelInput} onChange={(e) => setLabelInput(e.target.value)}
         />
         <input 
-          id="heir-address"
-          name="heirAddress"
           type="text" placeholder="Pi Wallet Address" 
           autoComplete="off" 
           className="bg-gray-950 border border-gray-700 text-white p-2 rounded text-sm focus:border-purple-500 outline-none md:col-span-2"
@@ -111,8 +99,6 @@ export default function HeirRegistryConsole({ citizenUID, liveAccessToken }: { c
         />
         <div className="flex gap-2 md:col-span-1">
           <input 
-            id="heir-percent"
-            name="heirPercent"
             type="number" placeholder="%" max="100" min="1"
             className="w-16 bg-gray-950 border border-gray-700 text-white p-2 rounded text-sm focus:border-purple-500 outline-none"
             value={percentInput} onChange={(e) => setPercentInput(e.target.value === '' ? '' : Number(e.target.value))}
@@ -156,7 +142,7 @@ export default function HeirRegistryConsole({ citizenUID, liveAccessToken }: { c
         <button 
           onClick={executeRegistrySeal}
           disabled={isProcessing || totalAllocation !== 100}
-          className={`w-full py-3 font-black uppercase tracking-widest rounded transition-all ${
+          className={`w-full py-3 font-black uppercase tracking-widest rounded transition-all mb-6 ${
             totalAllocation === 100 
               ? 'bg-purple-700 hover:bg-purple-600 text-white border border-purple-400 shadow-[0_0_15px_rgba(147,51,234,0.4)]' 
               : 'bg-gray-800 text-gray-600 cursor-not-allowed border border-gray-700'
@@ -165,6 +151,9 @@ export default function HeirRegistryConsole({ citizenUID, liveAccessToken }: { c
           {isProcessing ? 'Forging Registry...' : 'Seal Heir Registry'}
         </button>
       </div>
+
+      {/* 🛡️ INJECTED AUDIT MATRIX (Visible to Pioneer) */}
+      <AuditLedger />
 
     </div>
   );
