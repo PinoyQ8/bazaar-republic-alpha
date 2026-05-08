@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 
-// 🛡️ CONSTANTS
 const ENTRY_FEE = 0.05;
 const MAX_ATTEMPTS = 3;
 const GRANT_AMOUNT = 50;
@@ -15,7 +14,6 @@ export default function VerificationSector() {
   const [txStatus, setTxStatus] = useState<BridgeStatus>('IDLE');
   const initAttempted = useRef(false);
 
-  // 🛡️ RECOVERY: Purge Stacked Payments
   const resolveStackedPayment = async (paymentId: string) => {
     console.warn("[MESH-SCAN] Stacked payment detected. Purging:", paymentId);
     await fetch("/api/pi/incomplete", {
@@ -25,7 +23,6 @@ export default function VerificationSector() {
     });
   };
 
-  // 🛡️ SESSION TERMINATION: Reset Bridge
   const handleLogout = () => {
     console.log("[MESH-SCAN] Terminating Session. Purging Identity...");
     setPioneer(null);
@@ -34,141 +31,109 @@ export default function VerificationSector() {
 
   useEffect(() => {
     if (initAttempted.current) return;
-
     const preHeat = async () => {
       const piNode = (window as any).Pi;
       if (piNode) {
         try {
-          console.log("[MESH-SCAN] Pre-heating Bridge...");
           await (window as any).Pi.init({ version: "2.0", sandbox: true });
           initAttempted.current = true;
           setTimeout(() => setIsBridgeHot(true), 1500);
         } catch (err) {
-          console.warn("[MESH-SCAN] Warm-up skipped:", err);
           setIsBridgeHot(true); 
         }
       }
     };
-
     const timer = setInterval(() => {
-      if ((window as any).Pi) {
-        preHeat();
-        clearInterval(timer);
-      }
+      if ((window as any).Pi) { preHeat(); clearInterval(timer); }
     }, 500);
-
     return () => clearInterval(timer);
   }, []);
 
   const handleGenesisOnboarding = async () => {
     if (!isBridgeHot || txStatus === 'PENDING') return;
-
     try {
       setTxStatus('PENDING');
-      
-      const auth = await (window as any).Pi.authenticate(
-        ['payments', 'username'], 
-        resolveStackedPayment 
-      );
+      const auth = await (window as any).Pi.authenticate(['payments', 'username'], resolveStackedPayment);
       setPioneer(auth.user);
 
-      // 🛡️ FOUNDER BYPASS
       if (auth.user.username.toLowerCase() === 'pinoyq8') {
-        console.log("[MESH-SCAN] Origin Node detected. Bypassing Gate.");
         setTxStatus('SUCCESS');
         return;
       }
 
-      // 🛡️ PIONEER PROTOCOL
       const attempts = parseInt(localStorage.getItem('ALPHA_TX_ATTEMPTS') || '0');
-      if (attempts >= MAX_ATTEMPTS) {
-        setTxStatus('LOCKED');
-        return;
-      }
-
+      if (attempts >= MAX_ATTEMPTS) { setTxStatus('LOCKED'); return; }
       localStorage.setItem('ALPHA_TX_ATTEMPTS', (attempts + 1).toString());
 
       await (window as any).Pi.createPayment({
         amount: ENTRY_FEE,
-        memo: `Alpha Entry: ${GRANT_AMOUNT} mBZR Grant`,
+        memo: `Alpha Entry: ${GRANT_AMOUNT} mBZR`,
         metadata: { type: "alpha_onboarding", reward: GRANT_AMOUNT },
       }, {
         onReadyForServerApproval: async (paymentId: string) => {
-          await fetch("/api/pi/approve", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ paymentId }),
-          });
+          await fetch("/api/pi/approve", { method: "POST", body: JSON.stringify({ paymentId }) });
         },
         onReadyForServerConfirmation: async (paymentId: string) => {
           localStorage.setItem('ALPHA_TX_ATTEMPTS', '0');
           setTxStatus('SUCCESS');
         },
         onCancelled: () => setTxStatus('IDLE'),
-        onError: (err: any) => {
-          console.error("Payment Error:", err);
-          setTxStatus('IDLE');
-        }
+        onError: () => setTxStatus('IDLE')
       });
-
-    } catch (error) {
-      console.error("[MESH-SCAN] Handshake Fracture:", error);
-      setTxStatus('IDLE');
-    }
+    } catch (error) { setTxStatus('IDLE'); }
   };
 
   return (
-    <div className="flex flex-col items-center p-6 bg-slate-900 border-2 border-blue-500/20 rounded-2xl shadow-inner max-w-sm mx-auto">
-      {/* 🛡️ BRIDGE STATUS INDICATOR */}
-      <div className="flex items-center gap-2 mb-4">
-        <div className={`w-2 h-2 rounded-full animate-pulse ${isBridgeHot ? 'bg-green-500' : 'bg-red-500'}`} />
+    <div className="flex flex-col items-center p-6 bg-slate-900 border-2 border-blue-500/20 rounded-2xl shadow-inner max-w-sm mx-auto relative overflow-hidden">
+      <div className="flex items-center gap-2 mb-6">
+        <div className={`w-2 h-2 rounded-full ${isBridgeHot ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
         <span className="text-[10px] font-mono text-slate-400 uppercase tracking-widest">
           {isBridgeHot ? "Mesh Sync Active" : "Bridge Warming"}
         </span>
       </div>
 
-      {/* 🛡️ DYNAMIC UI LAYERS */}
-      {txStatus === 'SUCCESS' ? (
-        <div className="text-center space-y-4">
-          <div className="py-2 px-4 bg-green-500/10 border border-green-500/50 rounded text-green-400 font-mono text-sm">
-            WELCOME ELITE::{pioneer?.username?.toUpperCase()}
+      <div className="w-full mb-6">
+        {txStatus === 'SUCCESS' ? (
+          <div className="text-center space-y-2">
+            <div className="py-2 px-4 bg-green-500/10 border border-green-500/50 rounded text-green-400 font-mono text-xs">
+              PIONEER::{pioneer?.username?.toUpperCase()}
+            </div>
+            <p className="text-[10px] text-blue-400 font-mono uppercase tracking-widest">50 mBZR Secured</p>
           </div>
-          <p className="text-xs text-slate-400 font-mono">50 mBZR CREDITED</p>
+        ) : txStatus === 'LOCKED' ? (
+          <div className="py-3 px-6 bg-red-500/20 border border-red-500 text-red-400 rounded text-[10px] font-mono text-center">
+            [SECURITY LOCK] MAX ATTEMPTS REACHED.
+          </div>
+        ) : (
           <button 
-            onClick={handleLogout}
-            className="text-[10px] text-slate-500 hover:text-red-400 font-mono uppercase tracking-tighter transition-colors"
+            onClick={handleGenesisOnboarding}
+            disabled={!isBridgeHot || txStatus === 'PENDING'}
+            className={`w-full py-4 font-bold rounded-lg transition-all ${
+              isBridgeHot && txStatus !== 'PENDING'
+                ? 'bg-blue-600 text-white hover:bg-blue-500 shadow-lg' 
+                : 'bg-slate-800 text-slate-600'
+            }`}
           >
-            [ TERMINATE SESSION ]
-          </button>
-        </div>
-      ) : txStatus === 'LOCKED' ? (
-        <div className="py-3 px-6 bg-red-500/20 border border-red-500 text-red-400 rounded text-xs font-mono text-center">
-          [SECURITY LOCK] MAX ATTEMPTS REACHED.
-        </div>
-      ) : (
-        <button 
-          onClick={handleGenesisOnboarding}
-          disabled={!isBridgeHot || txStatus === 'PENDING'}
-          className={`relative w-full py-4 font-bold rounded-lg transition-all group ${
-            isBridgeHot && txStatus !== 'PENDING'
-              ? 'bg-blue-600 text-white hover:bg-blue-500 shadow-[0_0_15px_rgba(37,99,235,0.4)]' 
-              : 'bg-slate-800 text-slate-600'
-          }`}
-        >
-          <span className="relative z-10 flex flex-col items-center">
-            <span className="text-sm uppercase tracking-tighter">
+            <span className="text-xs uppercase">
               {txStatus === 'PENDING' ? "Processing..." : "Join Circle of Elders"}
             </span>
-            {isBridgeHot && txStatus !== 'PENDING' && (
-              <span className="text-[9px] font-mono opacity-60">FEE: {ENTRY_FEE} TEST-PI</span>
-            )}
-          </span>
+          </button>
+        )}
+      </div>
+
+      {/* 🛡️ GLOBAL LOGOUT GATE - PERSISTENT EXCEPT DURING PENDING */}
+      {txStatus !== 'PENDING' && (pioneer || txStatus === 'LOCKED') && (
+        <button 
+          onClick={handleLogout}
+          className="mt-2 text-[9px] text-slate-600 hover:text-red-500 font-mono uppercase tracking-tighter transition-all"
+        >
+          [ TERMINATE SESSION / SWITCH NODE ]
         </button>
       )}
 
       {txStatus === 'PENDING' && (
-        <div className="mt-4 text-[10px] text-blue-400 font-mono animate-pulse">
-          RESOLVING BRIDGE...
+        <div className="text-[9px] text-blue-500 font-mono animate-pulse uppercase mt-2">
+          Handshake in Progress...
         </div>
       )}
     </div>
