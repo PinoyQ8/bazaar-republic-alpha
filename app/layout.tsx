@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
-// 🛡️ IMPORT THE SCRIPT COMPONENT
+// 🛡️ MESH IMPORTS
 import Script from "next/script";
+import MainNavigation from "./components/MainNavigation";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -30,11 +31,9 @@ export default function RootLayout({
             (function() {
               const initPi = () => {
                 if (window.Pi) {
-                  // 🛡️ MESH-SCAN: Ensure sandbox is true for X570, false for live S23 App
                   window.Pi.init({ version: "2.0", sandbox: true });
                   console.log("[MESH-SCAN] Global Bridge: PRIMED");
                 } else {
-                  // Retry every 100ms until the SDK is caught
                   setTimeout(initPi, 100);
                 }
               };
@@ -43,8 +42,12 @@ export default function RootLayout({
           `}
         </Script>
       </head>
-      <body className={inter.className}>
-        <main className="min-h-screen bg-slate-950 text-slate-50">
+      <body className={`${inter.className} bg-slate-950 text-slate-50 min-h-screen flex flex-col`}>
+        {/* 🛡️ THE GLOBAL NAVIGATION NODE */}
+        <MainNavigation />
+        
+        {/* 🛡️ CANONICAL TAILWIND ALIGNMENT: flex-grow replaced with grow */}
+        <main className="grow">
           {children}
         </main>
       </body>

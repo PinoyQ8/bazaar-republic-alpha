@@ -11,11 +11,13 @@ export default function VerificationSector() {
   useEffect(() => {
     if (initAttempted.current) return;
 
-    const preHeat = async () => {
-      if (window.Pi) {
-        try {
-          console.log("[MESH-SCAN] Pre-heating Bridge (Firing ID: 1)...");
-          await window.Pi.init({ version: "2.0", sandbox: true });
+    // Inside VerificationSector.tsx
+const preHeat = async () => {
+  const piNode = (window as any).Pi; // 🛡️ Explicitly casting window to any
+  if (piNode) {
+    try {
+      console.log("[MESH-SCAN] Pre-heating Bridge (Firing ID: 1)...");
+      await piNode.init({ version: "2.0", sandbox: true });
           
           initAttempted.current = true;
           // 🛡️ 1500ms safety buffer for Sandbox acknowledgement
