@@ -1,61 +1,47 @@
-import { sql } from '@vercel/postgres';
 import { NextResponse } from 'next/server';
+import { db } from '@vercel/postgres';
 
-export async function POST(req: Request) {
+export async function POST(request: Request) {
+  const client = await db.connect();
+
   try {
-    const { uid, username, token } = await req.json();
+    const { citizen_uid } = await request.json();
 
-    if (!uid || !token) {
-      return NextResponse.json({ mesh_status: "REJECTED", message: "Security Token or UID Missing" }, { status: 400 });
-    }
-
-    // --- SECURITY GATEKEEPER: PCT VERIFICATION ---
-    const piVerifyReq = await fetch('https://api.minepi.com/v2/me', {
-      headers: { 'Authorization': `Bearer ${token}` }
-    });
-
-    const piData = await piVerifyReq.json();
-
-    if (!piVerifyReq.ok || piData.uid !== uid) {
-      return NextResponse.json({ mesh_status: "REJECTED", message: "Cryptographic Mismatch" }, { status: 403 });
-    }
-    // --- END SECURITY GATEKEEPER ---
-
-    // Step 1: Scan the Vault for the Citizen
-    const citizenCheck = await sql`
-      SELECT defense_status FROM Citizen_Registry WHERE citizen_uid = ${uid}
+    // 🛡️ 1. FETCH CITIZEN STATE
+    const citizenData = await client.sql`
+      SELECT id, vault_status, uptime_shield FROM citizens 
+      WHERE citizen_uid = ${citizen_uid}
     `;
 
-    if (citizenCheck.rowCount === 0) {
-      // Step 2A: New Pioneer Detected. Generate 6-Digit Master Recovery Key.
-      const generatedPin = Math.floor(100000 + Math.random() * 900000).toString();
-
-      await sql`
-        INSERT INTO Citizen_Registry (citizen_uid, username, defense_status, recovery_pin)
-        VALUES (${uid}, ${username || 'PIONEER'}, 'OPERATIONAL', ${generatedPin})
-      `;
-      
-      return NextResponse.json({ 
-        mesh_status: "SUCCESS", 
-        defense_status: "OPERATIONAL",
-        is_new_citizen: true,
-        recovery_pin: generatedPin 
-      }, { status: 200 });
-
-    } else {
-      // Step 2B: Returning Citizen Detected.
-      return NextResponse.json({ 
-        mesh_status: "SUCCESS", 
-        defense_status: citizenCheck.rows[0].defense_status,
-        is_new_citizen: false
-      }, { status: 200 });
+    if (citizenData.rowCount === 0) {
+      return NextResponse.json({ message: "NEW_CITIZEN" }, { status: 200 });
     }
 
-  } catch (error: any) {
-    console.error("VAULT CRASH DETECTED:", error.message);
-    return NextResponse.json({ 
-      mesh_status: "ERROR", 
-      message: error.message || "Database connection failed"
-    }, { status: 500 });
+    const citizen = citizenData.rows[0];
+
+    // 🛡️ 2. FETCH AUDIT HISTORY (The Matrix Feed)
+    const logsData = await client.sql`
+      SELECT event_type, event_status, created_at 
+      FROM audit_logs 
+      WHERE citizen_id = ${citizen.id} 
+      ORDER BY created_at DESC LIMIT 5
+    `;
+
+    // 🛡️ 3. UPDATE LAST SYNC (Heartbeat)
+    await client.sql`
+      UPDATE citizens SET last_sync = CURRENT_TIMESTAMP WHERE id = ${citizen.id}
+    `;
+
+    return NextResponse.json({
+      status: "SUCCESS",
+      vault_status: citizen.vault_status,
+      uptime_shield: citizen.uptime_shield,
+      logs: logsData.rows
+    }, { status: 200 });
+
+  } catch (error) {
+    return NextResponse.json({ message: "SYNC_FAILED" }, { status: 500 });
+  } finally {
+    client.release();
   }
 }
