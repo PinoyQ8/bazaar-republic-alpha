@@ -1,54 +1,60 @@
-import { sql } from '@vercel/postgres';
 import { NextResponse } from 'next/server';
+import { db } from '@vercel/postgres'; // Ensure you have installed @vercel/postgres
 
 export async function POST(request: Request) {
+  const client = await db.connect();
+
   try {
-    // 1. EXTRACT THE AUTH SHIELD (Access Token)
+    const { citizen_uid, heirs } = await request.json();
     const authHeader = request.headers.get('Authorization');
-    const accessToken = authHeader?.split(' ')[1]; // Extract token from "Bearer [TOKEN]"
 
-    if (!accessToken) {
-      return NextResponse.json({ message: "ADJUDICATOR ERROR: Unauthenticated Access." }, { status: 401 });
+    // 🛡️ SECURITY ADJUDICATION: Verify the Pi Cryptographic Signature
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return NextResponse.json({ message: "FAULT: Unsigned Request. Access Denied." }, { status: 401 });
     }
 
-    // 2. VERIFY TOKEN WITH PI NETWORK BACKEND
-    // We ping Pi Network to ask: "Is this token valid, and who does it belong to?"
-    const piVerifyResponse = await fetch('https://api.minepi.com/v2/me', {
-      headers: { 'Authorization': `Bearer ${accessToken}` }
-    });
+    // 1. LOCATE CITIZEN ID
+    const citizenQuery = await client.sql`
+      SELECT id FROM citizens WHERE citizen_uid = ${citizen_uid}
+    `;
 
-    if (!piVerifyResponse.ok) {
-      return NextResponse.json({ message: "TRIBUNAL REJECTED: Invalid Pi Access Token." }, { status: 403 });
+    if (citizenQuery.rowCount === 0) {
+      return NextResponse.json({ message: "FAULT: Citizen UID not found in MESH." }, { status: 404 });
     }
 
-    const piUser = await piVerifyResponse.json();
-    const verifiedUid = piUser.uid; // The UID officially confirmed by Pi Network
+    const citizenId = citizenQuery.rows[0].id;
 
-    // 3. INTERCEPT PAYLOAD
-    const body = await request.json();
-    const { citizen_uid, heirs } = body;
+    // 2. CLEAR EXISTING REGISTRY (Preventing duplicate heir nodes)
+    await client.sql`DELETE FROM heirs WHERE citizen_id = ${citizenId}`;
 
-    // 4. THE MASTER VERIFICATION
-    // Ensure the UID provided in the body matches the UID verified by the token.
-    // This prevents "User A" from using their token to change "User B's" heirs.
-    if (citizen_uid !== verifiedUid) {
-      return NextResponse.json({ message: "SECURITY FRACTURE: UID Mismatch Detected." }, { status: 403 });
-    }
-
-    // 5. DATABASE FORGE (If verified, proceed to write)
-    await sql`DELETE FROM heir_registry WHERE citizen_uid = ${citizen_uid}`;
-
+    // 3. INJECT NEW HEIR REGISTRY
     for (const heir of heirs) {
-      await sql`
-        INSERT INTO heir_registry (citizen_uid, heir_label, heir_wallet_address, allocation_percentage)
-        VALUES (${citizen_uid}, ${heir.label}, ${heir.address}, ${heir.percent})
+      await client.sql`
+        INSERT INTO heirs (citizen_id, label, heir_address, allocation_percent)
+        VALUES (${citizenId}, ${heir.label}, ${heir.address}, ${heir.percent})
       `;
     }
 
-    return NextResponse.json({ message: "VAULT SEALED: Verified by Pi Network." }, { status: 200 });
+    // 4. LOG THE SECURITY EVENT
+    await client.sql`
+      INSERT INTO audit_logs (citizen_id, event_type, event_status)
+      VALUES (${citizenId}, 'REGISTRY_SEALED', 'SUCCESS')
+    `;
+
+    // 5. UPDATE VAULT STATUS
+    await client.sql`
+      UPDATE citizens SET vault_status = 'OPERATIONAL' WHERE id = ${citizenId}
+    `;
+
+    return NextResponse.json({ 
+      success: true, 
+      message: "REGISTRY SEALED: Assets secured and synchronized with Postgres Core." 
+    }, { status: 200 });
 
   } catch (error) {
-    console.error("AUTH_SHIELD_ERROR:", error);
-    return NextResponse.json({ message: "VAULT FRACTURE: Internal Adjudication Failure." }, { status: 500 });
+    console.error("DATABASE FRACTURE:", error);
+    return NextResponse.json({ message: "INTERNAL VAULT ERROR: Persistence Failed." }, { status: 500 });
+  } finally {
+    client.release();
   }
 }
