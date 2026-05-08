@@ -1,6 +1,5 @@
 "use client";
 
-// At the top of app/page.tsx
 import TribunalRecoveryBridge from './components/TribunalRecoveryBridge';
 import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
@@ -13,7 +12,8 @@ declare global {
   }
 }
 
-type MeshPhase = 'GENESIS' | 'OPERATIONAL' | 'INTERCEPT' | 'STASIS';
+// 🛡️ ADDED: 'SCREENING' Phase
+type MeshPhase = 'GENESIS' | 'SCREENING' | 'OPERATIONAL' | 'INTERCEPT' | 'STASIS';
 
 // =========================================================================
 // 1. THE EMBEDDED SHIELD (Fused locally to prevent import crashes)
@@ -64,13 +64,17 @@ function GracePeriodBuffer({ onAuthorize, onStasis }: GracePeriodProps) {
 // =========================================================================
 export default function RepublicMasterNode() {
   // 🛡️ BAZAAR AUTH RAM (Master Node State)
-// currentUid is purged. We will use citizenUID exclusively.
-const [tokenFromPi, setTokenFromPi] = useState<string>("");
+  const [tokenFromPi, setTokenFromPi] = useState<string>("");
   const [currentPhase, setCurrentPhase] = useState<MeshPhase>('GENESIS');
   const [meshLogs, setMeshLogs] = useState<string[]>([]);
   const [citizenUID, setCitizenUID] = useState<string | null>(null);
-  const [piWalletAddress, setPiWalletAddress] = useState<string | null>(null);
   const sdkInitialized = useRef(false);
+
+  // 🛡️ NEW RAM: Screening Protocol
+  const [screeningAnswer, setScreeningAnswer] = useState<string>("");
+  const [screeningError, setScreeningError] = useState<string>("");
+  const screeningQuestion = "What is the ultimate goal of the E-Network ecosystem? (Hint: Think decentralization)";
+  const acceptableKeywords = ["decentralization", "web3", "pioneer", "security", "dao", "freedom", "ecosystem"];
 
   const addLog = (message: string) => {
     setMeshLogs((prev) => {
@@ -79,7 +83,7 @@ const [tokenFromPi, setTokenFromPi] = useState<string>("");
     });
   };
 
-  // --- THE IRON SHIELD: DATABASE LOCK BRIDGE (Moved to Top Level) ---
+  // --- THE IRON SHIELD: DATABASE LOCK BRIDGE ---
   const executeDatabaseLock = async () => {
     if (!citizenUID) {
       addLog("FAULT: No Citizen UID found in RAM.");
@@ -106,12 +110,13 @@ const [tokenFromPi, setTokenFromPi] = useState<string>("");
     }
   };
 
+  // --- THE IGNITION AND GATEKEEPER ---
   const executePiHandshake = async () => {
     if (typeof window === 'undefined' || !window.Pi) {
       addLog("FOUNDER OVERRIDE: Desktop Diagnostic Mode.");
       setCitizenUID("SYS_ADMIN_X570");
-      setTokenFromPi("DESKTOP_MOCK_TOKEN"); // Fallback for your X570 Sandbox
-      setCurrentPhase('OPERATIONAL');
+      setTokenFromPi("DESKTOP_MOCK_TOKEN");
+      setCurrentPhase('OPERATIONAL'); // Bypasses screening for local X570 testing
       return;
     }
 
@@ -130,17 +135,70 @@ const [tokenFromPi, setTokenFromPi] = useState<string>("");
       });
 
       if (auth && auth.user) {
-        addLog("Pi Core Auth Success.");
-        setCitizenUID(auth.user.uid);
-        setTokenFromPi(auth.accessToken); // 🛡️ THE SHIELD: Capturing the live Mainnet token
-        setCurrentPhase('OPERATIONAL');
+        const liveUID = auth.user.uid;
+        setCitizenUID(liveUID);
+        setTokenFromPi(auth.accessToken); 
+        addLog("Pi Core Auth Success. Checking Registry...");
+
+        // 🛡️ THE GATEKEEPER PING
+        const res = await fetch('/api/sync-citizen', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ citizen_uid: liveUID })
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          if (data.exists) {
+            addLog("Pioneer Verified. Opening Vault.");
+            setCurrentPhase('OPERATIONAL');
+          } else {
+            addLog("Unregistered UID detected. Initiating Screening.");
+            setCurrentPhase('SCREENING');
+          }
+        } else {
+          addLog("FAULT: Could not reach Postgres Vault.");
+        }
       }
     } catch (error) {
       addLog("HANDSHAKE REJECTED: Connection Error.");
     }
   };
 
+  // --- THE SCREENING LOGIC ---
+  const verifyScreening = async () => {
+    const isPass = acceptableKeywords.some(keyword => 
+      screeningAnswer.toLowerCase().includes(keyword)
+    );
+
+    if (isPass) {
+      addLog("Screening Passed. Registering Pioneer...");
+      try {
+        const res = await fetch('/api/register-citizen', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ citizen_uid: citizenUID, status: 'ACTIVE' })
+        });
+
+        if (res.ok) {
+          addLog("Registry Updated. Welcome to the Republic.");
+          setCurrentPhase('OPERATIONAL');
+        } else {
+          setScreeningError("Vault Error: Could not save registry data.");
+        }
+      } catch (e) {
+        setScreeningError("Network Fault during registration.");
+      }
+    } else {
+      setScreeningError("ACCESS DENIED: Logic does not align with the E-Network ethos.");
+      addLog("Screening Failed.");
+    }
+  };
+
+  // =========================================================================
   // --- VIEWPORT RENDERING MATRIX ---
+  // =========================================================================
+
   if (currentPhase === 'GENESIS') {
     return (
       <div className="flex flex-col items-center justify-center w-full min-h-screen bg-gray-950 px-4 font-mono">
@@ -148,6 +206,39 @@ const [tokenFromPi, setTokenFromPi] = useState<string>("");
           <h1 className="text-3xl font-black text-green-500 uppercase mb-8">Bazaar Republic</h1>
           <button onClick={executePiHandshake} className="w-full py-5 bg-green-900 text-white border border-green-500 font-bold rounded uppercase">
             Connect Pi Wallet
+          </button>
+          <div className="mt-8 bg-gray-900 p-4 rounded h-32 overflow-y-auto text-xs text-green-400 text-left">
+            {meshLogs.map((log, i) => <div key={i}>{">_"} {log}</div>)}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // 🛡️ NEW VIEWPORT: SCREENING
+  if (currentPhase === 'SCREENING') {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-gray-950 px-4 font-mono">
+        <div className="w-full max-w-2xl border border-blue-800 bg-black p-8 rounded-xl text-center">
+          <h2 className="text-2xl font-black text-blue-500 uppercase mb-4">Pioneer Verification Required</h2>
+          <p className="text-gray-400 mb-6 text-sm">To prevent bot infiltration, prove your alignment with the Matrix.</p>
+          
+          <div className="bg-gray-900 p-4 rounded mb-6 text-blue-400 text-left border border-blue-900">
+            <p className="font-bold">QUESTION: {screeningQuestion}</p>
+          </div>
+
+          <input 
+            type="text" 
+            value={screeningAnswer}
+            onChange={(e) => setScreeningAnswer(e.target.value)}
+            placeholder="Enter your logic..."
+            className="w-full p-4 bg-gray-900 text-white border border-gray-700 rounded mb-4 focus:outline-none focus:border-blue-500"
+          />
+
+          {screeningError && <p className="text-red-500 text-xs mb-4 uppercase">{screeningError}</p>}
+
+          <button onClick={verifyScreening} className="w-full py-4 bg-blue-900 text-white border border-blue-500 font-bold rounded uppercase">
+            Submit Protocol
           </button>
           <div className="mt-8 bg-gray-900 p-4 rounded h-32 overflow-y-auto text-xs text-green-400 text-left">
             {meshLogs.map((log, i) => <div key={i}>{">_"} {log}</div>)}
@@ -166,7 +257,7 @@ const [tokenFromPi, setTokenFromPi] = useState<string>("");
        
           <button 
             onClick={() => setCurrentPhase('INTERCEPT')}
-            className="w-full py-4 bg-yellow-900/50 hover:bg-yellow-900 text-yellow-500 font-bold border border-yellow-500 rounded uppercase"
+            className="w-full py-4 mb-8 bg-yellow-900/50 hover:bg-yellow-900 text-yellow-500 font-bold border border-yellow-500 rounded uppercase"
           >
             Initiate Asset Transfer (Test Shield)
           </button>
