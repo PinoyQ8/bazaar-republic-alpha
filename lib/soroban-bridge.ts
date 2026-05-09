@@ -1,4 +1,9 @@
-// 🛡️ FIX: Capitalized 'Networks'
+/**
+ * PROJECT BAZAAR: SOROBAN BRIDGE (REFINED)
+ * Sector: lib/soroban-bridge.ts
+ * Status: HARD-CODED FOR PI TESTNET
+ */
+
 import { 
     Contract, 
     Address, 
@@ -6,11 +11,13 @@ import {
     scValToNative, 
     TransactionBuilder, 
     Account, 
-    Networks 
 } from '@stellar/stellar-sdk';
 
 const CONTRACT_ID = process.env.SOROBAN_CONTRACT_ID || '';
-const RPC_URL = "https://api.testnet.minepi.com";
+// 🛡️ REFINED: Ensure the path targets the Soroban RPC sector
+const RPC_URL = "https://api.testnet.minepi.com/soroban/rpc"; 
+// 🛡️ CRITICAL: Pi Testnet Passphrase
+const PI_TESTNET_PASSPHRASE = "Pi Testnet"; 
 
 export class SorobanBridge {
     private server: rpc.Server;
@@ -19,32 +26,44 @@ export class SorobanBridge {
         this.server = new rpc.Server(RPC_URL);
     }
 
-    async getPioneerRegistry(citizenUid: string) {
+    /**
+     * Retrieves Pioneer Registry data from the Soroban Smart Contract.
+     * @param citizenAddress - Must be a valid Stellar/Pi Public Key (G...)
+     */
+    async getPioneerRegistry(citizenAddress: string) {
         try {
-            const address = Address.fromString(citizenUid);
+            if (!CONTRACT_ID) {
+                throw new Error("SOROBAN_CONTRACT_ID is missing from environment.");
+            }
+
+            const address = Address.fromString(citizenAddress);
             const contract = new Contract(CONTRACT_ID);
             const operation = contract.call("get_registry", address.toScVal());
 
-            // 🛡️ THE FIX: FORGING THE TRANSACTION VESSEL
-            // Simulation requires a Transaction, even if it's never submitted.
-            const dummySource = new Account("GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF", "-1");
+            // 🛡️ VESSEL CONSTRUCTION: Dummy account for simulation
+            // Simulation doesn't check sequence numbers, but needs a valid structure.
+            const dummySource = new Account("GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF", "0");
+            
             const tx = new TransactionBuilder(dummySource, {
-    fee: "100",
-    // 🛡️ FIX: Use Networks.TESTNET (or Networks.PUBLIC for Mainnet)
-    networkPassphrase: Networks.TESTNET, 
-})
-.addOperation(operation)
-.setTimeout(0)
-.build();
+                fee: "100",
+                networkPassphrase: PI_TESTNET_PASSPHRASE, 
+            })
+            .addOperation(operation)
+            .setTimeout(0) // Simulation ignores timeout
+            .build();
 
-            // 🛡️ Now we pass the 'tx' (Transaction) instead of the 'operation'
+            // 🛡️ EXECUTE SIMULATION
             const response = await this.server.simulateTransaction(tx);
             
+            // 🛡️ DATA EXTRACTION
             if (rpc.Api.isSimulationSuccess(response) && response.result) {
+                // Convert the Soroban SCVal back to standard TypeScript objects/types
                 return scValToNative(response.result.retval);
             }
             
+            console.warn("[MESH-SCAN] Simulation failed or returned no data.");
             return null;
+
         } catch (error) {
             console.error("[MESH-SCAN] Bridge Simulation Fracture:", error);
             return null;

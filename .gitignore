@@ -41,3 +41,8 @@ yarn-error.log*
 next-env.d.ts
 
 .vercel
+
+# Ignore local build artifacts
+/target/
+**/*.rs.bk
+Cargo.lock
