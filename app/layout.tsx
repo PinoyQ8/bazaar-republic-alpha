@@ -4,6 +4,7 @@ import "./globals.css";
 // 🛡️ MESH IMPORTS
 import Script from "next/script";
 import MainNavigation from "./components/MainNavigation";
+import { AuthProvider } from "@/context/AuthContext"; // 🛡️ NEW IMPORT
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -43,13 +44,14 @@ export default function RootLayout({
         </Script>
       </head>
       <body className={`${inter.className} bg-slate-950 text-slate-50 min-h-screen flex flex-col`}>
-        {/* 🛡️ THE GLOBAL NAVIGATION NODE */}
-        <MainNavigation />
-        
-        {/* 🛡️ CANONICAL TAILWIND ALIGNMENT: flex-grow replaced with grow */}
-        <main className="grow">
-          {children}
-        </main>
+        {/* 🛡️ AUTH PROVIDER: Wrapping all UI sectors to ensure global state sync */}
+        <AuthProvider>
+          <MainNavigation />
+          
+          <main className="grow">
+            {children}
+          </main>
+        </AuthProvider>
       </body>
     </html>
   );
