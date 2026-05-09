@@ -1,12 +1,6 @@
-// lib/models/mod.rs
+// lib/models/payment.rs
 
 use serde::{Deserialize, Serialize};
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct User {
-    pub uid: String,
-    pub username: String,
-}
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Payment {
@@ -25,14 +19,4 @@ pub enum PaymentStatus {
     Completed,
     Cancelled,
     Failed,
-}
-
-// Overwrite the Network enum at the bottom of lib/models/mod.rs
-
-/// 🛡️ The E-Network routing designation
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub enum Network {
-    Mainnet,
-    Testnet,
-    Private(String), // 🛡️ Added to support custom network passphrases
 }

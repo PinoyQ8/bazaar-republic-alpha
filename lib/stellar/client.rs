@@ -1,41 +1,39 @@
-use reqwest::Client;
-use crate::errors::PiError;
+// lib/stellar/client.rs
 
+use reqwest::Client;
+use crate::errors::Result; // 🛡️ Import our custom Result
+
+#[derive(Debug, Clone)]
 pub struct StellarClient {
-    pub http_client: Client,
     pub horizon_url: String,
+    http_client: Client,
 }
 
 impl StellarClient {
     pub fn new(horizon_url: &str) -> Self {
         Self {
-            http_client: Client::new(),
             horizon_url: horizon_url.to_string(),
+            http_client: Client::new(),
         }
     }
 
-    pub async fn get_account_balance(&self, account_id: &str) -> crate::errors::Result<String> {
+    /// 🛡️ Validates an account against the Stellar Horizon node
+    pub async fn check_account(&self, account_id: &str) -> Result<serde_json::Value> {
         let url = format!("{}/accounts/{}", self.horizon_url, account_id);
-
-        // 🛡️ Explicit type annotation for the response clears E0282
+        
+        // 🛡️ Fix for E0599 (Line 26): Removed .map_err(PiError::Http). 
+        // The '?' automatically maps reqwest::Error to PiError::NetworkError
         let response = self.http_client
             .get(&url)
-            .header("Accept", "application/json")
             .send()
-            .await
-            .map_err(PiError::Http)?;
+            .await?;
 
-        // 🛡️ Turbofish operator ::<serde_json::Value> anchors the JSON type
-        let account_data = response
-            .json::<serde_json::Value>()
-            .await
-            .map_err(PiError::Http)?;
+        // 🛡️ Fix for E0282 & E0599 (Line 29-32): Explicitly declare the type as serde_json::Value 
+        // to help the compiler, and use '?' to auto-map the parsing error.
+        let account_data: serde_json::Value = response
+            .json()
+            .await?;
 
-        let balance = account_data["balances"][0]["balance"]
-            .as_str()
-            .unwrap_or("0.0")
-            .to_string();
-
-        Ok(balance)
+        Ok(account_data)
     }
 }
