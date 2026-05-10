@@ -1,4 +1,5 @@
-// lib/init-module.ts: E-Network Sector Initialization Logic
+"use server"; // 🛡️ CRITICAL MESH SHIELD: Enforces execution on the secure backend
+
 import { connectToUplink } from './mongodb';
 
 export const initializeModule = async (moduleId: string) => {
@@ -17,13 +18,12 @@ export const initializeModule = async (moduleId: string) => {
     return {
       status: 'NEO_SYNC_ACTIVE',
       timestamp: new Date().toISOString(),
-      payload: moduleConfig
+      // Ensure we don't pass complex MongoDB ObjectIds back to the client directly
+      payload: JSON.parse(JSON.stringify(moduleConfig)) 
     };
 
   } catch (error: unknown) {
-    // 4. Narrowing 'unknown' to 'Error' for Registry Clarity
     const errorMessage = error instanceof Error ? error.message : "MESH_UPLINK_TIMEOUT";
-
     console.error("❌ MESH CRITICAL: Initialization Failure", errorMessage);
     
     return { 
