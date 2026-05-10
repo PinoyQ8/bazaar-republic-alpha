@@ -25,8 +25,10 @@ export default function PioneerForm() {
 
       const data = await response.json();
 
+      // 🛡️ BRIDGE: Hard-codes the Master TS to memory upon success
       if (response.ok) {
         setSyncStatus('SUCCESS');
+        localStorage.setItem('active_pioneer_node', wallet); 
         console.log("✅ MESH_SYNC_SUCCESS:", data);
       } else {
         setSyncStatus('ERROR');
