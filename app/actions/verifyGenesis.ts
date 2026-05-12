@@ -1,5 +1,7 @@
 "use server";
 
+import { cookies } from 'next/headers'; // 🛡️ VAULT INJECTION: Required for the State Lock
+
 interface HandshakeResponse {
   success: boolean;
   message: string;
@@ -44,13 +46,31 @@ export async function verifyGenesisNode(username: string, passcode: string): Pro
   const pioneerData = PIONEER_REGISTRY[inputKey];
 
   if (!pioneerData) {
+    console.warn(`MESH Alert: Unauthorized entry attempt by [${inputKey}].`);
     return { success: false, message: "IDENTITY REJECTED: NOT IN ALPHA REGISTRY." };
   }
 
   // 🛡️ VAULT CHECK: Verifying against the Vercel Environment Variable
   if (passcode !== process.env.GENESIS_PASSCODE) {
+    console.warn(`MESH Alert: Invalid hash provided for [${pioneerData.displayName}].`);
     return { success: false, message: "SECURITY ADJUDICATOR: INVALID HASH." };
   }
+
+  // --- 🛡️ THE STATE LOCK: Forging the HttpOnly Cookie ---
+  // Note: Next.js requires cookies() to be awaited in Server Actions
+  const cookieStore = await cookies();
+  
+  cookieStore.set({
+    name: 'mesh_session_token',
+    value: passcode, // Securing the verified payload in the protected cookie
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    path: '/',
+    maxAge: 60 * 60 * 24 * 7 // 7-day session shield
+  });
+
+  console.log(`MESH Log: Genesis Node [${pioneerData.displayName}] locked and secured.`);
 
   // 🛡️ BRIDGE STABLE: Returning the verified Pioneer identity
   return { 
