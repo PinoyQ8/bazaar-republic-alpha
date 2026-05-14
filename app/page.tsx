@@ -3,13 +3,11 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { verifyGenesisNode } from "./actions/verifyGenesis";
-import { useAuth } from "@/context/AuthContext"; // 🛡️ GLOBAL MESH UPLINK
+import { useAuth } from "@/context/AuthContext";
 
 export default function RepublicHeroSector() {
-  // 🛡️ GLOBAL CONTEXT
   const { pioneer, login } = useAuth();
 
-  // 🛡️ COMPONENT STATES
   const [isUnlocked, setIsUnlocked] = useState(false);
   const [activePioneer, setActivePioneer] = useState("");
   const [username, setUsername] = useState("");
@@ -18,10 +16,8 @@ export default function RepublicHeroSector() {
   const [mounted, setMounted] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
 
-  // 🛡️ HYDRATION BRIDGE
   useEffect(() => {
     setMounted(true);
-    // Sync with either Genesis local storage or the Global Pioneer object
     const loggedUser = localStorage.getItem("MESH_GENESIS_USER") || pioneer?.username;
     if (loggedUser) {
       setActivePioneer(loggedUser);
@@ -29,7 +25,6 @@ export default function RepublicHeroSector() {
     }
   }, [pioneer]);
 
-  // 🛡️ THE HANDSHAKE LOGIC
   const handleUnlock = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsVerifying(true);
@@ -42,16 +37,13 @@ export default function RepublicHeroSector() {
         const validUsername = (response.username as string) || username;
         const validTier = response.tier as string;
         
-        // 🛡️ BURN TO LOCAL RAM
         localStorage.setItem("MESH_GENESIS_USER", validUsername);
         localStorage.setItem("MESH_TIER", validTier);
         localStorage.setItem("MESH_ANCHOR", (response.anchor as string) || "GENESIS ALPHA");
         
         setActivePioneer(validUsername);
         setIsUnlocked(true);
-
-        // 🛡️ OPTIONAL: Trigger Pi SDK Authentication automatically after Genesis
-        // await login(); 
+        await login(); 
       } else {
         setError("CREDENTIALS REJECTED BY ADJUDICATOR.");
       }
@@ -62,11 +54,19 @@ export default function RepublicHeroSector() {
     }
   };
 
+  const handleFlush = async () => {
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+      localStorage.clear();
+      window.location.reload();
+    } catch (err) {
+      localStorage.clear();
+      window.location.reload();
+    }
+  };
+
   if (!mounted) return null;
 
-  // ==========================================
-  // 🔴 STATE: LOCKED
-  // ==========================================
   if (!isUnlocked) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[80vh] px-4">
@@ -110,9 +110,6 @@ export default function RepublicHeroSector() {
     );
   }
 
-  // ==========================================
-  // 🟢 STATE: UNLOCKED
-  // ==========================================
   return (
     <div className="relative flex flex-col items-center justify-center min-h-[80vh] px-4 text-center">
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-80 h-80 bg-blue-600/10 rounded-full blur-[100px] pointer-events-none"></div>
@@ -129,7 +126,7 @@ export default function RepublicHeroSector() {
             ENTER ACADEMY
           </Link>
           <button 
-            onClick={() => { localStorage.clear(); window.location.reload(); }}
+            onClick={handleFlush}
             className="w-full sm:w-auto px-10 py-4 bg-transparent border border-slate-700 text-slate-300 font-mono font-bold rounded-lg hover:bg-slate-900 transition-all text-sm"
           >
             FLUSH RAM

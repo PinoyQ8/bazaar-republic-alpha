@@ -1,4 +1,4 @@
-import { connectToUplink } from '@/lib/mongodb';
+import { connectToLedger } from '@/lib/mongodb';
 import { NextResponse, NextRequest } from 'next/server';
 
 // --- SECTOR 0: REGISTRY & GLOBAL STATE ---
@@ -14,7 +14,7 @@ const activeSyncLocks = new Set<string>();
 // --- SECTOR 1: GET HANDSHAKE ---
 export async function GET() {
   try {
-    const db = await connectToUplink();
+    const db = await connectToLedger();
     return NextResponse.json({ 
       status: 'NEO_SYNC_ACTIVE', 
       handshake: "OK",
@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
 
     // PHASE 4: THE CALCULATION ENGINE
     const dbOperation = async (): Promise<SyncResult> => {
-      const db = await connectToUplink(); // Using the corrected named export
+      const db = await connectToLedger(); // Using the corrected named export
       const collection = db.collection("pioneer_registry");
 
       const K = kyc_status === true ? 1 : 0; 

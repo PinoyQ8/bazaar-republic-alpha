@@ -4,7 +4,7 @@ import "./globals.css";
 // 🛡️ MESH IMPORTS
 import Script from "next/script";
 import MainNavigation from "./components/MainNavigation";
-import { AuthProvider } from "@/context/AuthContext"; // 🛡️ NEW IMPORT
+import { AuthProvider } from "@/context/AuthContext";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -21,36 +21,50 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
-        {/* 🛡️ SALTED SDK REFRESH: Bypasses S23 Cache-Lock */}
+        {/* 🛡️ SALTED SDK REFRESH: Bypasses S23 Cache-Lock and primes P23 logic */}
         <Script 
           src="https://sdk.minepi.com/pi-sdk.js?v=FORCE_SYNC" 
           strategy="beforeInteractive"
         />
-        {/* 🛡️ GLOBAL INITIALIZATION: Primes the bridge before the UI renders */}
+        
+        {/* 🛡️ GLOBAL INITIALIZATION: Hard-coded security handshake */}
         <Script id="pi-init-logic" strategy="afterInteractive">
           {`
             (function() {
               const initPi = () => {
                 if (window.Pi) {
-                  window.Pi.init({ version: "2.0", sandbox: true });
-                  console.log("[MESH-SCAN] Global Bridge: PRIMED");
+                  try {
+                    window.Pi.init({ version: "2.0", sandbox: true });
+                    console.log("[MESH-SCAN] Global Bridge: PRIMED (v2.0 Sandbox)");
+                  } catch (err) {
+                    console.error("[MESH-SCAN] Bridge Initialization Fracture:", err);
+                  }
                 } else {
-                  setTimeout(initPi, 100);
+                  // Retry logic for low-bandwidth mobile sectors
+                  setTimeout(initPi, 150);
                 }
               };
-              initPi();
+
+              // Ensure the DOM is ready for the Iframe Handshake
+              if (document.readyState === 'complete') {
+                initPi();
+              } else {
+                window.addEventListener('load', initPi);
+              }
             })();
           `}
         </Script>
       </head>
-      <body className={`${inter.className} bg-slate-950 text-slate-50 min-h-screen flex flex-col`}>
-        {/* 🛡️ AUTH PROVIDER: Wrapping all UI sectors to ensure global state sync */}
+      <body className={`${inter.className} bg-slate-950 text-slate-50 min-h-screen flex flex-col antialiased`}>
+        {/* 🛡️ AUTH PROVIDER: The Global State Vault */}
         <AuthProvider>
           <MainNavigation />
           
-          <main className="grow">
+          <main className="grow flex flex-col">
             {children}
           </main>
+          
+          {/* 🛡️ OPTIONAL: Sector Footer can be added here */}
         </AuthProvider>
       </body>
     </html>

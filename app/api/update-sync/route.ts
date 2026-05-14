@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { connectToUplink } from '@/lib/mongodb';
+import { connectToLedger } from '@/lib/mongodb';
 
 export async function POST(req: Request) {
   try {
@@ -11,7 +11,7 @@ export async function POST(req: Request) {
     }
 
     // 1. Establish Secure Handshake
-    const db = await connectToUplink();
+    const db = await connectToLedger();
     const collection = db.collection("pioneer_registry");
 
     // 2. Locate Pioneer in the Data Fortress
