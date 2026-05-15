@@ -4,7 +4,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider  = "postgresql"
 }
 
 // 🛡️ RECOVERY STATES
@@ -17,20 +17,21 @@ enum RecoveryStatus {
 
 // 🛡️ THE RECOVERY LEDGER
 model RecoveryLedger {
-  id                String         @id @default(cuid())
-  citizenUid        String         @unique // The Pioneer being reclaimed
-  initiatorHeir     String         // The address of the heir who triggered it
+  id            String         @id @default(cuid())
+  citizenUid    String         // Removed @unique to allow historical logging
+  initiatorHeir String         // The address of the heir who triggered it
   
-  stasisStart       DateTime       @default(now())
-  stasisEnd         DateTime       // This will be calculated in the API
+  stasisStart   DateTime       @default(now())
+  stasisEnd     DateTime       // Calculated at injection (now + 24hrs)
   
-  status            RecoveryStatus @default(STASIS)
+  status        RecoveryStatus @default(STASIS)
   
-  ipAddress         String?
-  userAgent         String?
+  ipAddress     String?
+  userAgent     String?
   
-  createdAt         DateTime       @default(now())
-  updatedAt         DateTime       @updatedAt
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
 
+  // MESH: Compound index ensures fast querying for active stasis checks
   @@index([citizenUid, status])
 }

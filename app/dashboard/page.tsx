@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { fetchPioneerLedger } from '@/lib/oracle-read';
+import { useStasis } from '@/hooks/useStasis';
 
 // 🛡️ VAULT INJECTION: Receive the secure payload directly from the Server Component
 interface DashboardProps {
