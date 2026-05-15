@@ -1,6 +1,7 @@
-import { NextResponse } from 'next/server';
 // 🛡️ MESH: Direct Relative Bridge (Bypasses the alias fracture)
-import prisma from '../../../../lib/mesh-prisma';
+import { prisma } from '@/lib/mesh-prisma';
+
+import { NextResponse } from 'next/server';
 
 export async function POST(req: Request) {
   try {

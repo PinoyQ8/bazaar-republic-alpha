@@ -1,4 +1,4 @@
-// 🛡️ BAZAAR VAULT CONFIG (PRISMA 7 COMPLIANT)
+// 🛡️ BAZAAR VAULT: MASTER SCHEMA (ZERO-CONFIG PROTOCOL)
 
 generator client {
   provider = "prisma-client-js"
@@ -6,8 +6,9 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  // Adjudicator Note: URL is now handled in prisma.config.ts
-}
+ }
+
+// ... rest of your models (Pioneer, CitizenPassport, RecoveryLedger) remain the same
 
 // 🛡️ RECOVERY STATES
 enum RecoveryStatus {

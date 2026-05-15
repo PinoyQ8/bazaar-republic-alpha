@@ -6,7 +6,7 @@
     "dev": "next dev",
     "build": "npx prisma generate && next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "next lint"
   },
   "dependencies": {
     "@ledgerhq/hw-app-str": "^7.7.2",
