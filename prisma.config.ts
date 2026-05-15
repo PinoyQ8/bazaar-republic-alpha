@@ -1,16 +1,10 @@
-import * as dotenv from 'dotenv';
-import path from 'path';
+// 🛡️ PRISMA 7 VAULT ROUTER (prisma.config.ts)
 
-// 🛡️ MESH: Force-target the Next.js local environment vault
-dotenv.config({ path: path.resolve(process.cwd(), '.env.local') });
-// Fallback in case some variables are in standard .env
-dotenv.config({ path: path.resolve(process.cwd(), '.env') });
+import { config } from 'dotenv';
+config({ path: '.env.local' }); // Ensures it reads your Vercel keys
 
-// 🛡️ MESH: Raw Object Override
 export default {
-  schema: './prisma/schema.prisma',
-  datasource: {
-    // This will no longer be undefined
-    url: process.env.DATABASE_URL_UNPOOLED,
-  },
+  migrate: {
+    url: process.env.DATABASE_URL,
+  }
 };

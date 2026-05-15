@@ -1,10 +1,12 @@
 // 🛡️ BAZAAR VAULT CONFIG (PRISMA 7 COMPLIANT)
+
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider  = "postgresql"
+  provider = "postgresql"
+  // Adjudicator Note: URL is now handled in prisma.config.ts
 }
 
 // 🛡️ RECOVERY STATES
@@ -15,15 +17,48 @@ enum RecoveryStatus {
   FINALIZED  // Ownership has been transferred
 }
 
-// 🛡️ THE RECOVERY LEDGER
+// 🛡️ THE PI NETWORK ANCHOR (External Identity)
+model Pioneer {
+  uid             String           @id
+  username        String           @unique
+  firstLogin      DateTime         @default(now())
+  
+  // MESH Relations
+  citizenPassport CitizenPassport? 
+  recoveryLogs    RecoveryLedger[]
+}
+
+// 🛡️ THE E-NETWORK LEDGER (Internal Identity)
+model CitizenPassport {
+  id              String   @id @default(uuid()) 
+  
+  // The Cryptographic Link to the Pioneer
+  pioneerUid      String   @unique
+  pioneer         Pioneer  @relation(fields: [pioneerUid], references: [uid], onDelete: Cascade)
+  
+  // 💰 THE TREASURY ANCHOR
+  stakedPi        Float    @default(0.0) 
+  
+  // ⚖️ THE TRUSTSCORE (TS) VARIABLES
+  successfulTx    Int      @default(0)   
+  disputedTx      Int      @default(0)   
+  
+  // 🚦 PASSPORT STATE
+  status          String   @default("ACTIVE") 
+  issuedAt        DateTime @default(now())
+}
+
+// 🛡️ THE RECOVERY LEDGER (Security Stasis)
 model RecoveryLedger {
   id            String         @id @default(cuid())
-  citizenUid    String         // Removed @unique to allow historical logging
-  initiatorHeir String         // The address of the heir who triggered it
+  
+  citizenUid    String         
+  citizen       Pioneer        @relation(fields: [citizenUid], references: [uid], onDelete: Cascade)
+  
+  initiatorHeir String         
   
   stasisStart   DateTime       @default(now())
-  stasisEnd     DateTime       // Calculated at injection (now + 24hrs)
-  
+  stasisEnd     DateTime       
   status        RecoveryStatus @default(STASIS)
   
   ipAddress     String?
@@ -32,6 +67,5 @@ model RecoveryLedger {
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
 
-  // MESH: Compound index ensures fast querying for active stasis checks
   @@index([citizenUid, status])
 }
