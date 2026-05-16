@@ -1,9 +1,12 @@
-import { defineConfig } from '@prisma/config';
+import "dotenv/config";
+import path from "path";
 
-export default defineConfig({
+// 📡 Dual-Scan Layer ensures local edge variables are picked up
+const connectionString = process.env.POSTGRES_URL_NON_POOLING || process.env.DATABASE_URL;
+
+export default {
   schema: "prisma/schema.prisma",
   datasource: {
-    // 🛡️ The string is scrubbed. Vercel will inject this securely at runtime.
-    url: process.env.POSTGRES_URL_NON_POOLING,
+    url: connectionString || "",
   },
-});
+};

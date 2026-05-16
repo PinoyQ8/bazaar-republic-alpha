@@ -50,3 +50,4 @@ Cargo.lock
 # Prisma Generated Clients
 lib/generated/
 prisma/generated/
+.env*.local

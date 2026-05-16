@@ -31,63 +31,69 @@ export default function ModuleThreePage() {
   };
 
   return (
-    <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-1000">
+    <div className="min-h-screen bg-black text-green-500 font-mono p-4 flex flex-col justify-between animate-in fade-in slide-in-from-bottom-4 duration-700 selection:bg-green-500 selection:text-black">
+      
       {/* 🚀 HEADER: SECTOR IDENTITY */}
-      <header className="space-y-4">
-        <div className="inline-block px-3 py-1 bg-blue-600/10 border border-blue-600/30 rounded text-[10px] text-blue-400 font-bold tracking-[0.3em] uppercase">
+      <header className="border-b border-green-900/60 pb-3 pt-1 space-y-1.5">
+        <div className="inline-block px-2 py-0.5 bg-green-950/40 border border-green-700/40 rounded-sm text-[9px] text-green-400 font-bold tracking-[0.2em] uppercase">
           Architecture Module 03
         </div>
-        <h1 className="text-4xl font-extrabold tracking-tighter text-white uppercase">
+        <h1 className="text-2xl font-extrabold tracking-tight text-white uppercase">
           The Soroban Forge
         </h1>
-        <p className="text-slate-400 max-w-2xl text-sm leading-relaxed italic">
-          "Governance without execution is just philosophy. The MESH requires Pioneers to deploy immutable, automated logic directly to the decentralized ledger."
+        <p className="text-green-400/80 text-[11px] leading-relaxed italic">
+          "Governance without execution is just philosophy. The MESH requires automated logic directly on the ledger."
         </p>
       </header>
 
-      {/* 🛡️ RUST & WASM ARCHITECTURE */}
-      <section className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="p-6 border border-slate-800 bg-slate-900/40 rounded-xl space-y-4">
-          <h3 className="text-sm font-bold text-blue-500 uppercase tracking-widest border-b border-slate-800 pb-2">Logic Purity (Rust)</h3>
-          <p className="text-xs text-slate-400 leading-relaxed font-mono">
-            All Bazaar smart contracts are written in Rust. Its strict memory safety prevents the logic leaks and vulnerabilities common in legacy Solidity architectures.
+      {/* 🛡️ RUST & WASM ARCHITECTURE (Stacked smoothly for mobile layout tracking) */}
+      <section className="space-y-2.5 my-2">
+        <div className="p-3 border border-green-900/50 bg-green-950/10 rounded-sm space-y-1">
+          <h3 className="text-xs font-bold text-slate-200 uppercase tracking-wider border-b border-green-900/30 pb-1">
+            Logic Purity (Rust)
+          </h3>
+          <p className="text-[11px] text-green-400/90 leading-normal">
+            Written in Rust. Memory safety controls eliminate common smart contract security vulnerabilities natively.
           </p>
         </div>
 
-        <div className="p-6 border border-slate-800 bg-slate-900/40 rounded-xl space-y-4">
-          <h3 className="text-sm font-bold text-blue-500 uppercase tracking-widest border-b border-slate-800 pb-2">WASM Compilation</h3>
-          <p className="text-xs text-slate-400 leading-relaxed font-mono">
-            The Rust logic is compiled into WebAssembly (WASM). This allows the contract to run at near-native speeds across the entire E-Network node topology.
+        <div className="p-3 border border-green-900/50 bg-green-950/10 rounded-sm space-y-1">
+          <h3 className="text-xs font-bold text-slate-200 uppercase tracking-wider border-b border-green-900/30 pb-1">
+            WASM Compilation
+          </h3>
+          <p className="text-[11px] text-green-400/90 leading-normal">
+            Compiled into WebAssembly bytecode for maximum transaction finality speed across node topology frames.
           </p>
         </div>
       </section>
 
       {/* 🛠️ LIVE TERMINAL: THE COMPILER SIMULATION */}
-      <section className="p-8 border border-slate-800 bg-slate-900/20 rounded-xl space-y-6">
-        <div className="flex justify-between items-center border-b border-slate-800 pb-4">
+      <section className="p-3 border border-green-900/60 bg-green-950/5 rounded-sm space-y-3">
+        <div className="flex justify-between items-center">
           <div>
-            <h3 className="text-xs font-bold text-slate-100 uppercase tracking-widest">Target: DAO_Governance.rs</h3>
-            <p className="text-[10px] text-slate-500 font-mono mt-1">v23 Mainnet Readiness Protocol</p>
+            <h3 className="text-[11px] font-bold text-white uppercase tracking-wider">Target: DAO_Governance.rs</h3>
+            <p className="text-[9px] text-green-600 font-mono">v23 Mainnet Readiness Protocol</p>
           </div>
           <button 
             onClick={initiateDeployment}
             disabled={deploymentState !== "IDLE"}
-            className="px-6 py-2 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-800 text-white font-mono font-bold rounded transition-all text-[10px] tracking-widest uppercase disabled:text-slate-500"
+            className="px-3 py-1.5 bg-green-900 hover:bg-green-500 disabled:bg-green-950/20 text-black disabled:text-green-800 border border-transparent disabled:border-green-900/40 font-mono font-bold rounded-sm transition-all text-[9px] tracking-wider uppercase"
           >
             {deploymentState === "IDLE" ? "Execute Build" : deploymentState === "COMPILING" ? "Compiling..." : "Node Synced"}
           </button>
         </div>
 
-        {/* Interactive Terminal Output */}
-        <div className="bg-slate-950 border border-slate-800 p-4 rounded-lg font-mono text-[10px] min-h-32 flex flex-col justify-end space-y-1">
+        {/* Interactive Terminal Output Screen */}
+        <div className="bg-black border border-green-900 p-2.5 rounded-sm font-mono text-[9px] h-28 overflow-y-auto relative flex flex-col justify-start gap-1">
+          <div className="absolute top-0 left-0 w-full h-px bg-linear-to-r from-green-500 to-transparent opacity-30"></div>
           {logs.length === 0 ? (
-            <span className="text-slate-600 animate-pulse">&gt; Awaiting compiler instructions...</span>
+            <span className="text-green-700 animate-pulse">&gt; Awaiting compiler instructions...</span>
           ) : (
             logs.map((log, index) => (
               <span key={index} className={
-                log.includes("[SUCCESS]") ? "text-green-400 font-bold" : 
-                log.includes("[WASM]") ? "text-blue-400" : 
-                "text-slate-400"
+                log.includes("[SUCCESS]") ? "text-emerald-400 font-bold" : 
+                log.includes("[WASM]") ? "text-cyan-400" : 
+                "text-green-500/80"
               }>
                 &gt; {log}
               </span>
@@ -95,38 +101,38 @@ export default function ModuleThreePage() {
           )}
         </div>
 
-        {/* Post-Deployment Status */}
+        {/* Post-Deployment Status Token */}
         {deploymentState === "DEPLOYED" && (
-          <div className="mt-4 p-3 bg-green-500/10 border border-green-500/30 rounded flex items-center justify-between animate-in fade-in">
-            <span className="text-xs font-mono text-green-400 uppercase tracking-widest">Active Contract ID</span>
-            <span className="text-xs font-mono text-slate-300 bg-slate-900 px-2 py-1 rounded">{contractId}</span>
+          <div className="p-2 bg-emerald-950/20 border border-emerald-500/30 rounded-sm flex items-center justify-between animate-in fade-in text-[10px]">
+            <span className="font-mono text-emerald-400 uppercase tracking-wider">Active Contract ID</span>
+            <span className="font-mono text-white bg-black border border-green-900/60 px-2 py-0.5 rounded-sm">{contractId}</span>
           </div>
         )}
       </section>
 
-      {/* 🚀 ACTION: ACADEMY COMPLETION */}
-      <div className="pt-8 border-t border-slate-900 flex justify-between items-center">
-        <Link href="/academy/module-02" className="text-slate-500 hover:text-slate-300 font-mono text-xs uppercase tracking-widest transition-colors">
-          ← Back to Module 02
+      {/* 🚀 ACTION: ACADEMY COMPLETION GATEWAY */}
+      <footer className="pt-3 mt-1 border-t border-green-900/60 flex justify-between items-center">
+        <Link href="/academy/module-02" className="text-green-700 hover:text-green-400 text-[10px] uppercase tracking-wider transition-colors">
+          ← Module 02
         </Link>
         
-        {/* 🛡️ CONDITIONAL ROUTING: Only opens when deployment is proven */}
+        {/* 🛡️ CONDITIONAL LINKING MAPPED IN BOUNDING BOX */}
         {deploymentState === "DEPLOYED" ? (
           <Link 
             href="/dashboard"
-            className="px-8 py-3 bg-green-600 hover:bg-green-500 text-white font-mono font-bold rounded shadow-[0_0_20px_rgba(34,197,94,0.2)] transition-all uppercase text-xs tracking-widest text-center"
+            className="px-3 py-2 bg-green-900 text-black font-bold rounded-sm hover:bg-green-500 transition-all uppercase text-[10px] tracking-wider text-center shadow-[0_0_15px_rgba(34,197,94,0.1)]"
           >
-            Academy Complete: Enter Command Center →
+            Complete Academy ✔
           </Link>
         ) : (
           <button 
             disabled
-            className="px-8 py-3 bg-slate-800 text-slate-500 font-mono font-bold rounded transition-all uppercase text-xs tracking-widest cursor-not-allowed"
+            className="px-3 py-2 bg-green-950/20 border border-green-900/40 text-green-800 font-mono font-bold rounded-sm uppercase text-[10px] tracking-wider cursor-not-allowed"
           >
             Deploy to Proceed
           </button>
         )}
-      </div>
+      </footer>
     </div>
   );
 }

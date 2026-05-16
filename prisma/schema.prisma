@@ -1,4 +1,3 @@
-// // ⚡ prisma/schema.prisma
 datasource db {
   provider = "postgresql"
 }
@@ -7,36 +6,100 @@ generator client {
   provider = "prisma-client-js"
 }
 
-// Your Pioneer and CitizenPassport models follow here untouched...
+// ==========================================
+// 🌌 CORE IDENTITY & STATUS PERIMETER (UNTOUCHED)
+// ==========================================
+
 model Pioneer {
-  id          Int      @id @default(autoincrement())
-  pioneerUid  String   @unique
-  role        String   @default("PIONEER")
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id         Int      @id @default(autoincrement())
+  pioneerUid String   @unique
+  role       String   @default("PIONEER")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   @@map("pioneers")
 }
 
 model CitizenPassport {
-  id          Int      @id @default(autoincrement())
-  pioneerUid  String   @unique
-  status      String   @default("ACTIVE")
-  tier        Int      @default(1)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id         Int      @id @default(autoincrement())
+  pioneerUid String   @unique
+  status     String   @default("ACTIVE")
+  tier       Int      @default(1)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   @@map("citizen_passports")
 }
 
 // 🛡️ RECOVERED BLOCK: STASIS PROTOCOL TRACKING LEDGER
 model RecoveryLedger {
-  id          Int      @id @default(autoincrement())
-  citizenUid  String   @unique
-  status      String   @default("STASIS")
-  nodeIp      String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id         Int      @id @default(autoincrement())
+  citizenUid String   @unique
+  status     String   @default("STASIS")
+  nodeIp     String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   @@map("recovery_ledgers")
+}
+
+// ==========================================
+// 🔐 LAYER 01: INTERNAL DAO GOVERNANCE (STAKED CORE)
+// ==========================================
+
+model InternalProposal {
+  id             Int            @id @default(autoincrement())
+  title          String
+  description    String
+  requiredWeight Float          @default(1.0)
+  status         String         @default("BUFFER") // BUFFER | ACTIVE | LOCKED
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  votes          InternalVote[]
+
+  @@map("internal_proposals")
+}
+
+model InternalVote {
+  id         Int              @id @default(autoincrement())
+  pioneerUid String           // Flat token index anchor to pioneers table
+  weight     Float            @default(1.0)
+  decision   String           // FOR | AGAINST
+  proposalId Int
+  proposal   InternalProposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  createdAt  DateTime         @default(now())
+
+  @@unique([pioneerUid, proposalId]) // Enforces 1 absolute vote per proposal ledger
+  @@index([pioneerUid])              // Optimized indexing for high-velocity account scans
+  @@map("internal_votes")
+}
+
+// ==========================================
+// 📡 LAYER 02: PUBLIC PI COMMUNITY GOVERNANCE (ECOSYSTEM PORTAL)
+// ==========================================
+
+model CommunityPoll {
+  id        Int             @id @default(autoincrement())
+  title     String
+  summary   String
+  piTxHash  String?         // Track validation transaction hash flags if gas/fees are used
+  status    String          @default("ACTIVE") // ACTIVE | CONCLUDED
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+  votes     CommunityVote[]
+
+  @@map("community_polls")
+}
+
+model CommunityVote {
+  id         Int           @id @default(autoincrement())
+  piUsername String        // Captured natively straight from Pi SDK payload strings
+  decision   String        // FOR | AGAINST
+  pollId     Int
+  poll       CommunityPoll @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  createdAt  DateTime      @default(now())
+
+  @@unique([piUsername, pollId]) // Firewalled to block public double-voting exploits
+  @@index([piUsername])          // Optimized indexing for external profile lookups
+  @@map("community_votes")
 }
