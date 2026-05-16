@@ -1,5 +1,5 @@
-// 🛡️ REPAIRED INTEGRATION: Target the exact 'client' file extensionless to satisfy the bundler resolution engine
-import { PrismaClient } from "./generated/client/client"; 
+// 🛡️ REPAIRED INTEGRATION: Standard Node routing active
+import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
 
