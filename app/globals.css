@@ -20,6 +20,9 @@
   --max-width-bazaar-node: 350px;
   --spacing-bazaar-mobile: 350px;
 
+  /* 🛡️ HARD-CODED LOGIC ELEMENT: Maps min-w-55, w-55, and p-55 to 220px natively */
+  --spacing-55: 220px;
+
   /* 🛡️ BRAND COLORS */
   --color-mesh-blue: var(--mesh-blue);
   --color-mesh-green: var(--mesh-green);

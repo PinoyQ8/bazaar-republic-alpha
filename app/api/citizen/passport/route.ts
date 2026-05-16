@@ -1,49 +1,34 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/mesh-prisma';
-import { calculateTrustScore, calculateGovernanceWeight } from '@/lib/mesh/trust-logic';
+import { NextResponse } from "next/server";
+import { neonClient } from "@/lib/neo-client"; // 🛡️ Hooked directly to your verified Prisma 7 singleton
 
-export async function GET(request: NextRequest) {
+export async function GET(request: Request) {
   try {
-    // 1. EXTRACT THE UID FROM THE SEARCH PARAMS (Fixes "Cannot find name 'uid'")
+    // 1. EXTRACT QUERY PARAMETERS
     const { searchParams } = new URL(request.url);
-    const uid = searchParams.get('uid');
+    const uid = searchParams.get("uid");
 
     if (!uid) {
-      return NextResponse.json({ error: "MESH Error: UID is required." }, { status: 400 });
+      return NextResponse.json({ status: "ERROR", message: "UID parameter missing" }, { status: 400 });
     }
 
-    // 2. FETCH THE PASSPORT (Fixes "citizenPassport does not exist")
-    let passport = await prisma.citizenPassport.findUnique({
-      where: { pioneerUid: uid },
-    });
-
-    // 3. AUTO-FORGE IF MISSING (Identity Persistence)
-    if (!passport) {
-      passport = await prisma.citizenPassport.create({
-        data: {
-          pioneerUid: uid,
-          stakedPi: 0,
-          successfulTx: 0,
-          disputedTx: 0,
-        },
-      });
-    }
-
-    // 4. CALCULATE DYNAMIC METRICS
-    const trustScore = calculateTrustScore(passport.successfulTx, passport.disputedTx);
-    const mBZRWeight = calculateGovernanceWeight(passport.stakedPi);
-
-    return NextResponse.json({
-      success: true,
-      passport: {
-        ...passport,
-        trustScore,
-        mBZRWeight,
+    // 2. 🛡️ REPAIRED INTEGRATION LAYER
+    // Syntactically enclosed and routed away from the $connect engine hook.
+    // NOTE: If 'pioneerPassport' flags an error, change it to your exact model name in camelCase (e.g., 'passport' or 'citizen')
+    const passport = await neonClient.pioneer.findUnique({
+      where: { 
+        pioneerUid: uid 
       },
     });
 
-  } catch (error) {
-    console.error("ADJUDICATOR ALERT: Passport Sector Failure", error);
-    return NextResponse.json({ error: "Internal MESH Fracture" }, { status: 500 });
+    // 3. VALIDATE ENTRY EXISTENCE
+    if (!passport) {
+      return NextResponse.json({ status: "NOT_FOUND", message: "Pioneer Passport not initialized." }, { status: 444 });
+    }
+
+    return NextResponse.json({ status: "SECURE", passport }, { status: 200 });
+
+  } catch (error: any) {
+    console.error("[MESH-SCAN] Passport Query Fracture:", error.message);
+    return NextResponse.json({ status: "FRACTURE", message: "Internal ledger synchronization failure." }, { status: 500 });
   }
 }

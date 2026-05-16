@@ -14,7 +14,8 @@ const activeSyncLocks = new Set<string>();
 // --- SECTOR 1: GET HANDSHAKE ---
 export async function GET() {
   try {
-    const db = await connectToLedger();
+    // Verifies active telemetry channel connection status
+    await connectToLedger();
     return NextResponse.json({ 
       status: 'NEO_SYNC_ACTIVE', 
       handshake: "OK",
@@ -53,8 +54,13 @@ export async function POST(request: NextRequest) {
 
     // PHASE 4: THE CALCULATION ENGINE
     const dbOperation = async (): Promise<SyncResult> => {
-      const db = await connectToLedger(); // Using the corrected named export
-      const collection = db.collection("pioneer_registry");
+      const mongooseInstance = await connectToLedger(); 
+      
+      // 🛡️ MESH-SCAN: Drill directly into the driver context to resolve the collection type error
+      if (!mongooseInstance.connection.db) {
+        throw new Error("MongoDB Ledger connection not fully initialized.");
+      }
+      const collection = mongooseInstance.connection.db.collection("pioneer_registry");
 
       const K = kyc_status === true ? 1 : 0; 
       const P_align = 0.25, S_stake = 0.25, C_eco = 0.25, L_sync = 0.25; 

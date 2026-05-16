@@ -11,11 +11,16 @@ export async function POST(req: Request) {
     }
 
     // 1. Establish Secure Handshake
-    const db = await connectToLedger();
-    const collection = db.collection("pioneer_registry");
+const mongooseInstance = await connectToLedger();
 
-    // 2. Locate Pioneer in the Data Fortress
-    const pioneer = await collection.findOne({ wallet_address });
+// 🛡️ MESH-SCAN: Verify and drill into the native driver context
+if (!mongooseInstance.connection.db) {
+  throw new Error("MongoDB Ledger connection not fully initialized.");
+}
+const collection = mongooseInstance.connection.db.collection("pioneer_registry");
+
+// 2. Locate Pioneer in the Data Fortress
+const pioneer = await collection.findOne({ wallet_address });
 
     if (!pioneer) {
       return NextResponse.json({ error: 'LEDGER_VOID' }, { status: 404 });

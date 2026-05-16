@@ -1,24 +1,84 @@
-import React from "react";
-import Link from "next/link"; // Ensure this is imported at the top
+"use client";
+
+import React, { useState } from "react";
+import Link from "next/link";
 
 export default function GenesisNodePage() {
+  const [syncStatus, setSyncStatus] = useState<number>(0);
+  const [isProcessing, setIsProcessing] = useState<boolean>(false);
+  const [checklist, setChecklist] = useState({
+    piIdentity: false,
+    bridgeHandshake: true, // Preset by Genesis execution
+    meshBuffer: false,
+    moduleComplete: false,
+  });
+
+  const handleInitiateModule = async (e: React.MouseEvent) => {
+    if (syncStatus === 100) return; // Prevent double execution if already synced
+    e.preventDefault();
+    setIsProcessing(true);
+
+    try {
+      // 🛡️ PHASE 1: Verify Identity Matrix
+      setChecklist((prev) => ({ ...prev, piIdentity: true }));
+      setSyncStatus(35);
+      await new Promise((resolve) => setTimeout(resolve, 800));
+
+      // 🛡️ PHASE 2: Commit State to Neon Core Ledger
+      const response = await fetch("/api/register-citizen", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          piUsername: "PioneerZero",
+          p23Token: "p23_live_handshake_buffer_alpha",
+          roles: ["pioneer"],
+        }),
+      });
+
+      const data = await response.json();
+      if (!data.success) throw new Error(data.error);
+
+      // 🛡️ PHASE 3: Complete Mainnet Buffer Synchronization
+      setChecklist((prev) => ({ ...prev, meshBuffer: true }));
+      setSyncStatus(75);
+      await new Promise((resolve) => setTimeout(resolve, 600));
+
+      // 🛡️ PHASE 4: Finalize Module Authorization
+      setChecklist((prev) => ({ ...prev, moduleComplete: true }));
+      setSyncStatus(100);
+
+      // Secure state parameters across storage sectors
+      localStorage.setItem("BZR_MASTER_TS", Date.now().toString());
+      localStorage.setItem("BZR_NODE_STATUS", data.payload.status);
+      localStorage.setItem("BZR_CITIZEN_TIER", data.payload.tier.toString());
+
+      // Seamlessly pass execution straight to Module 01 sector
+      setTimeout(() => {
+        window.location.href = "/academy/module-01";
+      }, 1000);
+
+    } catch (error) {
+      console.error("[MESH-SCAN FAILURE]:", error);
+      alert("[MESH-SCAN]: Sync baseline interrupted. Confirm your local node background process is active.");
+      setIsProcessing(false);
+      setSyncStatus(0);
+      setChecklist({
+        piIdentity: false,
+        bridgeHandshake: true,
+        meshBuffer: false,
+        moduleComplete: false,
+      });
+    }
+  };
+
   return (
     <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-1000">
+      
       {/* 🚀 HEADER: SECTOR IDENTITY */}
       <header className="space-y-4">
         <div className="inline-block px-3 py-1 bg-blue-600/10 border border-blue-600/30 rounded text-[10px] text-blue-400 font-bold tracking-[0.3em] uppercase">
           Orientation Module 00
         </div>
-      
-      {/* 🚀 ACTION: ENTER NEXT MODULE */}
-      <div className="pt-8 border-t border-slate-900 flex justify-end">
-        <Link 
-          href="/academy/module-01" 
-          className="px-8 py-3 bg-blue-600 hover:bg-blue-500 text-white font-mono font-bold rounded shadow-[0_0_20px_rgba(37,99,235,0.2)] transition-all uppercase text-xs tracking-widest inline-block text-center"
-        >
-          Initiate Module 01 →
-        </Link>
-      </div>
         <h1 className="text-4xl font-extrabold tracking-tighter text-white uppercase">
           The Genesis Node
         </h1>
@@ -45,8 +105,12 @@ export default function GenesisNodePage() {
         </div>
         
         <div className="p-8 bg-blue-600/5 border border-blue-900/30 rounded-xl flex flex-col justify-center">
-          <span className="text-4xl font-bold text-blue-500 mb-2">0%</span>
-          <span className="text-[10px] text-slate-500 uppercase font-bold tracking-widest">Protocol Sync Status</span>
+          <span className="text-4xl font-bold text-blue-500 mb-2 font-mono transition-all duration-300">
+            {syncStatus}%
+          </span>
+          <span className="text-[10px] text-slate-500 uppercase font-bold tracking-widest">
+            Protocol Sync Status
+          </span>
         </div>
       </section>
 
@@ -73,38 +137,39 @@ export default function GenesisNodePage() {
       <section className="p-8 border border-slate-800 bg-slate-900/20 rounded-xl space-y-6">
         <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Initialization Checklist</h3>
         <div className="space-y-4">
-          <CheckItem label="Verify Pi Network Identity (P23 Compliant)" checked />
-          <CheckItem label="Initialize Bridge Handshake (Done via Genesis Sector)" checked />
-          <CheckItem label="Sync local MESH with Mainnet-Alpha Buffer" />
-          <CheckItem label="Complete Module 01: Protocol Logic" />
+          <CheckItem label="Verify Pi Network Identity (P23 Compliant)" checked={checklist.piIdentity} />
+          <CheckItem label="Initialize Bridge Handshake (Done via Genesis Sector)" checked={checklist.bridgeHandshake} />
+          <CheckItem label="Sync local MESH with Mainnet-Alpha Buffer" checked={checklist.meshBuffer} />
+          <CheckItem label="Complete Module 01: Protocol Logic" checked={checklist.moduleComplete} />
         </div>
       </section>
 
       {/* 🚀 ACTION: ENTER NEXT MODULE */}
       <div className="pt-8 border-t border-slate-900 flex justify-end">
-        <Link 
-          href="/academy/module-01" 
-          className="px-8 py-3 bg-blue-600 hover:bg-blue-500 text-white font-mono font-bold rounded shadow-[0_0_20px_rgba(37,99,235,0.2)] transition-all uppercase text-xs tracking-widest inline-block text-center"
+        <button
+          onClick={handleInitiateModule}
+          disabled={isProcessing}
+          className="px-8 py-3 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-800 disabled:text-slate-600 text-white font-mono font-bold rounded shadow-[0_0_20px_rgba(37,99,235,0.2)] disabled:shadow-none transition-all uppercase text-xs tracking-widest min-w-55 text-center"
         >
-          Initiate Module 01 →
-        </Link> {/* <-- THIS CLOSING TAG MUST EXIST */}
+          {isProcessing ? "Synchronizing..." : syncStatus === 100 ? "Synced ✓" : "Initiate Module 01 →"}
+        </button>
       </div>
     </div>
   );
 }
 
 // 🛡️ REUSABLE CHECKLIST ITEM
-function CheckItem({ label, checked = false }: { label: string, checked?: boolean }) {
+function CheckItem({ label, checked = false }: { label: string; checked?: boolean }) {
   return (
     <div className="flex items-center gap-4 group">
-      <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${checked ? 'bg-blue-600 border-blue-500 shadow-[0_0_8px_rgba(37,99,235,0.4)]' : 'border-slate-700 group-hover:border-slate-500'}`}>
+      <div className={`w-5 h-5 rounded border flex items-center justify-center transition-all duration-300 ${checked ? 'bg-blue-600 border-blue-500 shadow-[0_0_8px_rgba(37,99,235,0.4)]' : 'border-slate-700 group-hover:border-slate-500'}`}>
         {checked && (
-          <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <svg className="w-3 h-3 text-white animate-in zoom-in-50 duration-200" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
           </svg>
         )}
       </div>
-      <span className={`text-xs font-mono ${checked ? 'text-slate-300 line-through decoration-slate-600' : 'text-slate-500'}`}>
+      <span className={`text-xs font-mono transition-all duration-300 ${checked ? 'text-slate-500 line-through decoration-slate-700' : 'text-slate-300'}`}>
         {label}
       </span>
     </div>

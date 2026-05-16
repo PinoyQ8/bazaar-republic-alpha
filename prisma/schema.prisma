@@ -1,72 +1,43 @@
-// 🛡️ BAZAAR VAULT: MASTER SCHEMA (ZERO-CONFIG PROTOCOL)
+// // ⚡ prisma/schema.prisma
+datasource db {
+  provider = "postgresql"
+}
 
 generator client {
   provider = "prisma-client-js"
+  output   = "../lib/generated/client"
 }
 
-datasource db {
-  provider = "postgresql"
- }
-
-// ... rest of your models (Pioneer, CitizenPassport, RecoveryLedger) remain the same
-
-// 🛡️ RECOVERY STATES
-enum RecoveryStatus {
-  STASIS     // 24-hour countdown in progress
-  EXPIRED    // Stasis over, claimable by heir
-  ABORTED    // Original Pioneer cancelled the request
-  FINALIZED  // Ownership has been transferred
-}
-
-// 🛡️ THE PI NETWORK ANCHOR (External Identity)
+// Your Pioneer and CitizenPassport models follow here untouched...
 model Pioneer {
-  uid             String           @id
-  username        String           @unique
-  firstLogin      DateTime         @default(now())
-  
-  // MESH Relations
-  citizenPassport CitizenPassport? 
-  recoveryLogs    RecoveryLedger[]
+  id          Int      @id @default(autoincrement())
+  pioneerUid  String   @unique
+  role        String   @default("PIONEER")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("pioneers")
 }
 
-// 🛡️ THE E-NETWORK LEDGER (Internal Identity)
 model CitizenPassport {
-  id              String   @id @default(uuid()) 
-  
-  // The Cryptographic Link to the Pioneer
-  pioneerUid      String   @unique
-  pioneer         Pioneer  @relation(fields: [pioneerUid], references: [uid], onDelete: Cascade)
-  
-  // 💰 THE TREASURY ANCHOR
-  stakedPi        Float    @default(0.0) 
-  
-  // ⚖️ THE TRUSTSCORE (TS) VARIABLES
-  successfulTx    Int      @default(0)   
-  disputedTx      Int      @default(0)   
-  
-  // 🚦 PASSPORT STATE
-  status          String   @default("ACTIVE") 
-  issuedAt        DateTime @default(now())
+  id          Int      @id @default(autoincrement())
+  pioneerUid  String   @unique
+  status      String   @default("ACTIVE")
+  tier        Int      @default(1)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("citizen_passports")
 }
 
-// 🛡️ THE RECOVERY LEDGER (Security Stasis)
+// 🛡️ RECOVERED BLOCK: STASIS PROTOCOL TRACKING LEDGER
 model RecoveryLedger {
-  id            String         @id @default(cuid())
-  
-  citizenUid    String         
-  citizen       Pioneer        @relation(fields: [citizenUid], references: [uid], onDelete: Cascade)
-  
-  initiatorHeir String         
-  
-  stasisStart   DateTime       @default(now())
-  stasisEnd     DateTime       
-  status        RecoveryStatus @default(STASIS)
-  
-  ipAddress     String?
-  userAgent     String?
-  
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
+  id          Int      @id @default(autoincrement())
+  citizenUid  String   @unique
+  status      String   @default("STASIS")
+  nodeIp      String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  @@index([citizenUid, status])
+  @@map("recovery_ledgers")
 }

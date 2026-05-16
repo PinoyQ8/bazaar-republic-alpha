@@ -46,3 +46,7 @@ next-env.d.ts
 /target/
 **/*.rs.bk
 Cargo.lock
+
+# Prisma Generated Clients
+lib/generated/
+prisma/generated/
