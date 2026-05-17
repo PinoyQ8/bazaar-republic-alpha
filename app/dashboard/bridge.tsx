@@ -42,10 +42,11 @@ export default function AssetBridgeTerminal() {
           setBridgeState("VERIFYING");
           setLogs(prev => [...prev, `[LEDGER] Payment ${paymentId} anchored. Unlocking Vault...`]);
           
-          const response = await fetch('/api/payments/complete', {
-            method: 'POST',
-            body: JSON.stringify({ paymentId, username: pioneer?.username })
-          });
+          const response = await fetch('/api/api/payments/complete', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ paymentId, pioneerUid: pioneer?.uid }) // Syncs directly with schema structure
+});
           
           if (response.ok) {
             setBridgeState("SYNCED");

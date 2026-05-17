@@ -123,3 +123,29 @@ model AcademyLog {
   @@index([pioneerUid])                // Speeds up Pioneer dashboard load times
   @@map("academy_logs")
 }
+
+// ==========================================
+// 🪙 LAYER 03: E-NETWORK ECONOMIC LEDGER
+// ==========================================
+
+model Payment {
+  id         Int      @id @default(autoincrement())
+  paymentId  String   @unique // The unique payment String hash returned by the Pi SDK
+  pioneerUid String   // Anchored directly to your Core Identity Perimeter
+  amount     Float    @default(0.01)
+  status     String   // PENDING | COMPLETED | FAILED
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@map("pi_payments")
+}
+
+model UserWallet {
+  id          Int      @id @default(autoincrement())
+  pioneerUid  String   @unique // One unique wallet per verified Pioneer Node
+  mbzrBalance Float    @default(0.0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("user_wallets")
+}

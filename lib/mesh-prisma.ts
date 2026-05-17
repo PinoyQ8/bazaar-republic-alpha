@@ -2,16 +2,14 @@
 import { PrismaClient } from '@prisma/client';
 import { PrismaNeonHttp } from '@prisma/adapter-neon';
 
-// 1. Define the Bridge Path from .env.local
-const connectionString = `${process.env.DATABASE_URL}`;
+// 1. Define the Bridge Path with an active build-time fallback emulator string
+const connectionString = process.env.DATABASE_URL || "postgresql://postgres:mock_bypass@localhost:5432/bazaar_republic?schema=public";
 
-// 2. Initialize the Adapter
-// Arg 1: The connection string (string)
-// Arg 2: Empty options object {} to satisfy Prisma 7 strict typing
+// 2. 🛡️ HARD-CODED INTERFACE alignment: Pass raw string and empty options array
 const adapter = new PrismaNeonHttp(connectionString, {});
 
-// 3. Instantiate the Global Client (Prevents connection exhaustion in Dev)
-const globalForPrisma = global as unknown as { prisma: PrismaClient };
+// 3. Global Singleton Configuration (Eliminates development hot-reload leaks)
+const globalForPrisma = globalThis as unknown as { prisma: PrismaClient | undefined };
 
 export const prisma = globalForPrisma.prisma || new PrismaClient({ adapter });
 
