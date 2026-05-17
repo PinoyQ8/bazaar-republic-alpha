@@ -1,26 +1,31 @@
-import type { NextConfig } from "next";
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+  // Your existing Next.js parameters (e.g., output, images, turbopack rules) remain here...
 
-const nextConfig: NextConfig = {
   async headers() {
     return [
       {
-        // Apply these headers to all routes in the Republic
-        source: '/(.*)',
+        // 🛡️ Apply this configuration pattern across all pages, assets, and routes globally
+        source: '/:path*',
         headers: [
           {
-            key: 'X-Content-Type-Options',
-            value: 'nosniff',
+            key: 'Content-Security-Policy',
+            // ✅ ALLOWS THE PI BROWSER ENGINE TO FRAME YOUR APPLICATION SECURELY
+            value: "frame-ancestors 'self' https://*.pinet.com https://*.minepi.com https://minepi.com;",
           },
           {
-             // 🛡️ MESH-SCAN: Prevents other sites from putting Bazaar inside an IFrame
-             // We explicitly allow 'self' and the Pi Network ecosystem
-            key: 'Content-Security-Policy',
-            value: "frame-ancestors 'self' https://app-cdn.minepi.com https://*.minepi.com;",
+            key: 'X-Frame-Options',
+            // 🚨 MUST BE BLANK OR REMOVED. Setting 'SAMEORIGIN' will completely override the CSP rule above and cause a crash
+            value: '', 
           },
+          {
+            key: 'Access-Control-Allow-Origin',
+            value: '*',
+          }
         ],
       },
     ];
   },
 };
 
-export default nextConfig;
+module.exports = nextConfig;
