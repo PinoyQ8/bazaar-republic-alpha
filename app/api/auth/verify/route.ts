@@ -1,70 +1,98 @@
+// 🛡️ BAZAAR REPUBLIC: 100% PCT COMPLIANCE AUTHENTICATION GATEWAY
 import { NextResponse } from 'next/server';
+import { signMeshToken } from '@/lib/auth-mesh';
+import { prisma } from '@/lib/mesh-prisma'; // Centralized Neon HTTP Engine Client
 
 export async function POST(request: Request) {
   try {
-    // 1. 🛡️ INTERCEPT THE PAYLOAD
-    const body = await request.json();
-    const { accessToken } = body;
+    const { accessToken, pioneerUid } = await request.json();
 
-    if (!accessToken) {
-      console.warn("[MESH-SCAN] Fracture: Missing Access Token.");
+    // 🚨 RULE 1: Validate payload parameters before executing network threads
+    if (!accessToken || !pioneerUid) {
       return NextResponse.json(
-        { success: false, error: "ACCESS_TOKEN_MISSING" }, 
+        { error: "PCT Handshake Failure: Incomplete token or identity payload." },
         { status: 400 }
       );
     }
 
-    // 2. 🛡️ THE PI NETWORK HANDSHAKE (Server-to-Server)
-    // We ping the official Pi API. If the token is forged, Pi will reject it.
-    const piResponse = await fetch('https://api.minepi.com/v2/me', {
+    // 🏛️ RULE 2: Server-to-Server Authentication Loop with Pi Core Team API
+    // This eliminates client-side spoofing vectors entirely.
+    const piNetworkResponse = await fetch('https://api.minepi.com/v2/me', {
       method: 'GET',
       headers: {
-        'Authorization': `Bearer ${accessToken}`,
-      },
+        'Authorization': `Bearer ${accessToken}`
+      }
     });
 
-    if (!piResponse.ok) {
-      console.error(`[MESH-SCAN] Pi Network Adjudication Failed: ${piResponse.status}`);
+    if (!piNetworkResponse.ok) {
+      console.error(`[MESH-SCAN] Cryptographic rejection from api.minepi.com. Status: ${piNetworkResponse.status}`);
       return NextResponse.json(
-        { success: false, error: "PI_NETWORK_REJECTED" }, 
+        { error: "PCT Security Exception: Remote blockchain handshake rejected." },
         { status: 401 }
       );
     }
 
-    // 3. 🛡️ EXTRACT THE AUTHENTIC PIONEER DATA
-    const piData = await piResponse.json();
-    const pioneerUid = piData.uid;
-    const pioneerUsername = piData.username;
+    // Parse the authenticated profile payload directly from the Core Team's secure response
+    const piProfile = await piNetworkResponse.json();
 
-    console.log(`[MESH-SCAN] Handshake Verified. Pioneer: ${pioneerUsername}`);
+    // 🚨 RULE 3: Cross-Check Identity Immutability
+    // Ensure the UID claimed by the frontend matches the cryptographic token owner verified by the PCT.
+    if (piProfile.uid !== pioneerUid) {
+      console.error(`[MESH-SCAN] CRITICAL: Identity mismatch detected! Claimed: ${pioneerUid}, Verified: ${piProfile.uid}`);
+      return NextResponse.json(
+        { error: "PCT Security Exception: Identity parameter structural mutation detected." },
+        { status: 403 }
+      );
+    }
 
-    // 4. 🛡️ THE VAULT LOCK (HttpOnly Cookie Forge)
-    const response = NextResponse.json({
-      success: true,
-      message: "Node Verified by MESH",
-      user: {
-        uid: pioneerUid,
-        username: pioneerUsername,
+    // ====================================================================
+    // 📥 AUTOMATED ACCUMULATION LAYER: INITIAL USER SEED
+    // ====================================================================
+    // Safely upsert the baseline profile within our PostgreSQL ledger instance.
+    // If they exist, we sync their username; if not, we initialize their node parameters.
+    const userNode = await prisma.userWallet.upsert({
+      where: { pioneerUid: piProfile.uid },
+      update: {
+        // Keep their profile synced with any username adjustments made on the primary network
+        username: piProfile.username || "Anonymous Pioneer"
+      },
+      create: {
+        pioneerUid: piProfile.uid,
+        username: piProfile.username || "Anonymous Pioneer",
+        mbzrBalance: 0.0 // Initializing simulation balance tracking cleanly
       }
     });
 
-    // Hard-coding the session token into the server vault
-    response.cookies.set({
-      name: 'mesh_session_token',
-      value: `${pioneerUid}-AUTH-${Date.now()}`, // Temporary Cryptographic Stand-in
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production', // Requires HTTPS on Mainnet
-      sameSite: 'lax',
-      path: '/',
-      maxAge: 60 * 60 * 24 * 7, // 7-Day Vault Lock
+    // Determine authorization role tier weights
+    const assignedRole = piProfile.roles?.includes('moderator') ? 'MODERATOR' : 'CITIZEN';
+
+    // ====================================================================
+    // 🔐 CRYPTOGRAPHIC TOKEN GENERATION
+    // ====================================================================
+    // Seal the verified parameters inside our native Web-Crypto JWT infrastructure
+    const meshToken = await signMeshToken({
+      pioneerUid: userNode.pioneerUid,
+      role: assignedRole
     });
 
-    return response;
+    console.log(`[SUCCESS] Handshake verified for Pioneer: ${userNode.username} [${assignedRole}]`);
+
+    // Return the token to the client node. The Pi Browser app frontend will intercept this 
+    // and inject it into all subsequent Axios/Fetch authorization headers.
+    return NextResponse.json({
+      success: true,
+      meshToken,
+      pioneer: {
+        uid: userNode.pioneerUid,
+        username: userNode.username,
+        role: assignedRole
+      }
+    });
 
   } catch (error) {
-    console.error("[MESH-SCAN] Internal Logic Fracture:", error);
+    console.error("[FATAL] Auth Verification Sector Fracture:", error);
     return NextResponse.json(
-      { success: false, error: "INTERNAL_LOGIC_FAILURE" }, 
+      { error: "Internal Security Adjudicator Exception." },
       { status: 500 }
     );
   }

@@ -142,10 +142,9 @@ model Payment {
 
 model UserWallet {
   id          Int      @id @default(autoincrement())
-  pioneerUid  String   @unique // One unique wallet per verified Pioneer Node
-  mbzrBalance Float    @default(0.0)
+  pioneerUid  String   @unique                  // 🛡️ The locked Pi Network unique identifier
+  username    String   @default("Anonymous")    // 📥 ADDED: Accumulates network profile handles
+  mbzrBalance Float    @default(0.0)            // Internal simulation liquidity pool tracking
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-
-  @@map("user_wallets")
 }
