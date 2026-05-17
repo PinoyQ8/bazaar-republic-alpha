@@ -9,18 +9,23 @@ const globalForPrisma = globalThis as unknown as {
   pool: Pool | undefined;
 };
 
-const connectionString = process.env.NEON_DATABASE_URL;
+// ⚡ MESH LAW: Allow static build workers to bypass undefined variables
+const connectionString = process.env.NEON_DATABASE_URL || process.env.DATABASE_URL;
 
 if (!connectionString) {
-  throw new Error("[MESH-SCAN] Critical Failure: NEON_DATABASE_URL environment key missing.");
+  console.warn("[MESH-SCAN] WARNING: Database Conduit missing during module evaluation. Awaiting runtime injection.");
 }
 
-// Ensure the connection pool cache is sustained during Next.js hot reloads to prevent leaks
-const pool = globalForPrisma.pool || new Pool({ connectionString });
+// 🛡️ SECURE: Inject a dummy string if undefined so the Pool constructor doesn't crash during build analysis
+const pool = globalForPrisma.pool || new Pool({ 
+  connectionString: connectionString || "postgres://dummy:dummy@localhost:5432/dummy" 
+});
+
 if (process.env.NODE_ENV !== "production") globalForPrisma.pool = pool;
 
 const adapter = new PrismaPg(pool);
 
 // Instantiate the Client by injecting the validated Prisma 7 Driver Adapter
 export const neonClient = globalForPrisma.prisma || new PrismaClient({ adapter });
+
 if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = neonClient;

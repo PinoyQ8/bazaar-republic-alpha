@@ -7,18 +7,21 @@ generator client {
 }
 
 // ==========================================
-// 🌌 CORE IDENTITY & STATUS PERIMETER (UNTOUCHED)
+// 🌌 CORE IDENTITY & STATUS PERIMETER
 // ==========================================
 
 model Pioneer {
   id         Int      @id @default(autoincrement())
   pioneerUid String   @unique
   role       String   @default("PIONEER")
+  trustScore Float    @default(1.0)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
   @@map("pioneers")
 }
+
+// (Ensure your other tables: InternalProposal, InternalVote, AcademyLog continue cleanly below this point)
 
 model CitizenPassport {
   id         Int      @id @default(autoincrement())
@@ -102,4 +105,21 @@ model CommunityVote {
   @@unique([piUsername, pollId]) // Firewalled to block public double-voting exploits
   @@index([piUsername])          // Optimized indexing for external profile lookups
   @@map("community_votes")
+}
+
+// ==========================================
+// 🎓 MESH ACADEMY: PIONEER PROGRESS LEDGER
+// ==========================================
+
+model AcademyLog {
+  id           Int      @id @default(autoincrement())
+  pioneerUid   String   // The Pi Network UID of the user
+  moduleLocked String   // The specific sector, e.g., "module-03-zero-trust"
+  status       String   @default("COMPLETED")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([pioneerUid, moduleLocked]) // Prevents double-stamping the same module
+  @@index([pioneerUid])                // Speeds up Pioneer dashboard load times
+  @@map("academy_logs")
 }

@@ -1,11 +1,12 @@
 import mongoose from 'mongoose';
 
 // 🛡️ VAULT KEY ALIGNMENT
-// Ensure this explicitly matches your .env file
-const MONGODB_URI = process.env.MONGODB_URI!;
+// Extracts the key but does NOT force a non-null assertion at the top level
+const MONGODB_URI = process.env.MONGODB_URI;
 
+// ⚡ MESH LAW: Allow static build workers to bypass undefined variables without detonating Turbopack
 if (!MONGODB_URI) {
-  throw new Error('[MESH-SCAN] Fatal Fracture: MONGODB_URI is missing from the Alpha Vault environment variables.');
+  console.warn('[MESH-SCAN] WARNING: MONGODB_URI missing during module evaluation. Awaiting runtime injection.');
 }
 
 // 🛡️ MESH CACHE: SERVERLESS SHIELD
@@ -31,6 +32,12 @@ export async function connectToLedger() {
     return cached.conn;
   }
 
+  // 🛡️ RUNTIME DETONATOR: Safely moved inside the execution scope
+  // If the server tries to execute a live database hit without a key, it terminates here.
+  if (!process.env.MONGODB_URI) {
+    throw new Error('[MESH-SCAN] Fatal Fracture: MONGODB_URI is strictly required to initialize the ledger at runtime.');
+  }
+
   if (!cached?.promise) {
     const opts = {
       bufferCommands: false,
@@ -39,7 +46,7 @@ export async function connectToLedger() {
 
     console.log("[MESH-SCAN] Initializing secure uplink to MongoDB Telemetry Vault...");
     
-    cached!.promise = mongoose.connect(MONGODB_URI, opts).then((mongooseInstance) => {
+    cached!.promise = mongoose.connect(process.env.MONGODB_URI, opts).then((mongooseInstance) => {
       console.log("[MESH-SCAN] MongoDB Uplink Secured and Hard-Coded.");
       return mongooseInstance;
     });
