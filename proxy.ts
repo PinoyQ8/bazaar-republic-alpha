@@ -8,6 +8,7 @@ import { queryStasisLedger } from './lib/stasis-ledger'; // 🔗 INJECTED: Web3 
 const PCT_WHITELIST = [
   '/api/auth/verify', 
   '/api/sandbox-status',
+  '/api/academy/vault', // 🛡️ INJECTED: Whitelist the Vault Auth API Gateway
   '/favicon.ico'
 ];
 
@@ -15,11 +16,14 @@ export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // ====================================================================
-  // 🏛️ SECTOR 1: FRONTEND VIEWPORT PAGE PROTECTION (OLD MIDDLEWARE MERGE)
+  // 🏛️ SECTOR 1: FRONTEND VIEWPORT PAGE PROTECTION (UPDATED WITH VAULT BYPASS)
   // ====================================================================
   const isPagePath = ['/academy', '/dao', '/dashboard'].some(route => pathname.startsWith(route));
   
-  if (isPagePath) {
+  // 🛡️ THE EXPLICIT BYPASS: Drop shields strictly for the Pi SDK handshake path
+  const isVaultSector = pathname === '/academy/vault';
+
+  if (isPagePath && !isVaultSector) {
     // 🔍 SNIFF THE VAULT: Check for the active session cookie
     const session = request.cookies.get('mesh_session_token')?.value;
 
@@ -29,6 +33,11 @@ export async function proxy(request: NextRequest) {
       return NextResponse.redirect(new URL('/', request.url));
     }
     
+    return NextResponse.next();
+  }
+
+  // If they are explicitly heading to the vault, let them pass through to render the component
+  if (isVaultSector) {
     return NextResponse.next();
   }
 
@@ -62,7 +71,7 @@ export async function proxy(request: NextRequest) {
       meshToken?.toLowerCase() === "mommydors";
 
     if (isGenesisNode) {
-      console.log(`[MESH-SCAN] Genesis Node override verified for API path: ${pathname} using token token [${meshToken}]`);
+      console.log(`[MESH-SCAN] Genesis Node override verified for API path: ${pathname} using token [${meshToken}]`);
       const requestHeaders = new Headers(request.headers);
       requestHeaders.set('x-mesh-pioneer-uid', "GENESIS-ANCHOR");
       requestHeaders.set('x-mesh-pioneer-role', "FOUNDER");
