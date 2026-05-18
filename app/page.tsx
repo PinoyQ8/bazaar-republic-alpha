@@ -2,13 +2,14 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation"; // 🛡️ INJECTED: usePathname
 import { verifyGenesisNode } from "./actions/verifyGenesis";
 import { useAuth } from "@/context/AuthContext";
 
 export default function RepublicHeroSector() {
   const { pioneer, login } = useAuth();
   const router = useRouter();
+  const pathname = usePathname(); // 🛡️ INJECTED: Capture active route
 
   // 🛡️ LOGIC PURITY: Separation of states
   const [isVerifying, setIsVerifying] = useState(false);
@@ -20,6 +21,9 @@ export default function RepublicHeroSector() {
 
   // We rely on the AuthContext (pioneer object) for absolute truth, not localStorage.
   const isUnlocked = !!pioneer?.isAuthenticated; 
+  
+  // 🛡️ THE WHITELIST BYPASS
+  const isVaultSector = pathname === "/academy/vault";
 
   useEffect(() => {
     setMounted(true);
@@ -78,8 +82,9 @@ export default function RepublicHeroSector() {
 
   if (!mounted) return null;
 
-  // 🛑 ZERO-TRUST PERIMETER ACTIVE
-  if (!isUnlocked) {
+  // 🛑 ZERO-TRUST PERIMETER ACTIVE (WITH VAULT BYPASS)
+  // If they are NOT unlocked AND they are NOT at the vault, drop the blast doors.
+  if (!isUnlocked && !isVaultSector) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[80vh] px-4 animate-in fade-in duration-700">
         <div className="w-full max-w-[350px] p-8 border border-blue-900/50 bg-slate-900/50 backdrop-blur-xl rounded-2xl shadow-[0_0_40px_rgba(37,99,235,0.1)] text-center relative overflow-hidden">
