@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 
 export default function GenesisNodePage() {
+  // 🛠️ 1. TELEMETRY & MOUNT STATES
   const [syncStatus, setSyncStatus] = useState<number>(0);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [checklist, setChecklist] = useState({
@@ -13,61 +14,63 @@ export default function GenesisNodePage() {
     moduleComplete: false,
   });
 
-  const handleInitiateModule = async (e: React.MouseEvent) => {
-    if (syncStatus === 100) return; // Prevent double execution if already synced
-    e.preventDefault();
-    setIsProcessing(true);
+  // 🛡️ 2. IDENTITY HYDRATION: Auto-Verify Master Node on Layer Mount
+  useEffect(() => {
+    const savedMaster = localStorage.getItem('Bazaar_Master_TS');
+    if (savedMaster?.toLowerCase() === 'pinoyq8') {
+      setChecklist((prev) => ({
+        ...prev,
+        piIdentity: true, // Auto-resolve identity checklist for Founder node
+      }));
+      setSyncStatus(50); // Pre-sync the network dial to 50%
+    }
+  }, []);
+
+  // 🚀 3. CORE HANDSHAKE ENGINE
+  const handleInitiateModule = async () => {
+    console.log("[MESH-INIT] Initiating Module 01 Protocol...");
+    const localMasterToken = localStorage.getItem('Bazaar_Master_TS') || "PinoyQ8";
+    setIsProcessing(true); // Engaged UI firewall locks
 
     try {
-      // 🛡️ PHASE 1: Verify Identity Matrix
-      setChecklist((prev) => ({ ...prev, piIdentity: true }));
-      setSyncStatus(35);
-      await new Promise((resolve) => setTimeout(resolve, 800));
-
-      // 🛡️ PHASE 2: Commit State to Neon Core Ledger
-      const response = await fetch("/api/register-citizen", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          piUsername: "PioneerZero",
-          p23Token: "p23_live_handshake_buffer_alpha",
-          roles: ["pioneer"],
-        }),
+      const response = await fetch('/api/academy/initiate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localMasterToken}`
+        },
+        body: JSON.stringify({ moduleId: "01" })
       });
+
+      // 🛡️ CRITICAL BOUNDARY GUARD: Intercept HTML leaks before parsing JSON
+      if (!response.ok) {
+        const rawText = await response.text();
+        console.error(`[MESH-ERROR] API returned Status ${response.status}. Payload trace:`, rawText);
+        throw new Error(`PCT Edge Exception: Server responded with status ${response.status}`);
+      }
 
       const data = await response.json();
-      if (!data.success) throw new Error(data.error);
+      
+      if (data.success) {
+        console.log("[MESH-SYNC] Module 01 initiated successfully in backend vault.");
+        
+        // 🟢 MUTATE ALL CHECKS ON LEDGER RESOLUTION
+        setChecklist((prev) => ({ 
+          ...prev, 
+          piIdentity: true,
+          meshBuffer: true, 
+          moduleComplete: true 
+        }));
+        
+        setSyncStatus(100); // Drive the metric panel to full execution
+      } else {
+        throw new Error(data.error || "Adjudicator rejected state verification.");
+      }
 
-      // 🛡️ PHASE 3: Complete Mainnet Buffer Synchronization
-      setChecklist((prev) => ({ ...prev, meshBuffer: true }));
-      setSyncStatus(75);
-      await new Promise((resolve) => setTimeout(resolve, 600));
-
-      // 🛡️ PHASE 4: Finalize Module Authorization
-      setChecklist((prev) => ({ ...prev, moduleComplete: true }));
-      setSyncStatus(100);
-
-      // Secure state parameters across storage sectors
-      localStorage.setItem("BZR_MASTER_TS", Date.now().toString());
-      localStorage.setItem("BZR_NODE_STATUS", data.payload.status);
-      localStorage.setItem("BZR_CITIZEN_TIER", data.payload.tier.toString());
-
-      // Seamlessly pass execution straight to Module 01 sector
-      setTimeout(() => {
-        window.location.href = "/academy/module-01";
-      }, 1000);
-
-    } catch (error) {
-      console.error("[MESH-SCAN FAILURE]:", error);
-      alert("[MESH-SCAN]: Sync baseline interrupted. Confirm your local node background process is active.");
-      setIsProcessing(false);
-      setSyncStatus(0);
-      setChecklist({
-        piIdentity: false,
-        bridgeHandshake: true,
-        meshBuffer: false,
-        moduleComplete: false,
-      });
+    } catch (error: any) {
+      console.error("[browser] [MESH-SCAN FAILURE]:", error.message);
+    } finally {
+      setIsProcessing(false); // Disengage structural locks
     }
   };
 
@@ -144,15 +147,43 @@ export default function GenesisNodePage() {
         </div>
       </section>
 
-      {/* 🚀 ACTION: ENTER NEXT MODULE */}
-      <div className="pt-8 border-t border-slate-900 flex justify-end">
-        <button
-          onClick={handleInitiateModule}
-          disabled={isProcessing}
-          className="px-8 py-3 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-800 disabled:text-slate-600 text-white font-mono font-bold rounded shadow-[0_0_20px_rgba(37,99,235,0.2)] disabled:shadow-none transition-all uppercase text-xs tracking-widest min-w-55 text-center"
-        >
-          {isProcessing ? "Synchronizing..." : syncStatus === 100 ? "Synced ✓" : "Initiate Module 01 →"}
-        </button>
+      {/* 🚀 ACTION: ENTER NEXT MODULE / DAO ACCESS GATE */}
+      <div className="pt-8 border-t border-slate-900 flex flex-col sm:flex-row justify-between items-center gap-4">
+        
+        {/* Real-time Status Readout */}
+        <div className="font-mono text-[11px] tracking-wider uppercase">
+          {syncStatus === 100 ? (
+            <span className="text-emerald-400 flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+              [SECURITY ADJUDICATOR]: Access Granted. Security Circle Unlocked.
+            </span>
+          ) : (
+            <span className="text-slate-500">
+              [SYSTEM]: Awaiting full E-Network ledger synchronization...
+            </span>
+          )}
+        </div>
+
+        {/* Dynamic Interactive Logic Gate */}
+        <div>
+          {syncStatus === 100 ? (
+            <Link
+              href="/academy/protocol-forge" // 🛰️ Target route for Module 01: Protocol Logic
+              className="inline-block px-8 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-mono font-bold rounded shadow-[0_0_25px_rgba(16,185,129,0.3)] hover:shadow-[0_0_35px_rgba(16,185,129,0.5)] transition-all uppercase text-xs tracking-widest text-center animate-in fade-in zoom-in-95 duration-500"
+            >
+              Enter Module 01: Logic Forge →
+            </Link>
+          ) : (
+            <button
+              onClick={handleInitiateModule}
+              disabled={isProcessing}
+              className="px-8 py-3 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-800 disabled:text-slate-600 text-white font-mono font-bold rounded shadow-[0_0_20px_rgba(37,99,235,0.2)] disabled:shadow-none transition-all uppercase text-xs tracking-widest min-w-55 text-center"
+            >
+              {isProcessing ? "Synchronizing..." : "Initiate Module 01 →"}
+            </button>
+          )}
+        </div>
+
       </div>
     </div>
   );

@@ -2,6 +2,7 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { verifyMeshToken } from './lib/auth-mesh';
+import { queryStasisLedger } from './lib/stasis-ledger'; // 🔗 INJECTED: Web3 Ledger Bridge
 
 // Explicit PCT Whitelist Route Array (Bypass API checks for login/initialization)
 const PCT_WHITELIST = [
@@ -52,7 +53,25 @@ export async function proxy(request: NextRequest) {
 
     // Extract the raw token from the Bearer configuration layout
     const meshToken = authHeader.split(' ')[1];
-    
+
+    // 🏛️ UPGRADED GENESIS OVERRIDE BRIDGE
+    // Validates either the raw master passcode OR the cached Founder identity strings
+    const isGenesisNode = 
+      meshToken === process.env.GENESIS_PASSCODE || 
+      meshToken?.toLowerCase() === "pinoyq8" ||
+      meshToken?.toLowerCase() === "mommydors";
+
+    if (isGenesisNode) {
+      console.log(`[MESH-SCAN] Genesis Node override verified for API path: ${pathname} using token token [${meshToken}]`);
+      const requestHeaders = new Headers(request.headers);
+      requestHeaders.set('x-mesh-pioneer-uid', "GENESIS-ANCHOR");
+      requestHeaders.set('x-mesh-pioneer-role', "FOUNDER");
+      
+      return NextResponse.next({
+        request: { headers: requestHeaders },
+      });
+    }
+
     // Rule 3: Cryptographically verify signature and expiration window via Web Crypto
     const verifiedSession = await verifyMeshToken(meshToken);
 
@@ -63,7 +82,22 @@ export async function proxy(request: NextRequest) {
       );
     }
 
-    // Enforce Passage: Inject the verified user data into downstream request headers
+    // ====================================================================
+    // ⛓️ SECTOR 2.5: ON-CHAIN STASIS ADJUDICATION (SOROBAN TESTNET)
+    // ====================================================================
+    const isNodeFrozen = await queryStasisLedger(verifiedSession.pioneerUid);
+    
+    if (isNodeFrozen) {
+      console.warn(`[STASIS-LOCK] Node ${verifiedSession.pioneerUid} is frozen on-chain. Connection severed.`);
+      return NextResponse.json(
+        { error: "Stasis Protocol Active: Your node is mathematically locked on the Testnet. Access Denied." },
+        { status: 403 }
+      );
+    }
+
+    // ====================================================================
+    // 🟢 ENFORCE PASSAGE: Inject verified data downstream
+    // ====================================================================
     const requestHeaders = new Headers(request.headers);
     requestHeaders.set('x-mesh-pioneer-uid', verifiedSession.pioneerUid);
     requestHeaders.set('x-mesh-pioneer-role', verifiedSession.role);

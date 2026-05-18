@@ -41,35 +41,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setLoading(false);
   }, []);
 
-  // 🛡️ PROTOCOL LAYER 2: Automated Self-Healing Sentinel (Stacked Transaction Clearer)
-  useEffect(() => {
-    if (typeof window !== "undefined" && window.Pi) {
-      console.log("[MESH] Syncing global payment monitoring listener array...");
-      
-      // 🔒 TYPE ASSERTION BYPASS: Clears TS 2339 by casting the runtime object to any
-      (window.Pi as any).registerOnIncompletePaymentFound(async (payment: any) => {
-        console.warn(`[MESH-SCAN] Stacked transaction intercepted in network buffer: ${payment.paymentId}`);
-        
-        try {
-          // Force-transmit the stuck ledger token straight to the Adjudicator completion gate
-          const response = await fetch('/api/payments/complete', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-              paymentId: payment.paymentId, 
-              username: localStorage.getItem('Bazaar_Master_TS') || "UNKNOWN_NODE" 
-            })
-          });
-
-          if (response.ok) {
-            console.log("[SUCCESS] Stacked ledger state cleared dynamically. Buffer synchronized.");
-          }
-        } catch (error) {
-          console.error("[FATAL] Self-healing automation layer fractured:", error);
-        }
-      });
-    }
-  }, [pioneer]);
+  // ⚠️ NOTE: PROTOCOL LAYER 2 (Standalone Listener) HAS BEEN VAPORIZED.
+  // The SDK v2.0 requires incomplete payment logic to be passed directly into the authenticate handshake below.
 
   // 🛡️ PROTOCOL LAYER 3: The Dual-Protocol Handshake
   const login = async (overrideUsername?: string, overrideTier?: string) => {
@@ -94,9 +67,33 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
 
       console.log("[MESH-SCAN] Requesting Pi Network Sandbox Auth...");
-      const auth = await window.Pi.authenticate(['payments', 'username'], (incomplete: any) => {
-        console.warn("[MESH-SCAN] Incomplete payment found inside callback:", incomplete);
-      });
+
+      // 🛡️ INJECTED SENTINEL: Automated Self-Healing Logic
+      // This function replaces the old standalone listener and is passed directly to the SDK.
+      const handleIncompletePayment = async (payment: any) => {
+        console.warn(`[MESH-SCAN] Stacked transaction intercepted in network buffer: ${payment.paymentId}`);
+        
+        try {
+          // Force-transmit the stuck ledger token straight to the Adjudicator completion gate
+          const response = await fetch('/api/payments/complete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              paymentId: payment.paymentId, 
+              username: localStorage.getItem('Bazaar_Master_TS') || "UNKNOWN_NODE" 
+            })
+          });
+
+          if (response.ok) {
+            console.log("[SUCCESS] Stacked ledger state cleared dynamically. Buffer synchronized.");
+          }
+        } catch (error) {
+          console.error("[FATAL] Self-healing automation layer fractured:", error);
+        }
+      };
+
+      // 🚀 THE HANDSHAKE: Notice the sentinel function is now the 2nd parameter
+      const auth = await window.Pi.authenticate(['payments', 'username'], handleIncompletePayment);
 
       // THE HANDOFF: Send intercepted token to the server-side Adjudicator
       console.log("[MESH-SCAN] Token intercepted. Transmitting to Backend Vault...");

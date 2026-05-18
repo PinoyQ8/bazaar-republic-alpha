@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import StasisShield from '@/components/StasisShield'; // 🛡️ INJECTED: Web3 Kill-Switch
 
 export default function CommandCenter() {
   // 🛡️ 1. CORE ROUTING & SECURITY STATE
@@ -126,6 +127,11 @@ export default function CommandCenter() {
             <span className="text-cyan-400">{lSync}</span>
           </div>
         </div>
+      </section>
+
+      {/* 🛑 ON-CHAIN STASIS KILL-SWITCH INJECTION */}
+      <section className="my-1.5">
+        <StasisShield pioneerUid={secureNodeAddress} />
       </section>
 
       {/* ⚡ SYSTEM LEDGER STREAM FEED */}
