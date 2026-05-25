@@ -20,3 +20,8 @@ Cargo.lock
 .env
 /bazaar-republic-alpha/.next
 /bazaar-republic-alpha/node_modules
+node_modules/
+
+.next/
+
+.env*
