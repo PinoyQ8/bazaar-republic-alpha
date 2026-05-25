@@ -1,0 +1,14 @@
+{
+  "protocol_version": 23,
+  "network": "Testnet",
+  "asset": {
+    "code": "mBZR",
+    "total_supply": "999999900.0000000",
+    "issuer_pub": "GCD4GW27B2PQZGJGLCAQYEAEKDDDGWY7U6CHNSFY6AOEUBLEU3FGWG4D",
+    "distributor_pub": "GAI5DGRUHXCMLDTHMVCZBHGTQXTP2SOS3CMX3KWGAF7XGXTNN5TLMTTA"
+  },
+  "multisig": {
+    "thresholds": { "low": 1, "med": 3, "high": 3 },
+    "weights": { "master": 1, "founder": 1, "elder": 1, "mesh": 1 }
+  }
+}

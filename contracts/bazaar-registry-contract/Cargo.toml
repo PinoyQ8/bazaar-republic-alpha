@@ -1,0 +1,17 @@
+[package]
+name = "bazaar-registry-contract"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"] # 🛡️ Added rlib for consistency
+
+[dependencies]
+soroban-sdk = "22.0.0" # 🛡️ UPGRADED TO MATCH PIONEER_REGISTRY
+
+[dev-dependencies]
+soroban-sdk = { version = "22.0.0", features = ["testutils"] }
+
+[features]
+testutils = ["soroban-sdk/testutils"]

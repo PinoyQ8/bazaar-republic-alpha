@@ -1,0 +1,22 @@
+# 🛡️ THE BAZAAR SHIELD
+node_modules/
+.next/
+out/
+build/
+target/
+**/target/
+**/*.wasm
+**/*.pdb
+**/*.exe
+**/*.dll
+.DS_Store
+.env*
+Cargo.lock
+/target
+/node_modules
+/.next
+/.vercel
+Cargo.lock
+.env
+/bazaar-republic-alpha/.next
+/bazaar-republic-alpha/node_modules

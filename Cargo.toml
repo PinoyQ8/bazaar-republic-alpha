@@ -1,0 +1,4 @@
+[workspace]
+resolver = "2"
+members = ["bazaar-republic-alpha/bazaar_contracts/pioneer_registry","contracts/bazaar-registry-contract"]
+exclude = ["bazaar-republic-alpha"]
