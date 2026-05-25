@@ -1,0 +1,319 @@
+Folder PATH listing
+Volume serial number is 5E9D-AB46
+J:\PROJECT-BAZAAR\BAZAAR-REPUBLIC\BAZAAR-REPUBLIC-ALPHA\APP
+|   favicon.ico
+|   globals.css
+|   layout.tsx
+|   page.tsx
+|   
++---academy
+|   |   layout
+|   |   page.tsx
+|   |   
+|   +---elders-chat
+|   |       page.tsx
+|   |       
+|   +---module-01
+|   |       page.tsx
+|   |       
+|   +---module-02
+|   |       page.tsx
+|   |       
+|   +---module-03
+|   |       page.tsx
+|   |       
+|   +---module-04
+|   |       page.tsx
+|   |       
+|   +---protocol-forge
+|   |       page.tsx
+|   |       
+|   +---security
+|   |       page.tsx
+|   |       
+|   +---senior-chat
+|   |       page.tsx
+|   |       
+|   \---vault
+|           layout.tsx
+|           page.tsx
+|           
++---actions
+|       academy.ts
+|       auth.ts
+|       exitRepublic.ts
+|       governance.ts
+|       mintAssets.ts
+|       syncBridge.ts
+|       vaultActions.ts
+|       verifyGenesis.ts
+|       
++---api
+|   +---academy
+|   |   +---forge
+|   |   |       route.ts
+|   |   |       
+|   |   +---initiate
+|   |   |       route.ts
+|   |   |       
+|   |   +---log
+|   |   |       route.ts
+|   |   |       
+|   |   \---vault
+|   |           route.ts
+|   |           
+|   +---auth
+|   |   +---logout
+|   |   |       route.ts
+|   |   |       
+|   |   \---verify
+|   |           route.ts
+|   |           
+|   +---check-claim
+|   |       route.ts
+|   |       
+|   +---citizen
+|   |   \---passport
+|   |           route.ts
+|   |           
+|   +---claim
+|   |       route.ts
+|   |       
+|   +---debug
+|   |   \---status
+|   |           route.ts
+|   |           
+|   +---enetwork
+|   |   +---active-nodes
+|   |   |       route.ts
+|   |   |       
+|   |   +---diag
+|   |   |       route.ts
+|   |   |       
+|   |   +---pending-nodes
+|   |   |       route.ts
+|   |   |       
+|   |   +---provider
+|   |   |       route.ts
+|   |   |       
+|   |   +---register
+|   |   |       route.ts
+|   |   |       
+|   |   \---verify
+|   |           route.ts
+|   |           
+|   +---engage-stasis
+|   |       route.ts
+|   |       
+|   +---exit-republic
+|   |       route.ts
+|   |       
+|   +---faucet
+|   |   \---claim
+|   |           route.ts
+|   |           
+|   +---genesis
+|   |   +---invite
+|   |   |       routes.ts
+|   |   |       
+|   |   +---mint
+|   |   |       route.ts
+|   |   |       
+|   |   \---pledge
+|   |           route.ts
+|   |           
+|   +---governance
+|   |   +---get-proposals
+|   |   |       route.ts
+|   |   |       
+|   |   +---proposals
+|   |   |   |   route.ts
+|   |   |   |   
+|   |   |   \---[id]
+|   |   |           route.ts
+|   |   |           
+|   |   +---submit-proposal
+|   |   |       route.ts
+|   |   |       
+|   |   \---vote
+|   |           route.ts
+|   |           
+|   +---ledger
+|   |   \---deposit
+|   |           route.ts
+|   |           
+|   +---lift-stasis
+|   |       route.ts
+|   |       
+|   +---mesh-recovery
+|   |   \---initiate
+|   |           route.ts
+|   |           
+|   +---mesh-transactions
+|   |   \---resolve
+|   |           route.ts
+|   |           
+|   +---node-telemetry
+|   |       route.ts
+|   |       
+|   +---payments
+|   |   +---approve
+|   |   |       route.ts
+|   |   |       
+|   |   \---complete
+|   |           route.ts
+|   |           
+|   +---pioneer
+|   |   \---telemetry
+|   |           route.ts
+|   |           
+|   +---pledge
+|   |       route.ts
+|   |       
+|   +---reclaim
+|   |       route.ts
+|   |       
+|   +---register-citizen
+|   |       route.ts
+|   |       
+|   +---register-heir
+|   |       route.ts
+|   |       
+|   +---sandbox-status
+|   |       route.ts
+|   |       
+|   +---sync
+|   |       route.ts
+|   |       
+|   +---sync-citizen
+|   |       route.ts
+|   |       
+|   +---toggle-defense
+|   |       route.ts
+|   |       
+|   +---treasury
+|   |   |   route.ts
+|   |   |   
+|   |   +---burn
+|   |   |       route.ts
+|   |   |       
+|   |   \---simulate
+|   |           route.ts
+|   |           
+|   \---update-sync
+|           route.ts
+|           
++---components
+|   |   AcademyGateway.tsx
+|   |   AssetFreezeLock.tsx
+|   |   AttritionLog.tsx
+|   |   AuditLedger.tsx
+|   |   BazaarLogo.tsx
+|   |   EntropyGrid.tsx
+|   |   ExitGate.tsx
+|   |   FaucetClaim.tsx
+|   |   GenesisLockOnboarding.tsx
+|   |   GovernanceDashboard.tsx
+|   |   GracePeriodBuffer.tsx
+|   |   HeirRegistryConsole.tsx
+|   |   InitializeModule.tsx
+|   |   MainNavigation.tsx
+|   |   mesh-claim.tsx
+|   |   PaymentGate.tsx
+|   |   PioneerBadge.tsx
+|   |   PioneerForm.tsx
+|   |   PledgeTerminal.tsx
+|   |   SecurityCircle.tsx
+|   |   StasisShield.tsx
+|   |   TreasuryDashboard.tsx
+|   |   TreasuryMonitor.tsx
+|   |   TribunalRecoveryBridge.tsx
+|   |   VaultAdmin.tsx
+|   |   VaultMonitor.tsx
+|   |   VerificationSector.tsx
+|   |   WalletBinder.tsx
+|   |   WalletSync.tsx
+|   |   ZeroTrustTerminal.tsx
+|   |   
+|   +---auth
+|   |       pioneer-auth.tsx
+|   |       
+|   \---mesh
+|           CitizenPassportCard.tsx
+|           node-monitor.tsx
+|           PiAuthBridge.tsx
+|           proposal-history.tsx
+|           ProposalCard.tsx
+|           ProviderDashboard.tsx
+|           ProviderOnboarding.tsx
+|           PublicDirectory.tsx
+|           StasisGuard.tsx
+|           trust-logic.ts
+|           trust-score-dashboard.tsx
+|           VerificationSector.tsx
+|           
++---context
+|       AuthContext.tsx
+|       
++---dashboard
+|   |   bridge.tsx
+|   |   page.tsx
+|   |   
+|   +---governance
+|   |       page.tsx
+|   |       ProposalCard.tsx
+|   |       
+|   \---proposals
+|           page.tsx
+|           
++---enetwork
+|   +---adjudicator
+|   |       page.tsx
+|   |       
+|   +---dashboard
+|   |       page.tsx
+|   |       
+|   +---directory
+|   |       page.tsx
+|   |       
+|   \---register
+|           page.tsx
+|           
++---governance
+|   |   page.tsx
+|   |   
+|   \---veto
+|           route.ts
+|           
++---hooks
+|       useStasis.ts
+|       
++---launchpad
+|       page.tsx
+|       
++---log-in
+|       page.tsx
+|       
++---privacy
+|       page.tsx
+|       
++---recovery
+|       page.tsx
+|       
++---registry
+|       page.tsx
+|       
++---terms
+|       page.tsx
+|       
++---treasury
+|       page.tsx
+|       
++---types
+|       global.d.ts
+|       
+\---vault-sync
+        manifest-vault.js
+        manifest.js
+        page.tsx
+        

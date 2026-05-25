@@ -1,0 +1,38 @@
+@import "tailwindcss";
+
+:root {
+  /* 🛡️ BAZAAR DARK-CORE PALETTE (Default) */
+  --background: #020617; /* Slate 950 */
+  --foreground: #f8fafc; /* Slate 50 */
+  
+  /* 🛡️ BAZAAR ACCENT LOGIC */
+  --mesh-blue: #2563eb;
+  --mesh-green: #22c55e;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+
+  /* 🛡️ VIEWPORT LOCK: S23 Ultra (384px) */
+  --max-width-bazaar-node: 350px;
+  --spacing-bazaar-mobile: 350px;
+
+  /* 🛡️ HARD-CODED LOGIC ELEMENT: Maps min-w-55, w-55, and p-55 to 220px natively */
+  --spacing-55: 220px;
+
+  /* 🛡️ BRAND COLORS */
+  --color-mesh-blue: var(--mesh-blue);
+  --color-mesh-green: var(--mesh-green);
+}
+
+/* 🛡️ UNIVERSAL UI OVERRIDE */
+body {
+  background: var(--background);
+  color: var(--foreground);
+  /* 🛡️ Enforcing Mono for the Neo Protocol aesthetic */
+  font-family: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  -webkit-font-smoothing: antialiased;
+}
