@@ -2,6 +2,15 @@ import React from "react";
 import Link from "next/link";
 import { getActiveProviders } from "@/app/actions/enetworkActions";
 
+// 🛡️ MESH TYPING: Define the structural contract
+interface ProviderNode {
+  id: string;
+  pioneer: string;
+  service: string;
+  rate: string;
+  status: string;
+}
+
 // 🛡️ MESH UI: Server-Side Rendered E-Network Hub
 export default async function Dashboard() {
   // 🧠 Data is fetched on the server before the page reaches the client.
@@ -36,7 +45,7 @@ export default async function Dashboard() {
               <p className="text-[10px] font-mono text-slate-500 uppercase tracking-widest">No Active Nodes in MESH</p>
             </div>
           ) : (
-            providers.map((node: any) => (
+            providers.map((node: ProviderNode) => (
               <div key={node.id} className="bg-slate-900/80 border border-slate-800 rounded-xl p-4 flex flex-col hover:border-emerald-500/30 transition-all shadow-sm">
                 <div className="flex justify-between items-start mb-2">
                   <div>

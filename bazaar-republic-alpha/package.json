@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@ai-sdk/openai": "^0.0.72",
     "@ledgerhq/hw-app-str": "^7.7.2",
     "@ledgerhq/hw-transport-webhid": "^6.35.2",
     "@ledgerhq/hw-transport-webusb": "^6.34.2",
@@ -19,6 +20,7 @@
     "@stellar/stellar-sdk": "^15.1.0",
     "@vercel/kv": "^3.0.0",
     "@vercel/postgres": "^0.10.0",
+    "ai": "^3.4.33",
     "bip39": "^3.1.0",
     "bzr-db": "file:prisma/generated/client",
     "dotenv": "^17.4.2",
