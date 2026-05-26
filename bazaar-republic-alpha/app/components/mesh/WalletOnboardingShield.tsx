@@ -1,10 +1,14 @@
 "use client";
 
 import React, { useState } from "react";
+import { useAuth } from "@/app/context/AuthContext"; // 🛡️ Import the master context hook
 
 export default function WalletOnboardingShield() {
   const [wallet, setWallet] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // 🛡️ Connect to the active authentication channel to fetch the validated user token
+  const { pioneer } = useAuth() as any;
 
   // The cryptographically secure Stellar/Pi regex: Starts with G, 56 chars total
   const isValid = /^G[A-Z2-7]{55}$/.test(wallet);
@@ -14,13 +18,19 @@ export default function WalletOnboardingShield() {
     setIsSubmitting(true);
     
     try {
-      const response = await fetch('/api/mesh-auth/update-wallet', {
+      // 🛡️ RE-MAPPED ENDPOINT: Redirect directly to your live, lowercase transaction core
+      const response = await fetch('/api/mesh-transactions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ wallet_address: wallet }),
+        body: JSON.stringify({ 
+          action: "update-wallet",
+          wallet_address: wallet,
+          uid: pioneer?.uid || "UNASSIGNED_NODE" // Protect the transaction payload with identity binding
+        }),
       });
 
       if (response.ok) {
+        console.log("[MESH-BRIDGE] 🟢 Wallet mapping verified and written to ledger.");
         window.location.reload(); // Hard refresh to lift the shield
       } else {
         console.error("MESH-SCAN: Wallet Update Failed");

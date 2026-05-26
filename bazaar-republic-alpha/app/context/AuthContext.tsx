@@ -54,30 +54,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
 
         // 🌐 LIVE DEPLOYMENT ASYNCHRONOUS HANDSHAKE
-        if (typeof window === "undefined" || !(window as any).Pi) {
-          return false; // Not ready yet, keep polling
-        }
+if (typeof window === "undefined" || !(window as any).Pi) {
+  return false; // Not ready yet, retry loop continues
+}
 
-        const pi = (window as any).Pi;
+const pi = (window as any).Pi;
 
-        // DYNAMIC SANDBOX AUTO-DETECTION
-        // If running on Vercel deployment strings, sandbox remains true. If on mainnet app, drops to false.
-        const isLiveMainnet = window.location.hostname.includes("project-bazaar-mainnet");
-        const useSandbox = !isLiveMainnet;
+// DYNAMIC PRODUCTION VS SANDBOX MATRIX DETECTOR
+const isLiveMainnet = window.location.hostname.includes("project-bazaar-mainnet");
+const useSandbox = !isLiveMainnet;
 
-        // 🛡️ FORCE PRODUCTION MATRIX FOR MAINNET DEPLOYMENT
+// 🛡️ CRITICAL LOCK: Ensure initialization has fully settled before hitting the authenticate endpoint
 if (!(window as any).__PI_INITIALIZED__) {
   try {
-    // Hard-coding sandbox: false to align perfectly with the native production log trace
-    pi.init({ version: "2.0", sandbox: false });
-    (window as any).__PI_INITIALIZED__ = true; 
-    console.log("[MESH-BRIDGE] 🟢 Pi SDK Hard-Locked to Production Mainnet Layer.");
+    console.log(`[MESH-BRIDGE] 🛰️ Initializing Pi Core Core (Sandbox Mode: ${useSandbox})...`);
+    await pi.init({ version: "2.0", sandbox: useSandbox });
+    (window as any).__PI_INITIALIZED__ = true;
+    console.log("[MESH-BRIDGE] 🟢 Pi Core Core State Locked Successfully.");
+    
+    // Guard interval pause: Let the native iframe handshake stabilize on-screen
+    await new Promise((resolve) => setTimeout(resolve, 150));
   } catch (initError) {
-    console.warn("[MESH-BRIDGE] ⚠️ SDK Init Warning:", initError);
+    console.warn("[MESH-BRIDGE] ⚠️ SDK Init Warning/Inflight Bypass:", initError);
   }
 }
 
-        console.log("[MESH-BRIDGE] 🟢 Requesting Pioneer Handshake...");
+// Failsafe double-check: If execution still managed to front-run the init hook, delay it
+if (!(window as any).__PI_INITIALIZED__) {
+  return false; 
+}
+
+console.log("[MESH-BRIDGE] 🟢 Requesting Pioneer Handshake...");
 
         const onIncompletePaymentFound = (payment: any) => {
           console.log("[MESH-BRIDGE] Incomplete payment caught:", payment);

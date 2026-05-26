@@ -51,14 +51,18 @@ export default function PioneerAuth() {
     return () => clearInterval(syncInterval);
   }, []);
 
-  const handlePioneerLogin = async () => {
-    if (typeof window === 'undefined' || !(window as any).Pi) {
-      setAuthError("Pi Network environment not fully attached yet. Retry in a moment.");
-      return;
-    }
+  // 🛡️ ENFORCE A RIGID HANDSHAKE GUARD AT THE RUNTIME LAYER
+const handlePioneerLogin = async () => {
+  // Check if initialization has physically locked into the window space
+  if (typeof window === 'undefined' || !(window as any).__PI_INITIALIZED__) {
+    setAuthError("Pi Network SDK failed to initialize. Ensure you are launching directly from develop.pi.");
+    return;
+  }
 
-    setIsAuthenticating(true);
-    setAuthError(null);
+  setIsAuthenticating(true);
+  setAuthError(null);
+  
+  // Your authentication and lowercase api routing calls follow below safely...
 
     try {
       const pi = (window as any).Pi;
