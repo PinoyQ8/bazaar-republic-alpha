@@ -9,7 +9,7 @@ import { registerServiceProvider } from "@/app/actions/enetworkActions";
 
 export default function ProviderRegistrationSector() {
   const router = useRouter();
-  const { pioneer } = useAuth();
+  const { pioneer } = useAuth(); // Assuming pioneer contains { uid, username, tier }
   const [isSyncing, setIsSyncing] = useState(false);
   const [formData, setFormData] = useState({
     serviceTitle: "",
@@ -23,18 +23,23 @@ export default function ProviderRegistrationSector() {
     if (!formData.serviceTitle || !formData.rateAmount || isSyncing) return;
 
     setIsSyncing(true);
-    console.log(`[MESH-BRIDGE] 🟢 Committing Provider Logic for ${pioneer.username}...`);
+    console.log(`[MESH-BRIDGE] 🟢 Committing Provider Logic for ${pioneer?.username}...`);
 
-    // ... inside your handleRegistration function
     try {
       const fd = new FormData();
-      fd.append("pioneerId", pioneer.username || "UNKNOWN_NODE");
+      // 🛡️ MESH-ALIGNMENT: Pass both ID and Username to satisfy the Mongoose Schema
+      fd.append("pioneerId", pioneer?.uid || `TEMP-UID-${Date.now()}`); 
+      fd.append("username", pioneer?.username || "UNKNOWN_NODE");
       fd.append("title", formData.serviceTitle);
-      fd.append("description", formData.description);
-      fd.append("rate", formData.rateAmount);
-      fd.append("type", formData.rateType);
+      
+      // Optional: If you update your Mongoose schema to include description later
+      fd.append("description", formData.description); 
+      
+      // 🛡️ Combine amount and type into the single string our schema expects (e.g., "10.0 Pi / hr")
+      const formattedRate = `${formData.rateAmount} Pi / ${formData.rateType}`;
+      fd.append("rate", formattedRate);
 
-      // 🛡️ Cast the result to the explicit type
+      // Execute Server Action
       const result = await registerServiceProvider(fd);
 
       if (result.success) {
@@ -43,14 +48,12 @@ export default function ProviderRegistrationSector() {
         throw new Error(result.message || "Registration Failed");
       }
     } catch (error) {
-// ...
       console.error("[MESH-BRIDGE] 🚨 FATAL: Registration fracture.", error);
-      setIsSyncing(false);
       alert("Registration failed. Check database connectivity.");
+      setIsSyncing(false); // Reset so they can try again
     }
   };
 
-  // ... (Keep the rest of your JSX exactly as it is)
   return (
     <div className="flex flex-col min-h-screen bg-slate-950 animate-in slide-in-from-right duration-500">
       

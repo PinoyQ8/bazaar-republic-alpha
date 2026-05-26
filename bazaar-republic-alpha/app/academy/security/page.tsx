@@ -3,23 +3,24 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { usePiAuth } from "@/app/components/mesh/PiAuthBridge";
 
 export default function SecurityTraining() {
   const [mounted, setMounted] = useState(false);
   const [activePioneer, setActivePioneer] = useState<string | null>(null);
   const [currentModule, setCurrentModule] = useState(0);
   const router = useRouter();
+  const { pioneer, isAuthenticated } = usePiAuth();
 
   // 🛡️ SECURITY SYNC
   useEffect(() => {
     setMounted(true);
-    const user = localStorage.getItem("MESH_GENESIS_USER");
-    if (!user) {
+    if (!isAuthenticated || !pioneer) {
       router.push("/");
     } else {
-      setActivePioneer(user);
+      setActivePioneer(pioneer.username);
     }
-  }, [router]);
+  }, [isAuthenticated, pioneer, router]);
 
   if (!mounted || !activePioneer) return null;
 

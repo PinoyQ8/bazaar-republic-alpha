@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
+import Script from "next/script"; // 🛡️ CRITICAL: Import Next.js Script
 import "./globals.css";
 // 🛡️ CRITICAL: Import the Provider
 import { AuthProvider } from "@/context/AuthContext"; 
@@ -19,6 +20,13 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={inter.className}>
+        
+        {/* 🛡️ THE PI NETWORK SDK INJECTION */}
+        <Script 
+          src="https://sdk.minepi.com/pi-sdk.js" 
+          strategy="afterInteractive" 
+        />
+
         {/* The Provider is now defined and wrapped */}
         <AuthProvider>
           {children}

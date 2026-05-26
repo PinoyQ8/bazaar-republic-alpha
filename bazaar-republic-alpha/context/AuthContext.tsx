@@ -3,10 +3,10 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { useRouter } from "next/navigation";
 
-// 🛡️ MESH TYPING: Define the strict architecture of a Pioneer session
+/// context/AuthContext.tsx
 export interface PioneerState {
   username: string | null;
-  tier: string | null;
+  tier: string | null; // This is the key property
   isAuthenticated: boolean;
 }
 

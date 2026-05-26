@@ -9,6 +9,7 @@ interface PioneerContribution {
 }
 
 interface PioneerNode {
+    uid: string;
     wallet_address: string;
     calculated_ts?: number;
     contributions?: PioneerContribution[];
@@ -29,14 +30,30 @@ export async function POST(req: Request) {
     const client = new MongoClient(process.env.MONGODB_URI as string);
 
     try {
-        const body = await req.json();
-        const { wallet_address, task_id } = body;
+        // 1. 🛡️ VERIFY THE ZERO-TRUST VAULT (Double-Check Architecture)
+        const authHeader = req.headers.get('authorization');
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return NextResponse.json({ error: "Unauthorized Node Access." }, { status: 401 });
+        }
+        const accessToken = authHeader.split(' ')[1];
+
+        const piRes = await fetch('https://api.minepi.com/v2/me', {
+            headers: { 'Authorization': `Bearer ${accessToken}` }
+        });
+        if (!piRes.ok) {
+            return NextResponse.json({ error: "Pi Session Invalid." }, { status: 401 });
+        }
         
-        if (!wallet_address || !task_id) {
-            return NextResponse.json({ error: "Address and Task ID required." }, { status: 400 });
+        const piData = await piRes.json();
+        const verifiedUid = piData.uid;
+
+        const body = await req.json();
+        const { task_id } = body; // wallet_address is no longer trusted from client
+        
+        if (!task_id) {
+            return NextResponse.json({ error: "Task ID required." }, { status: 400 });
         }
 
-        const cleanAddress = wallet_address.trim();
         const taskData = TASK_LEDGER[task_id];
 
         if (!taskData) {
@@ -49,11 +66,12 @@ export async function POST(req: Request) {
         // 🛡️ APPLY THE INTERFACE TO THE COLLECTION
         const collection = db.collection<PioneerNode>('pioneers');
 
-        const pioneer = await collection.findOne({ wallet_address: cleanAddress });
+        const pioneer = await collection.findOne({ uid: verifiedUid });
         
         if (!pioneer) {
-            return NextResponse.json({ error: "Wallet not found in registry." }, { status: 403 });
+            return NextResponse.json({ error: "Node not found in registry." }, { status: 403 });
         }
+        const cleanAddress = pioneer.wallet_address; // Retrieved securely from DB
 
         // 🚨 MESH-CORE: TRUSTSCORE HEALING & IMPACT CALCULATION
         const current_ts = pioneer.calculated_ts !== undefined ? pioneer.calculated_ts : 0;

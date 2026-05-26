@@ -1,22 +1,29 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 import { connectToLedger } from '@/lib/mongodb';
 import GenesisNode from '@/models/GenesisNode';
 
 export async function POST(request: Request) {
   try {
     // 1. 🛡️ VERIFY THE ZERO-TRUST VAULT
-    // We do not trust the frontend to tell us who the user is. We extract it from the secure vault.
-    const cookieStore = await cookies();
-    const session = cookieStore.get('mesh_session_token');
-
-    if (!session) {
-      console.warn("[MESH-SCAN] Unauthorized mint attempt intercepted.");
+    // Enforce Pi SDK Double-Check Architecture via Bearer Token
+    const authHeader = request.headers.get('authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      console.warn("[MESH-SCAN] Missing or invalid Authorization header.");
       return NextResponse.json({ success: false, error: 'NODE_UNVERIFIED' }, { status: 401 });
     }
+    const accessToken = authHeader.split(' ')[1];
 
-    // Extract the UID from our salted cookie: {uid}-AUTH-{timestamp}
-    const uid = session.value.split('-AUTH-')[0];
+    // Validate token against Pi Core Servers
+    const piRes = await fetch('https://api.minepi.com/v2/me', {
+      headers: { 'Authorization': `Bearer ${accessToken}` }
+    });
+    if (!piRes.ok) {
+      console.warn("[MESH-SCAN] Pi Core validation failed.");
+      return NextResponse.json({ success: false, error: 'NODE_UNVERIFIED' }, { status: 401 });
+    }
+    
+    const piData = await piRes.json();
+    const uid = piData.uid;
 
     // The frontend only passes the non-sensitive username for display logic
     const { username } = await request.json();

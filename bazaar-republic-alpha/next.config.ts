@@ -1,9 +1,8 @@
-// next.config.ts (or next.config.js)
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // 🛡️ AUTHORIZE THE S23 MOBILE NODE
-  allowedDevOrigins: ['192.168.8.92', 'localhost'],
+  // Keep your other standard config rules here, if any
+  // Do NOT include the experimental turbopack block
 };
 
 export default nextConfig;

@@ -2,10 +2,13 @@
 
 import React, { useState, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
+import WalletOnboardingShield from "@/app/components/mesh/WalletOnboardingShield";
+import { getProviderById } from "@/app/actions/enetworkActions";
 
 interface PioneerStatus {
   status: 'NULL' | 'BOOTSTRAP_LOCKED' | 'VALIDATOR_ACTIVE';
   contract_id: string;
+  wallet_address?: string;
 }
 
 export default function DashboardTrafficController() {
@@ -13,13 +16,32 @@ export default function DashboardTrafficController() {
   const [pioneerState, setPioneerState] = useState<PioneerStatus | null>(null);
 
   useEffect(() => {
-    const mockSorobanCall = async () => {
-      setPioneerState({ status: 'VALIDATOR_ACTIVE', contract_id: 'CA_MESH_001' });
+    const syncNodeLedger = async () => {
+      // Default to pending lock until proven otherwise
+      let wallet_address = "PENDING_ONBOARDING";
+
+      // Fetch the actual Provider database profile to check wallet status
+      if (pioneer?.username) {
+        try {
+          const providerData = await getProviderById(pioneer.username);
+          if (providerData && providerData.wallet_address) {
+            wallet_address = providerData.wallet_address;
+          }
+        } catch (error) {
+          console.error("MESH_SCAN: Failed to sync Provider data", error);
+        }
+      }
+
+      setPioneerState({ 
+        status: 'VALIDATOR_ACTIVE', 
+        contract_id: 'CA_MESH_001',
+        wallet_address 
+      });
     };
-    mockSorobanCall();
+    syncNodeLedger();
   }, [pioneer]);
 
-  if (!pioneerState) return <div className="text-emerald-500">SYNCING WITH LEDGER...</div>;
+  if (!pioneerState) return <div className="text-emerald-500 p-8">SYNCING WITH LEDGER...</div>;
 
   if (pioneerState.status === 'NULL') {
     return <div className="p-8 text-emerald-500 border border-emerald-500">INITIATING SOROBAN STAKING...</div>;
@@ -29,17 +51,22 @@ export default function DashboardTrafficController() {
     return <div className="p-8 text-amber-500">TRANSACTION PENDING IN LEDGER...</div>;
   }
 
-  // PHASE 4: COMMAND CENTER (Verified Block)
+  // --- ZERO-TRUST WALLET SHIELD INJECTION ---
+  if (pioneerState.wallet_address === "PENDING_ONBOARDING") {
+    return <WalletOnboardingShield />;
+  }
+
+  // --- PHASE 4: COMMAND CENTER (Verified Block) ---
   return (
-    <div className="bg-slate-950 min-h-screen text-slate-300">
+    <div className="bg-slate-950 min-h-screen text-slate-300 max-w-[384px] mx-auto border-x border-slate-900">
       <nav className="p-6 border-b border-emerald-900/50">
         <h1 className="text-xl font-bold text-emerald-500 uppercase tracking-widest">Bazaar Republic</h1>
-        <p className="text-xs text-slate-500">Node: {pioneer.username || "PioneerNode"} | Clearance: PIONEER</p>
+        <p className="text-xs text-slate-500">Node: {pioneer?.username || "PioneerNode"} | Clearance: PIONEER</p>
       </nav>
 
       <main className="p-6 grid gap-6">
         {/* INSERT EXISTING UI COMPONENTS HERE */}
-        <div className="border border-emerald-900/30 p-4">COMMAND CENTER ACTIVE</div>
+        <div className="border border-emerald-900/30 p-4 font-mono text-sm">COMMAND CENTER ACTIVE</div>
       </main>
 
       <footer className="p-6 mt-10 border-t border-emerald-900/50">
