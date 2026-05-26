@@ -1,5 +1,7 @@
 // Route: /app/components/auth/pioneer-auth.tsx
-// Logic: E-Network Entry Gate & SDK Handshake
+// Logic: E-Network Entry Gate & SDK Handshake (MESH Hardened)
+
+"use client";
 
 import React, { useState, useEffect } from 'react';
 
@@ -15,47 +17,84 @@ export default function PioneerAuth() {
   const [pioneer, setPioneer] = useState<PioneerData | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
 
-  // Initialize Pi SDK on mount
+  // 🛡️ TIMING RETRY LOOP: Ensure Pi SDK initializes even with slower edge network streaming
   useEffect(() => {
-    // Ensuring the window object has the Pi SDK loaded via standard <script>
-    if (typeof window !== 'undefined' && window.Pi) {
-      window.Pi.init({ version: "2.0", sandbox: process.env.NODE_ENV !== 'production' });
-      console.log("MESH Log: Pi SDK Initialized.");
-    }
+    let checkCount = 0;
+    
+    const initializePiSDK = () => {
+      if (typeof window !== 'undefined' && (window as any).Pi) {
+        try {
+          const pi = (window as any).Pi;
+          // Sandbox flags true for vercel preview deployments, false for live mainnet address
+          const isLiveMainnet = window.location.hostname.includes("project-bazaar-mainnet");
+          
+          pi.init({ version: "2.0", sandbox: !isLiveMainnet });
+          console.log("[MESH-BRIDGE] 🟢 Pi SDK Initialized cleanly via Component Sector.");
+          return true;
+        } catch (err) {
+          console.warn("[MESH-BRIDGE] SDK initialization collision handled.", err);
+          return true; // Already initialized elsewhere
+        }
+      }
+      return false;
+    };
+
+    if (initializePiSDK()) return;
+
+    const syncInterval = setInterval(() => {
+      checkCount++;
+      if (initializePiSDK() || checkCount > 20) {
+        clearInterval(syncInterval);
+      }
+    }, 250);
+
+    return () => clearInterval(syncInterval);
   }, []);
 
   const handlePioneerLogin = async () => {
+    if (typeof window === 'undefined' || !(window as any).Pi) {
+      setAuthError("Pi Network environment not fully attached yet. Retry in a moment.");
+      return;
+    }
+
     setIsAuthenticating(true);
     setAuthError(null);
 
     try {
+      const pi = (window as any).Pi;
       const scopes = ['username', 'payments'];
-      const authResults = await window.Pi.authenticate(scopes, onIncompletePaymentFound);
+      
+      console.log("[MESH-BRIDGE] 🛰️ Triggering Native Authenticate Prompt...");
+      const authResults = await pi.authenticate(scopes, onIncompletePaymentFound);
 
-      // --- NEW SECURITY INJECTION: The Backend Verify ---
-      const backendVerify = await fetch('/api/auth/verify', {
+      // --- 🛡️ FIXED SECURITY INJECTION: Redirected from ghost path to active transaction sector ---
+      const backendVerify = await fetch('/api/mesh-transactions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ accessToken: authResults.accessToken })
+        body: JSON.stringify({ 
+          action: "verify-token", // Explicit action payload handling
+          accessToken: authResults.accessToken,
+          uid: authResults.user.uid
+        })
       });
 
       if (!backendVerify.ok) {
         throw new Error("Vault check failed. Rogue token discarded.");
       }
-      // ------------------------------------------------
+      // -----------------------------------------------------------------------------------------
 
-      // Only write to RAM if the Vault approves
+      // Only write to RAM if your active transaction route approves the signature
       setPioneer({
         uid: authResults.user.uid,
         username: authResults.user.username,
         accessToken: authResults.accessToken
       });
 
-      console.log(`MESH Log: Pioneer ${authResults.user.username} fully authenticated & locked.`);
+      console.log(`[MESH-BRIDGE] 🟢 Pioneer @${authResults.user.username} fully authorized & locked.`);
 
     } catch (error) {
-      console.error("MESH Error: Handshake rejected.", error);
-      setAuthError("Failed to sync secure session. Check network.");
+      console.error("[MESH-BRIDGE] 🚨 Handshake rejected.", error);
+      setAuthError("Failed to sync secure session. Check network / whitelist settings.");
     } finally {
       setIsAuthenticating(false);
     }
@@ -63,7 +102,7 @@ export default function PioneerAuth() {
 
   // Callback for orphaned payments (DEX prep)
   const onIncompletePaymentFound = (payment: any) => {
-    console.log("MESH Alert: Orphaned payment detected. Routing to DEX resolve...", payment);
+    console.log("[MESH-BRIDGE] ⚠️ Orphaned payment detected. Routing to DEX resolve...", payment);
     // Future Protocol 23 Logic goes here
   };
 
@@ -89,7 +128,6 @@ export default function PioneerAuth() {
         <div className="flex flex-col items-center">
           {isAuthenticating ? (
             <div className="flex flex-col items-center space-y-3">
-              {/* Terminal-style Loading Skeleton */}
               <div className="w-8 h-8 border-4 border-green-500 border-t-transparent rounded-full animate-spin"></div>
               <p className="text-sm animate-pulse">Forging SDK Handshake...</p>
             </div>
