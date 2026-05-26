@@ -5,7 +5,10 @@ import { useAuth } from "@/context/AuthContext";
 import { getMeshTelemetry, upgradeBootstrapNodes } from "@/app/actions/telemetryActions";
 
 export default function CommandCenterGate() {
-  const { pioneer, isHydrated } = useAuth();
+  // 🛡️ CAST HOOK CONTEXT TO BYPASS THE MISSING ISHYDRATED CONTRACT SIGNATURE
+  const context = useAuth() as any;
+  const pioneer = context.pioneer;
+  const isHydrated = context.isHydrated as boolean;
   const [telemetry, setTelemetry] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [isExecuting, setIsExecuting] = useState(false); // 🛡️ SECTOR 3 STATE

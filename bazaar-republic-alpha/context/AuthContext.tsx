@@ -91,15 +91,3 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     </AuthContext.Provider>
   );
 }
-
-/**
- * 🛠️ THE BRIDGE: Custom Hook
- * Used by components (like the Dashboard and Vault) to tap into the SSOT.
- */
-export function useAuth() {
-  const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error("useAuth must be used within an AuthProvider perimeter.");
-  }
-  return context;
-}

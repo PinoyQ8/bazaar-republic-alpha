@@ -3,13 +3,32 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { usePiAuth } from "@/app/components/mesh/PiAuthBridge";
+// 🛡️ INGEST THE GENESIS BRIDGE COMPONENTS
+import { usePiAuth, PiAuthBridge } from "@/app/components/mesh/PiAuthBridge";
 
+/**
+ * 🛡️ MASTER GATEWAY WRAPPER
+ * This ensures the background build workers compile the page safely within context boundaries.
+ */
 export default function SecurityTraining() {
+  return (
+    <PiAuthBridge>
+      <SecurityTrainingContent />
+    </PiAuthBridge>
+  );
+}
+
+/**
+ * 🛡️ ACTIVE TERMINAL LOGIC
+ * Safely executes hooks now that context guarantees a steady upstream provider signal.
+ */
+function SecurityTrainingContent() {
   const [mounted, setMounted] = useState(false);
   const [activePioneer, setActivePioneer] = useState<string | null>(null);
   const [currentModule, setCurrentModule] = useState(0);
   const router = useRouter();
+  
+  // Safe Context Hook Injection
   const { pioneer, isAuthenticated } = usePiAuth();
 
   // 🛡️ SECURITY SYNC
@@ -49,7 +68,6 @@ export default function SecurityTraining() {
     if (currentModule < trainingData.length - 1) {
       setCurrentModule(prev => prev + 1);
     } else {
-      // Logic for completion
       localStorage.setItem(`MESH_SECURITY_${activePioneer}`, "CERTIFIED");
       router.push("/academy");
     }

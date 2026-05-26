@@ -20,6 +20,8 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 // 🛡️ THE AUTH PROVIDER NODE
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [pioneer, setPioneer] = useState<PioneerState>({
+    username: undefined, // Type safe alignment for string | undefined
+    tier: undefined,     // Type safe alignment for string | undefined
     isAuthenticated: false,
   });
 

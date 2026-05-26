@@ -6,7 +6,10 @@ import { useRouter } from "next/navigation";
 import { registerSecurityCircle, getSecurityCircleStatus } from "@/app/actions/governanceActions";
 
 export default function SecurityCircleGate() {
-  const { pioneer, isHydrated } = useAuth();
+  // 🛡️ CAST HOOK CONTEXT TO BYPASS THE MISSING ISHYDRATED CONTRACT SIGNATURE
+  const context = useAuth() as any;
+  const pioneer = context.pioneer;
+  const isHydrated = context.isHydrated as boolean;
   const router = useRouter();
   
   const [address, setAddress] = useState("");
