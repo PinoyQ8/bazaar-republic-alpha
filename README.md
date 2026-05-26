@@ -1,36 +1,38 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Project Bazaar: Decentralized E-Network
 
-## Getting Started
+Welcome to the central repository for **Project Bazaar**, a Decentralized Autonomous Organization (DAO) built within the Pi Network Ecosystem. Our core logic is driven by **The MESH Protocol**, hard-coding decentralized security and ensuring steady project evolution.
 
-First, run the development server:
+---
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+## 📡 Active Deployment Nodes
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+To maintain a 92% Uptime Shield and ensure Zero-Trust testing, this repository routes to two strictly isolated Vercel deployment nodes:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+* 🌍 **Mainnet (The True Ledger):** [project-bazaar-mainnet.vercel.app](https://project-bazaar-mainnet.vercel.app)
+  * *Purpose:* The public-facing E-Network ledger. Connects exclusively to the production database.
+* 🛠️ **Alpha Sandbox (The Logic Forge):** [mesh-academy-alpha.vercel.app](https://mesh-academy-alpha.vercel.app)
+  * *Purpose:* The active testing node for mobile Pi Browser verification. Connects exclusively to the isolated Alpha database.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+---
 
-## Learn More
+## ⚙️ The MESH Architecture
 
-To learn more about Next.js, take a look at the following resources:
+Project Bazaar utilizes a modern, resilient tech stack designed for high-frequency transaction security and seamless user onboarding.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+* **Framework:** Next.js (App Router, Server Actions)
+* **Database:** MongoDB Atlas (Mongoose Validation Shield)
+* **Authentication:** NextAuth & Pi Network Native Handshake
+* **Styling:** Tailwind CSS (Hard-coded UI perimeters)
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+---
 
-## Deploy on Vercel
+## 🚀 Local Node Ignition (X570 Protocol)
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+To spin up a local logic forge and contribute to the MESH:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### 1. Secure the Vault
+You must have a `.env.local` file placed in the root directory. For security, this file is intentionally ignored by `.gitignore`. It must contain your isolated Alpha testing keys:
+```text
+MONGODB_URI="mongodb://<alpha_user>:<password>@cluster.../bazaar_republic_alpha?ssl=true..."
+PI_API_KEY="your_sandbox_key"
+NEXTAUTH_SECRET="your_local_secret"
