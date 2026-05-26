@@ -1,8 +1,10 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Keep your other standard config rules here, if any
-  // Do NOT include the experimental turbopack block
+  /* 🛡️ NEXT.JS 16 STABLE BUNDLER CONFIGURATION */
+  turbopack: {
+    root: __dirname, // Forces the root directory directly to the alpha sector
+  },
 };
 
 export default nextConfig;
