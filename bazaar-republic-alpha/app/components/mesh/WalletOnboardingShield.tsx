@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState } from "react";
-import { useAuth } from "@/app/context/AuthContext"; // 🛡️ Import the master context hook
+import { useAuth } from "@/app/context/AuthContext"; // 🛡️ Master context hook
+import { updateProviderWallet } from "@/app/actions/enetworkActions"; // 🛡️ DIRECT ACTION HOOK INJECTED
 
 export default function WalletOnboardingShield() {
   const [wallet, setWallet] = useState("");
@@ -18,26 +19,29 @@ export default function WalletOnboardingShield() {
     setIsSubmitting(true);
     
     try {
-      // 🛡️ RE-MAPPED ENDPOINT: Redirect directly to your live, lowercase transaction core
-      const response = await fetch('/api/mesh-transactions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          action: "update-wallet",
-          wallet_address: wallet,
-          uid: pioneer?.uid || "UNASSIGNED_NODE" // Protect the transaction payload with identity binding
-        }),
-      });
+      // 1. Extract the secure identifier from the context payload
+      const identifier = pioneer?._id || pioneer?.uid || pioneer?.username;
+      
+      if (!identifier) {
+        console.error("[MESH-SCAN] 🚨 No Pioneer Identity found in active Auth Context.");
+        setIsSubmitting(false);
+        return;
+      }
 
-      if (response.ok) {
+      console.log(`[MESH-BRIDGE] 🛰️ Initiating Wallet Sync for Node: ${identifier}`);
+
+      // 2. 🛡️ SERVER ACTION EXECUTION: Bypass /api/ completely
+      const result = await updateProviderWallet(identifier, wallet);
+
+      if (result && result.success) {
         console.log("[MESH-BRIDGE] 🟢 Wallet mapping verified and written to ledger.");
         window.location.reload(); // Hard refresh to lift the shield
       } else {
-        console.error("MESH-SCAN: Wallet Update Failed");
+        console.error("MESH-SCAN: Wallet Update Failed -", result?.message || "Unknown State");
         setIsSubmitting(false);
       }
     } catch (error) {
-      console.error("MESH-SCAN: Network Error", error);
+      console.error("MESH-SCAN: Critical Submission Fracture", error);
       setIsSubmitting(false);
     }
   };

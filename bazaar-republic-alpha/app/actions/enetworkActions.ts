@@ -62,6 +62,8 @@ export async function getActiveProviders() {
 // ----------------------------------------------------------------------
 export async function getProviderById(identifier: string) {
   try {
+    if (!identifier) return null;
+    
     await connectToDatabase();
     
     // 1. 🛡️ THE REGEX SHIELD: Check if the string is a 24-char hex Mongo ID
@@ -90,5 +92,47 @@ export async function getProviderById(identifier: string) {
   } catch (error) {
     console.error("[MESH-BRIDGE] 🚨 Smart Node Fetch Fracture:", error);
     return null;
+  }
+}
+
+// ----------------------------------------------------------------------
+// 🛡️ ACTION 4: THE WALLET SYNC (Write Address to Ledger)
+// ----------------------------------------------------------------------
+export async function updateProviderWallet(identifier: string, walletAddress: string) {
+  try {
+    await connectToDatabase();
+    
+    // 1. Utilize the Regex Shield to find the correct database document
+    const isMongoId = /^[0-9a-fA-F]{24}$/.test(identifier);
+    
+    // 🛡️ THE MESH SWEEP QUERY: Check multiple identity fields if it's not a raw DB ID
+    const query = isMongoId 
+      ? { _id: identifier } 
+      : { $or: [{ username: identifier }, { uid: identifier }] }; 
+      // Add { handle: identifier } to the array if your schema uses 'handle'
+
+    // 2. Fetch the raw document 
+    const providerDoc = await Provider.findOne(query);
+
+    if (!providerDoc) {
+      console.warn(`[MESH-BRIDGE] ⚠️ Wallet Sync Failed: Node [${identifier}] not found.`);
+      return { success: false, message: "Node not found in registry." };
+    }
+
+    // 3. Inject the wallet parameter
+    providerDoc.walletAddress = walletAddress; 
+    await providerDoc.save();
+
+    console.log(`[MESH-BRIDGE] 🟢 Wallet synced for [${identifier}]: ${walletAddress.substring(0,8)}...`);
+
+    // 4. Force a UI refresh
+    revalidatePath("/enetwork/dashboard");
+    revalidatePath(`/enetwork/provider/${identifier}`);
+
+    return { success: true };
+
+  } catch (error) {
+    console.error("[MESH-BRIDGE] 🚨 Wallet Sync Fracture:", error);
+    return { success: false, message: "Internal server error during wallet write." };
   }
 }
