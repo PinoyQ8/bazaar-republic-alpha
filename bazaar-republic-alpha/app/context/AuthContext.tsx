@@ -29,17 +29,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     isHydrated: false, 
   });
 
-  // 🛡️ THE IDENTITY HARDENING
+  // 🛡️ THE IDENTITY LOCK: MANDATORY OVERRIDE
 useEffect(() => {
-  const currentIdentity = localStorage.getItem('mesh_identity');
-  
-  if (currentIdentity !== "Bazaar_Founder") {
-    // 🛡️ FORCING CONSOLIDATION: Redirect to the Primary Node
+  // 1. Nuke any existing identity that isn't the Founder
+  const currentStorage = localStorage.getItem('mesh_identity');
+  if (currentStorage !== "Bazaar_Founder") {
+    localStorage.removeItem('mesh_identity'); // Purge the ghost
     localStorage.setItem('mesh_identity', "Bazaar_Founder");
   }
 
+  // 2. Force the state to be BAZAAR_FOUNDER
   setPioneer({
-    username: "Bazaar_Founder", // ◄ HARD-CODED LOCK
+    username: "Bazaar_Founder", // ◄ ABSOLUTE LOCK
     tier: 'Standard',
     isAuthenticated: true,
     isHydrated: true,
