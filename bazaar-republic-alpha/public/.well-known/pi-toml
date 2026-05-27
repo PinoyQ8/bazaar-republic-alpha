@@ -1,6 +1,0 @@
-# Project Bazaar - Pi Network Domain Verification
-# Node: mesh-academy-alpha.vercel.app
-
-# NOTE: You will need to replace the placeholder below with the exact 
-# string provided in your Pi Developer Portal under the "Domain" settings.
-pi_network_verification = "58e4f9eb033151d9281cd94943393d6d52b2cec667db87a10c597bafee4d7e6b667b6f4b7a3ae700db607738ce563a52e3299028815e2a11e3b143ec1d056bd9"
