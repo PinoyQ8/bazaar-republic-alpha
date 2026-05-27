@@ -58,11 +58,9 @@ export async function getActiveProviders() {
   }
 }
 
-// ----------------------------------------------------------------------
-// 🛡️ ACTION 3: THE SMART NODE FETCH (ID or Username)
-// ----------------------------------------------------------------------
-// 🛡️ MESH OPTIMIZED READ: Bypasses Mongoose cold-start sequence
-export async function getProviderById(username: string) {
+// 🛡️ ACTION 3: THE SMART NODE FETCH
+// Add `: Promise<any>` to strictly bypass the Next.js compiler panic
+export async function getProviderById(username: string): Promise<any> {
   try {
     const db = await connectToLedger();
     
@@ -75,7 +73,6 @@ export async function getProviderById(username: string) {
     return {
       ...rawProvider,
       _id: rawProvider._id.toString(),
-      // Ensure any native date objects are strings for client components
       createdAt: rawProvider.createdAt ? new Date(rawProvider.createdAt).toISOString() : new Date().toISOString(),
       updatedAt: rawProvider.updatedAt ? new Date(rawProvider.updatedAt).toISOString() : new Date().toISOString(),
     };
