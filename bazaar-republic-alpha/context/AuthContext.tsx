@@ -1,8 +1,13 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useState, useEffect, useRef } from "react";
 
-// 🛡️ THE PIONEER STATE CONTRACT
+// 🛡️ SDK INTERFACE DEFINITION
+interface PiSDK {
+  init: (options: { version: string; sandbox: boolean }) => Promise<void>;
+  authenticate: (scopes: string[], onIncompletePayment?: (payment: any) => void) => Promise<{ user: { uid: string; username: string } }>;
+}
+
 export type PioneerState = {
   isAuthenticated: boolean;
   uid?: string;
@@ -14,15 +19,13 @@ export type PioneerState = {
 type AuthContextType = {
   pioneer: PioneerState;
   setPioneer: React.Dispatch<React.SetStateAction<PioneerState>>;
-  login: () => void;   
+  login: () => void;    
   isHydrated: boolean; 
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// 🛡️ THE AUTH PROVIDER NODE
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  // STATE INITIALIZATION (This resolves the 'setPioneer is not defined' error)
   const [pioneer, setPioneer] = useState<PioneerState>({
     username: undefined,
     tier: undefined,
@@ -30,19 +33,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     isHydrated: false, 
   });
 
+  const initialized = useRef(false);
+
   const login = () => {
     console.log("[MESH-BRIDGE] Explicit login trigger requested.");
   };
 
-  // 🛡️ THE LINEAR MESH BOOT SEQUENCE
   useEffect(() => {
+    if (initialized.current) return;
+    initialized.current = true;
     let isMounted = true; 
 
     const bootMeshNode = async () => {
-      // 1. THE X570 BYPASS PROTOCOL
+      // 1. X570 BYPASS (LOCAL DEV)
       if (typeof window !== "undefined" && window.location.hostname === "localhost") {
         console.warn("[MESH-BRIDGE] 🛠️ Localhost detected. Engaging X570 Dev-Bypass.");
-        document.cookie = "pioneer_uid=X570-DEV-NODE; path=/; max-age=86400";
         setPioneer({
           isAuthenticated: true,
           uid: "X570-DEV-NODE",
@@ -53,51 +58,56 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      // 2. WAIT FOR NATIVE SCRIPT INJECTION 
-      let scriptChecks = 0;
-      while ((typeof window === "undefined" || !(window as any).Pi) && scriptChecks < 40) {
-        await new Promise(resolve => setTimeout(resolve, 250));
-        scriptChecks++;
-      }
+      // 2. WAIT FOR NATIVE SCRIPT
+      const pi = await new Promise<PiSDK | null>((resolve) => {
+        let attempts = 0;
+        const interval = setInterval(() => {
+          if ((window as any).Pi || attempts > 40) {
+            clearInterval(interval);
+            resolve((window as any).Pi as PiSDK); // CAST TO INTERFACE
+          }
+          attempts++;
+        }, 250);
+      });
 
-      if (!(window as any).Pi) {
-        // Explicitly type 'prev' to resolve TS7006
-        if (isMounted) setPioneer((prev: PioneerState) => ({ ...prev, isHydrated: true }));
-        console.error("[MESH-FRACTURE] Pi SDK Script never mounted. Are you in the Pi Browser?");
+      if (!pi) {
+        if (isMounted) setPioneer(p => ({ ...p, isHydrated: true }));
+        console.error("[MESH-FRACTURE] Pi SDK Script missing.");
         return;
       }
 
-      const pi = (window as any).Pi;
-      const isLiveMainnet = window.location.hostname.includes("project-bazaar-mainnet");
-      const useSandbox = !isLiveMainnet;
-
-      // 3. INITIALIZE NATIVE BRIDGE
-      if (!(window as any).__PI_INITIALIZED__) {
-        try {
-          console.log(`[MESH-BRIDGE] 🛰️ Initializing Pi Core (Sandbox: ${useSandbox})...`);
-          await pi.init({ version: "2.0", sandbox: useSandbox });
-          (window as any).__PI_INITIALIZED__ = true;
-          await new Promise(resolve => setTimeout(resolve, 300)); 
-        } catch (e) {
-          console.warn("[MESH-BRIDGE] ⚠️ SDK Init Warning:", e);
-        }
-      }
-
-      // 4. THE SINGULAR HANDSHAKE EXECUTION
+      // 3. SECURE BRIDGE HANDSHAKE
       try {
-        console.log("[MESH-BRIDGE] 🟢 Requesting Pioneer Handshake...");
-        
-        const authPromise = pi.authenticate(
-          ['username', 'payments'], 
-          (payment: any) => console.log("Incomplete payment caught:", payment)
-        );
-        
-        const timeoutPromise = new Promise<any>((_, reject) =>
-          setTimeout(() => reject(new Error("MESH-FRACTURE: SDK Authenticate Timeout.")), 15000)
-        );
+        console.log("[MESH-BRIDGE] 🛰️ Initializing Pi Core...");
+        await pi.init({ version: "2.0", sandbox: true });
 
-        const auth = await Promise.race([authPromise, timeoutPromise]);
+        // Buffer for Iframe Origin Settlement
+        await new Promise(r => setTimeout(r, 500)); 
 
+        const auth = await pi.authenticate(['username', 'payments']);
+
+        // 🛡️ 4. SELF-HEALING REGISTRY PUSH (NON-BLOCKING)
+        try {
+          const registryPush = await fetch('/api/mesh/register', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              username: auth.user.username, 
+              uid: auth.user.uid,
+              status: 'active' 
+            })
+          });
+
+          if (registryPush.ok) {
+            console.log("[MESH-BRIDGE] 🟢 Identity anchored to ledger.");
+          } else {
+            console.warn("[MESH-BRIDGE] ⚠️ Ledger anchoring returned non-OK status.");
+          }
+        } catch (apiError) {
+          console.error("[MESH-BRIDGE] 🚨 Registry API unreachable. Node may be isolated.", apiError);
+        }
+
+        // 5. LOCK FRONTEND STATE
         if (isMounted) {
           setPioneer({
             isAuthenticated: true,
@@ -108,7 +118,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           });
           console.log(`[MESH-BRIDGE] 🟢 Node Locked: ${auth.user.username}`);
         }
-
       } catch (error) {
         console.error("[MESH-BRIDGE] 🚨 Authentication Fracture:", error);
         if (isMounted) {
@@ -123,7 +132,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
 
     bootMeshNode();
-
     return () => { isMounted = false; };
   }, []);
 
@@ -134,7 +142,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
-// 🛡️ THE MESH HOOK EXPORT
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (context === undefined) {

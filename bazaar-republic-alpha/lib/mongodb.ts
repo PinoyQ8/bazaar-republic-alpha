@@ -32,7 +32,8 @@ if (process.env.NODE_ENV === 'development') {
  */
 export async function connectToLedger() {
   const client = await clientPromise;
-  return client.db("bazaar_republic");
+  // FIX: Update from "bazaar_republic" to "bazaar_republic_alpha"
+  return client.db("bazaar_republic_alpha");
 }
 
 // Default export for backward compatibility with existing imports

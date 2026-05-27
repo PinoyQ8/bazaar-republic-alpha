@@ -26,6 +26,8 @@ const ProviderSchema: Schema = new Schema(
     username: {
       type: String,
       required: true,
+      unique: true, // 🛡️ ELIMINATES LATENCY: Enforces uniqueness
+      index: true,  // 🛡️ ELIMINATES LATENCY: Prevents collection scans
     },
     wallet_address: {
       type: String,

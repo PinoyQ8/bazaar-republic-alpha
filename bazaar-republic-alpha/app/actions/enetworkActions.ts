@@ -2,6 +2,7 @@
 
 import { connectToDatabase } from "@/lib/db";
 import { Provider } from "@/lib/models/Provider";
+import { connectToLedger } from '@/lib/mongodb';
 import { revalidatePath } from "next/cache";
 
 // ----------------------------------------------------------------------
@@ -60,37 +61,27 @@ export async function getActiveProviders() {
 // ----------------------------------------------------------------------
 // 🛡️ ACTION 3: THE SMART NODE FETCH (ID or Username)
 // ----------------------------------------------------------------------
-export async function getProviderById(identifier: string) {
+// 🛡️ MESH OPTIMIZED READ: Bypasses Mongoose cold-start sequence
+export async function getProviderById(username: string) {
   try {
-    if (!identifier) return null;
+    const db = await connectToLedger();
     
-    await connectToDatabase();
+    // 🛡️ MESH OPTIMIZED READ: Lightning fast Native fetch
+    const rawProvider = await db.collection('pioneers').findOne({ username: username });
     
-    // 1. 🛡️ THE REGEX SHIELD: Check if the string is a 24-char hex Mongo ID
-    const isMongoId = /^[0-9a-fA-F]{24}$/.test(identifier);
-    
-    // 2. Build the dynamic query logic
-    const query = isMongoId ? { _id: identifier } : { username: identifier };
+    if (!rawProvider) return null;
 
-    // 3. Use findOne() instead of findById() to allow flexible searching
-    const rawProvider = await Provider.findOne(query).lean();
-
-    if (!rawProvider) {
-      console.warn(`[MESH-BRIDGE] ⚠️ Node [${identifier}] not found in Ledger.`);
-      return null;
-    }
-
-    // 4. 🛡️ THE SANITIZER: Seal the boundary
+    // 🛡️ Serialization Shield: Safely converts MongoDB objects to Next.js strings
     return {
       ...rawProvider,
       _id: rawProvider._id.toString(),
-      id: rawProvider._id.toString(), 
-      createdAt: rawProvider.createdAt ? (rawProvider as any).createdAt.toISOString() : null,
-      lastHeartbeat: rawProvider.lastHeartbeat ? (rawProvider as any).lastHeartbeat.toISOString() : null,
+      // Ensure any native date objects are strings for client components
+      createdAt: rawProvider.createdAt ? new Date(rawProvider.createdAt).toISOString() : new Date().toISOString(),
+      updatedAt: rawProvider.updatedAt ? new Date(rawProvider.updatedAt).toISOString() : new Date().toISOString(),
     };
 
   } catch (error) {
-    console.error("[MESH-BRIDGE] 🚨 Smart Node Fetch Fracture:", error);
+    console.error("[MESH-SCAN] Native Read Fracture:", error);
     return null;
   }
 }
@@ -108,7 +99,7 @@ export async function updateProviderWallet(identifier: string, walletAddress: st
     // 🛡️ THE MESH SWEEP QUERY: Re-aligned to scan 'pi_uid' instead of 'uid'
     const query = isMongoId 
       ? { _id: identifier } 
-      : { $or: [{ username: identifier }, { pi_uid: identifier }] }; // ◄ FIXED: Changed 'uid' to 'pi_uid'
+      : { $or: [{ username: identifier }, { pi_uid: identifier }] }; 
 
     // 2. Fetch the raw document 
     const providerDoc = await Provider.findOne(query);
@@ -119,7 +110,7 @@ export async function updateProviderWallet(identifier: string, walletAddress: st
     }
 
     // 3. Inject the wallet parameter matching your exact Schema keys
-    providerDoc.wallet_address = walletAddress; // ◄ FIXED: Changed camelCase to match schema snake_case
+    providerDoc.wallet_address = walletAddress; 
     await providerDoc.save();
 
     console.log(`[MESH-BRIDGE] 🟢 Wallet synced for [${identifier}]: ${walletAddress.substring(0,8)}...`);
