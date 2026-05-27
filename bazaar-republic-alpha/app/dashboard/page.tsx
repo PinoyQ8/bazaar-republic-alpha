@@ -5,6 +5,9 @@ import { useAuth } from "@/context/AuthContext";
 import WalletOnboardingShield from "@/app/components/mesh/WalletOnboardingShield";
 import { getProviderById } from "@/app/actions/enetworkActions";
 
+// 🛡️ THE MESH UPLINK IMPORT
+import PioneerHUD from "@/app/components/PioneerHUD";
+
 interface PioneerStatus {
   status: 'NULL' | 'BOOTSTRAP_LOCKED' | 'VALIDATOR_ACTIVE';
   contract_id: string;
@@ -41,14 +44,14 @@ export default function DashboardTrafficController() {
     syncNodeLedger();
   }, [pioneer]);
 
-  if (!pioneerState) return <div className="text-emerald-500 p-8">SYNCING WITH LEDGER...</div>;
+  if (!pioneerState) return <div className="text-emerald-500 p-8 font-mono">SYNCING WITH LEDGER...</div>;
 
   if (pioneerState.status === 'NULL') {
-    return <div className="p-8 text-emerald-500 border border-emerald-500">INITIATING SOROBAN STAKING...</div>;
+    return <div className="p-8 text-emerald-500 border border-emerald-500 font-mono">INITIATING SOROBAN STAKING...</div>;
   }
 
   if (pioneerState.status === 'BOOTSTRAP_LOCKED') {
-    return <div className="p-8 text-amber-500">TRANSACTION PENDING IN LEDGER...</div>;
+    return <div className="p-8 text-amber-500 font-mono">TRANSACTION PENDING IN LEDGER...</div>;
   }
 
   // --- ZERO-TRUST WALLET SHIELD INJECTION ---
@@ -61,16 +64,24 @@ export default function DashboardTrafficController() {
     <div className="bg-slate-950 min-h-screen text-slate-300 max-w-[384px] mx-auto border-x border-slate-900">
       <nav className="p-6 border-b border-emerald-900/50">
         <h1 className="text-xl font-bold text-emerald-500 uppercase tracking-widest">Bazaar Republic</h1>
-        <p className="text-xs text-slate-500">Node: {pioneer?.username || "PioneerNode"} | Clearance: PIONEER</p>
+        <p className="text-xs text-slate-500 font-mono mt-1">Node: {pioneer?.username || "PioneerNode"} | Clearance: PIONEER</p>
       </nav>
 
       <main className="p-6 grid gap-6">
-        {/* INSERT EXISTING UI COMPONENTS HERE */}
-        <div className="border border-emerald-900/30 p-4 font-mono text-sm">COMMAND CENTER ACTIVE</div>
+        <div className="border border-emerald-900/30 p-4 font-mono text-sm text-center bg-emerald-950/20 text-emerald-400">
+          COMMAND CENTER ACTIVE
+        </div>
+        
+        {/* ========================================= */}
+        {/* THE MESH UPLINK INJECTION: TRI-ASSET HUD  */}
+        {/* ========================================= */}
+        <PioneerHUD />
+        {/* ========================================= */}
+        
       </main>
 
       <footer className="p-6 mt-10 border-t border-emerald-900/50">
-        <p className="text-xs text-slate-500 tracking-wider">
+        <p className="text-xs text-slate-500 tracking-wider font-mono">
           LEDGER-VERIFIED: {pioneerState.contract_id}
         </p>
       </footer>

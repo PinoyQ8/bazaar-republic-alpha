@@ -63,3 +63,5 @@ forge-evacuation-phase3.js
 scripts/seed-genesis.ts
 # Or, if you want to ignore the whole scripts folder for safety:
 scripts*
+
+test-db.js

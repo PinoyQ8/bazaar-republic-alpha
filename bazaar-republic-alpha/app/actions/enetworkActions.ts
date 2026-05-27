@@ -96,7 +96,7 @@ export async function getProviderById(identifier: string) {
 }
 
 // ----------------------------------------------------------------------
-// 🛡️ ACTION 4: THE WALLET SYNC (Write Address to Ledger)
+// 🛡️ ACTION 4: THE WALLET SYNC (Realigned to Schema)
 // ----------------------------------------------------------------------
 export async function updateProviderWallet(identifier: string, walletAddress: string) {
   try {
@@ -105,11 +105,10 @@ export async function updateProviderWallet(identifier: string, walletAddress: st
     // 1. Utilize the Regex Shield to find the correct database document
     const isMongoId = /^[0-9a-fA-F]{24}$/.test(identifier);
     
-    // 🛡️ THE MESH SWEEP QUERY: Check multiple identity fields if it's not a raw DB ID
+    // 🛡️ THE MESH SWEEP QUERY: Re-aligned to scan 'pi_uid' instead of 'uid'
     const query = isMongoId 
       ? { _id: identifier } 
-      : { $or: [{ username: identifier }, { uid: identifier }] }; 
-      // Add { handle: identifier } to the array if your schema uses 'handle'
+      : { $or: [{ username: identifier }, { pi_uid: identifier }] }; // ◄ FIXED: Changed 'uid' to 'pi_uid'
 
     // 2. Fetch the raw document 
     const providerDoc = await Provider.findOne(query);
@@ -119,8 +118,8 @@ export async function updateProviderWallet(identifier: string, walletAddress: st
       return { success: false, message: "Node not found in registry." };
     }
 
-    // 3. Inject the wallet parameter
-    providerDoc.walletAddress = walletAddress; 
+    // 3. Inject the wallet parameter matching your exact Schema keys
+    providerDoc.wallet_address = walletAddress; // ◄ FIXED: Changed camelCase to match schema snake_case
     await providerDoc.save();
 
     console.log(`[MESH-BRIDGE] 🟢 Wallet synced for [${identifier}]: ${walletAddress.substring(0,8)}...`);

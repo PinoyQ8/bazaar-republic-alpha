@@ -36,7 +36,7 @@
     ".next/types/**/*.ts",
     "**/*.mts",
     ".next/dev/types/**/*.ts"
-  ],
+, "test-db.js"  ],
   "exclude": [
     "node_modules",
     ".next/dev/types/**/*.ts",
