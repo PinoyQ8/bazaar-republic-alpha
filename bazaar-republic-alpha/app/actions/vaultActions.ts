@@ -1,7 +1,7 @@
 "use server";
 
 // 🛡️ THE BRIDGE: Server-Side Execution Only
-import clientPromise from "@/lib/mongodb";
+import { connectToLedger } from "@/lib/mongodb";
 import { MESH_VAULT_CONFIG } from "../vault-sync/manifest-vault";
 
 // Define the strict TypeScript interfaces for our MESH boundaries
@@ -54,8 +54,9 @@ export async function syncVaultData(pioneerId: string, payload: VaultPayload): P
     console.log(`[MESH-BRIDGE] 🟢 Initiating Vault write for Pioneer: ${pioneerId}`);
     
     // Tap into the stabilized connection pool
-    const client = await clientPromise;
-    const db = client.db("bazaar_republic");
+    // 🛡️ THE MESH OPTIMIZED BYPASS
+// 🛡️ THE MESH OPTIMIZED BYPASS
+const db = await connectToLedger();
     const collection = db.collection("vault_ledger");
 
     // The Upsert Maneuver: Maintains Uptime Shield by avoiding duplicate key crashes

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useAuth } from '@/context/AuthContext'; // 🛡️ THE IDENTITY BRIDGE
 
 interface HUDState {
   totalEquity: number;
@@ -10,6 +11,7 @@ interface HUDState {
 }
 
 export default function PioneerHUD() {
+  const { pioneer } = useAuth(); // 🛡️ PULL ACTIVE IDENTITY
   const [hudData, setHudData] = useState<HUDState>({
     totalEquity: 0,
     activeFuel: 0,
@@ -24,22 +26,29 @@ export default function PioneerHUD() {
     // THE MESH HEARTBEAT: 10-Second Autonomous Uplink
     const syncInterval = setInterval(async () => {
       try {
-        // Ping the Republic Ledger
-        const res = await fetch('/api/mesh-scan/pioneer-data?id=VANGUARD-NATIVE-001');
+        // 🛡️ THE HYDRATION SHIELD: Await identity before fetching
+        if (!pioneer.username && !pioneer.uid) {
+          return; 
+        }
+
+        const identifier = pioneer.username || pioneer.uid;
+
+        // 🛡️ DYNAMIC INJECTION: Ping the Republic Ledger with active node ID
+        const res = await fetch(`/api/mesh-scan/pioneer-data?id=${identifier}`);
         
         if (!res.ok) throw new Error('Uplink failed');
         const payload = await res.json();
 
-        // Update the Visual State
+        // Update the Visual State gracefully (safeguard against undefined payload values)
         setHudData({
-          totalEquity: payload.data.totalEquity,
-          activeFuel: payload.data.activeFuel,
-          vestingShield: payload.data.vestingShield,
-          healthFactor: payload.data.healthFactor,
+          totalEquity: payload.data?.totalEquity || 0,
+          activeFuel: payload.data?.activeFuel || 0,
+          vestingShield: payload.data?.vestingShield || 0,
+          healthFactor: payload.data?.healthFactor || 0,
         });
 
         // The PWA Notification Trigger Logic
-        if (payload.data.vestingShield > 0 && !alertTriggered) {
+        if (payload.data?.vestingShield > 0 && !alertTriggered) {
           if ('Notification' in window && Notification.permission === 'granted') {
             new Notification('MESH Uptime Shield Active', {
               body: 'Yield Unlocked. Access your secure dashboard to claim.',
@@ -56,7 +65,7 @@ export default function PioneerHUD() {
 
     // Cleanup interval on unmount to protect memory
     return () => clearInterval(syncInterval);
-  }, [alertTriggered]);
+  }, [alertTriggered, pioneer.username, pioneer.uid]); // 🛡️ LOCKED DEPENDENCIES
 
   return (
     <div className="flex flex-col items-center w-full max-w-[384px] p-6 bg-zinc-950 text-white font-mono border border-zinc-800 rounded-lg shadow-2xl">

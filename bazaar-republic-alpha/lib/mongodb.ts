@@ -1,7 +1,7 @@
-import { MongoClient } from 'mongodb';
+import { MongoClient, Db } from 'mongodb';
 
 if (!process.env.MONGODB_URI) {
-  throw new Error('Invalid/Missing environment variable: "MONGODB_URI"');
+  throw new Error('[MESH-FRACTURE] Invalid/Missing Environment Variable: MONGODB_URI');
 }
 
 const uri = process.env.MONGODB_URI;
@@ -10,8 +10,9 @@ const options = {};
 let client: MongoClient;
 let clientPromise: Promise<MongoClient>;
 
+// 🛡️ THE GLOBAL CACHE SHIELD
+// Preserves the connection pool across Next.js HMR (Hot Module Replacement)
 if (process.env.NODE_ENV === 'development') {
-  // In development mode, use a global variable to preserve the connection pool
   let globalWithMongo = global as typeof globalThis & {
     _mongoClientPromise?: Promise<MongoClient>;
   };
@@ -19,22 +20,18 @@ if (process.env.NODE_ENV === 'development') {
   if (!globalWithMongo._mongoClientPromise) {
     client = new MongoClient(uri, options);
     globalWithMongo._mongoClientPromise = client.connect();
+    console.log("[MESH-BRIDGE] 🛰️ Native Connection Pool Forged (Development).");
   }
   clientPromise = globalWithMongo._mongoClientPromise;
 } else {
-  // In production mode, it's best to not use a global variable.
+  // Production Edge Node Execution
   client = new MongoClient(uri, options);
   clientPromise = client.connect();
 }
 
-/**
- * 🛡️ MESH BRIDGE: Explicit export required by build pipeline
- */
-export async function connectToLedger() {
-  const client = await clientPromise;
-  // FIX: Update from "bazaar_republic" to "bazaar_republic_alpha"
-  return client.db("bazaar_republic_alpha");
+// 🛡️ THE LEDGER BRIDGE EXPORT
+export async function connectToLedger(): Promise<Db> {
+  const connectedClient = await clientPromise;
+  // Explicitly connect to your target ledger
+  return connectedClient.db('bazaar_republic_alpha'); 
 }
-
-// Default export for backward compatibility with existing imports
-export default clientPromise;

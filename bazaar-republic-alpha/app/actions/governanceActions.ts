@@ -1,6 +1,6 @@
 "use server";
 
-import clientPromise from "@/lib/mongodb";
+import { connectToLedger } from "@/lib/mongodb";
 
 // ----------------------------------------------------------------------
 // 1. 🛡️ MESH-VAULT: Register Node & Lock Stake (Sector 1)
@@ -12,7 +12,7 @@ export async function registerSecurityCircle(formData: FormData) {
   const TREASURY_WALLET = process.env.DAO_TREASURY_WALLET || "UNCONFIGURED_TREASURY";
 
   try {
-    const db = await (await clientPromise).db("bazaar_republic");
+    const db = await connectToLedger();
 
     // Check Whitelist Bypass
     const isWhitelisted = await db.collection("dao_whitelist").findOne({ pioneerId });
@@ -66,7 +66,7 @@ export async function registerSecurityCircle(formData: FormData) {
 // ----------------------------------------------------------------------
 export async function getSecurityCircleStatus(pioneerId: string) {
   try {
-    const db = await (await clientPromise).db("bazaar_republic");
+    const db = await connectToLedger();
     
     const node = await db.collection("security_circles").findOne({ pioneerId: pioneerId });
 

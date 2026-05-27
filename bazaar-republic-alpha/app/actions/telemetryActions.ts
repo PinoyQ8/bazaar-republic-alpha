@@ -1,13 +1,13 @@
 "use server";
 
-import clientPromise from "@/lib/mongodb";
+import { connectToLedger } from "@/lib/mongodb";
 
 // ----------------------------------------------------------------------
 // 1. 🛡️ MESH-RADAR: Command Center Global Telemetry (Sector 2)
 // ----------------------------------------------------------------------
 export async function getMeshTelemetry() {
   try {
-    const db = await (await clientPromise).db("bazaar_republic");
+    const db = await connectToLedger();
     
     // Pull the entire Genesis Roster, newest first
     const roster = await db.collection("security_circles")
@@ -55,7 +55,7 @@ export async function getMeshTelemetry() {
 // ----------------------------------------------------------------------
 export async function upgradeBootstrapNodes(forceAlphaBypass: boolean = false) {
   try {
-    const db = await (await clientPromise).db("bazaar_republic");
+    const db = await connectToLedger();
     const collection = db.collection("security_circles");
 
     // The True MESH Logic: 24-Hour Time Delta

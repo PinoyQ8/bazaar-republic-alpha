@@ -1,52 +1,50 @@
 import { NextResponse } from 'next/server';
 import { connectToLedger } from '@/lib/mongodb';
+import { ObjectId } from 'mongodb'; // 🛡️ Import for Native ID parsing if needed
 
-export async function GET(req: Request) {
+// 🛡️ THE MESH OPTIMIZED API ROUTE (Mongoose Severed)
+export async function GET(request: Request) {
   try {
-    // 1. Extract the Pioneer ID from the request URL
-    const { searchParams } = new URL(req.url);
-    const pioneerId = searchParams.get('id');
+    // Extract the ID from the URL parameters
+    const { searchParams } = new URL(request.url);
+    const identifier = searchParams.get('id');
 
-    if (!pioneerId) {
-      return NextResponse.json({ 
-        status: 'MESH_FRACTURE', 
-        error: 'Target Node ID not provided.' 
-      }, { status: 400 });
+    if (!identifier) {
+      return NextResponse.json(
+        { error: 'MESH-FRACTURE: Missing Pioneer Identity Parameter' }, 
+        { status: 400 }
+      );
     }
 
-    // 2. Establish the MESH Uplink
+    // 1. Connect directly to the cached Native Edge Pool
     const db = await connectToLedger();
-
-    // 3. Parallel Read Operation (Speed & Resilience)
-    const [cdp, poolEntry] = await Promise.all([
-      db.collection('pioneercdps').findOne({ pioneerId: pioneerId }),
-      db.collection('stabilitypool').findOne({ liquidatorId: pioneerId })
-    ]);
-
-    // 4. Data Aggregation & Logic Routing
-    // If the node exists, map the native ledger data. If not, default to 0 to prevent UI crashes.
-    const activeFuel = cdp ? cdp.stakedPi : 0;
-    const vestingShield = poolEntry ? poolEntry.lockedYield : 0;
-    const healthFactor = cdp ? cdp.healthFactor : 0;
     
-    // Total Equity is the sum of circulating fuel and locked yield
-    const totalEquity = activeFuel + vestingShield;
+    // Check if the parameter is a 24-char Mongo ID to prevent casting errors
+    const isMongoId = /^[0-9a-fA-F]{24}$/.test(identifier);
+    
+    // 🛡️ THE MESH SWEEP QUERY
+    const query = isMongoId 
+      ? { _id: new ObjectId(identifier) } 
+      : { $or: [{ pi_uid: identifier }, { username: identifier }] }; 
 
-    // 5. Fire the Payload to the HUD
-    return NextResponse.json({
-      status: 'MESH_SYNC_SUCCESS',
+    // 2. Execute Native Read
+    const pioneerData = await db.collection('pioneers').findOne(query);
+
+    if (!pioneerData) {
+      return NextResponse.json({ error: 'Node Not Found in Ledger' }, { status: 404 });
+    }
+
+    // 3. Serialization Shield & Response
+    return NextResponse.json({ 
+      success: true, 
       data: {
-        totalEquity,
-        activeFuel,
-        vestingShield,
-        healthFactor
+        ...pioneerData,
+        _id: pioneerData._id.toString(),
       }
     }, { status: 200 });
 
-  } catch (error: any) {
-    return NextResponse.json({ 
-      status: 'MESH_FRACTURE', 
-      error: error.message 
-    }, { status: 500 });
+  } catch (error) {
+    console.error('[MESH-SCAN] API Route Native Read Fracture:', error);
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }

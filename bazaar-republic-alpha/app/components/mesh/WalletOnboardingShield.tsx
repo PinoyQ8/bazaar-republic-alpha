@@ -31,7 +31,7 @@ export default function WalletOnboardingShield() {
       console.log(`[MESH-BRIDGE] 🛰️ Initiating Wallet Sync for Node: ${identifier}`);
 
       // 2. 🛡️ SERVER ACTION EXECUTION: Bypass /api/ completely
-      const result = await updateProviderWallet(identifier, wallet);
+      const result = await updateProviderWallet(pioneer.username as string, wallet);
 
       if (result && result.success) {
         console.log("[MESH-BRIDGE] 🟢 Wallet mapping verified and written to ledger.");

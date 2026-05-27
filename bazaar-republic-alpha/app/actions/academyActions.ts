@@ -1,6 +1,6 @@
 "use server";
 
-import clientPromise from "@/lib/mongodb";
+import { connectToLedger } from "@/lib/mongodb";
 
 /**
  * 🛡️ THE ADJUDICATOR: ACADEMY SYNC PROTOCOL (MongoDB Integrated)
@@ -32,8 +32,9 @@ export async function commitModuleSignature(pioneerId: string, moduleId: string)
     console.log(`[MESH-BRIDGE] 🟢 Validating Module [${moduleId}] completion for Node: ${pioneerId}`);
 
     // 2. 🗄️ MONGODB CLUSTER COMMIT (The Ledger Bridge)
-    const client = await clientPromise;
-    const db = client.db("bazaar_republic"); 
+    // 🛡️ THE MESH OPTIMIZED BYPASS
+// 🛡️ THE EXCLUSIVE NATIVE BRIDGE
+const db = await connectToLedger(); 
     const collection = db.collection("academy_ledger");
 
     const ledgerPayload = {

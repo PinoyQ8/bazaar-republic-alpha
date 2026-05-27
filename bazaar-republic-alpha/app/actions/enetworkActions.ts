@@ -3,6 +3,7 @@
 import { connectToDatabase } from "@/lib/db";
 import { Provider } from "@/lib/models/Provider";
 import { connectToLedger } from '@/lib/mongodb';
+import { ObjectId } from 'mongodb'; // 🛡️ CRITICAL FOR NATIVE WRITES
 import { revalidatePath } from "next/cache";
 
 // ----------------------------------------------------------------------
@@ -84,35 +85,45 @@ export async function getProviderById(username: string): Promise<any> {
 }
 
 // ----------------------------------------------------------------------
-// 🛡️ ACTION 4: THE WALLET SYNC (Realigned to Schema)
+// 🛡️ ACTION 4: THE WALLET SYNC (Native Edge Bypass)
 // ----------------------------------------------------------------------
 export async function updateProviderWallet(identifier: string, walletAddress: string) {
   try {
-    await connectToDatabase();
+    // 🛡️ Bypassing Mongoose: Connect directly to the cached native pool
+    const db = await connectToLedger();
+    const registry = db.collection('pioneers'); // Adjust collection name if needed
     
     // 1. Utilize the Regex Shield to find the correct database document
     const isMongoId = /^[0-9a-fA-F]{24}$/.test(identifier);
     
-    // 🛡️ THE MESH SWEEP QUERY: Re-aligned to scan 'pi_uid' instead of 'uid'
+    // 🛡️ THE MESH SWEEP QUERY: Native drivers require the ObjectId class for _id
     const query = isMongoId 
-      ? { _id: identifier } 
+      ? { _id: new ObjectId(identifier) } 
       : { $or: [{ username: identifier }, { pi_uid: identifier }] }; 
 
-    // 2. Fetch the raw document 
-    const providerDoc = await Provider.findOne(query);
+    // 2. Direct Native Write with MESH UPSERT
+    const result = await registry.updateOne(
+      query,
+      { 
+        $set: { 
+          wallet_address: walletAddress,
+          updatedAt: new Date().toISOString()
+        },
+        // 🛡️ THE MASTER KEY: Automatically builds the Pioneer profile if missing
+        $setOnInsert: {
+          username: identifier, // Defaults to the passed identifier
+          status: 'active',
+          node_tier: 'Standard',
+          createdAt: new Date().toISOString()
+        }
+      },
+      { upsert: true } // ◄ CRITICAL: Forges the node into existence
+    );
 
-    if (!providerDoc) {
-      console.warn(`[MESH-BRIDGE] ⚠️ Wallet Sync Failed: Node [${identifier}] not found.`);
-      return { success: false, message: "Node not found in registry." };
-    }
-
-    // 3. Inject the wallet parameter matching your exact Schema keys
-    providerDoc.wallet_address = walletAddress; 
-    await providerDoc.save();
-
+    // Remove the 'matchedCount === 0' error block, because upsert ensures it always succeeds.
     console.log(`[MESH-BRIDGE] 🟢 Wallet synced for [${identifier}]: ${walletAddress.substring(0,8)}...`);
 
-    // 4. Force a UI refresh
+    // 3. Force Edge UI Refresh
     revalidatePath("/enetwork/dashboard");
     revalidatePath(`/enetwork/provider/${identifier}`);
 
