@@ -84,27 +84,39 @@ if (!(window as any).__PI_INITIALIZED__) {
   return false; 
 }
 
+// ... inside executeAuthChain() ...
+
 console.log("[MESH-BRIDGE] 🟢 Requesting Pioneer Handshake...");
 
-        const onIncompletePaymentFound = (payment: any) => {
-          console.log("[MESH-BRIDGE] Incomplete payment caught:", payment);
-        };
+const onIncompletePaymentFound = (payment: any) => {
+  console.log("[MESH-BRIDGE] Incomplete payment caught:", payment);
+};
 
-        const auth = await pi.authenticate(
-          ['username', 'payments', 'wallet_address'],
-          onIncompletePaymentFound
-        );
+// 🛡️ THE MESH OVERRIDE: Purge 'wallet_address' from scopes. 
+// We rely strictly on the manual WalletOnboardingShield to prevent Sandbox deadlocks.
+const authPromise = pi.authenticate(
+  ['username', 'payments'], 
+  onIncompletePaymentFound
+);
 
-        setPioneer({
-          isAuthenticated: true,
-          uid: auth.user.uid,
-          username: auth.user.username,
-          tier: "PIONEER",
-          isHydrated: true
-        });
-        
-        console.log(`[MESH-BRIDGE] 🟢 Node Locked: ${auth.user.username}`);
-        return true; // Successfully authenticated
+// 🛡️ THE PROMISE EXECUTIONER: 15-Second Black Hole Failsafe
+const timeoutPromise = new Promise<any>((_, reject) =>
+  setTimeout(() => reject(new Error("MESH-FRACTURE: SDK Authenticate Timeout. Native Bridge Dead.")), 15000)
+);
+
+// Race the SDK against the executioner timer
+const auth = await Promise.race([authPromise, timeoutPromise]);
+
+setPioneer({
+  isAuthenticated: true,
+  uid: auth.user.uid,
+  username: auth.user.username,
+  tier: "PIONEER",
+  isHydrated: true
+});
+
+console.log(`[MESH-BRIDGE] 🟢 Node Locked: ${auth.user.username}`);
+return true; // Successfully authenticated
 
       } catch (error) {
         console.error("[MESH-BRIDGE] 🚨 Authentication Fracture:", error);
