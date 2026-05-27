@@ -1,0 +1,22 @@
+# Project Bazaar - E-Network Stellar Verification
+# Network: TESTNET (Alpha)
+
+[DOCUMENTATION]
+ORG_NAME="Project Bazaar DAO"
+ORG_URL="https://mesh-academy-alpha.vercel.app"
+ORG_DESCRIPTION="Decentralized Autonomous Organization and MESH Protocol"
+ORG_LOGO="https://mesh-academy-alpha.vercel.app/mBZR_icon.png"
+
+# Vanguard Node Configuration
+[[PRINCIPALS]]
+name="Bazaar_Founder"
+email="admin@bazaar-bulacan.com"
+
+# The MBZR Tri-Asset Engine Mapping
+[[CURRENCIES]]
+code="MBZR"
+issuer="GCD4GW27B2PQZGJGLCAQYEAEKDDDGWY7U6CHNSFY6AOEUBLEU3FGWG4D"
+display_decimals=7
+name="Mesh Bazaar Fuel"
+desc="Primary collateral yield asset for the Uptime Shield."
+image="https://mesh-academy-alpha.vercel.app/mBZR_icon.png"
