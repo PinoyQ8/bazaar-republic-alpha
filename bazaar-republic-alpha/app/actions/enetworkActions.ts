@@ -134,3 +134,51 @@ export async function updateProviderWallet(identifier: string, walletAddress: st
     return { success: false, message: "Internal server error during wallet write." };
   }
 }
+
+// ----------------------------------------------------------------------
+// 🛡️ ACTION 5: THE MESH YIELD CLAIM (Native Edge Bypass)
+// ----------------------------------------------------------------------
+export async function claimMeshYield(identifier: string) {
+  try {
+    const db = await connectToLedger();
+    const registry = db.collection('pioneers');
+    
+    const isMongoId = /^[0-9a-fA-F]{24}$/.test(identifier);
+    const query = isMongoId 
+      ? { _id: new ObjectId(identifier) } 
+      : { $or: [{ username: identifier }, { pi_uid: identifier }] }; 
+
+    // 1. Fetch current balance
+    const pioneer = await registry.findOne(query);
+    
+    if (!pioneer) {
+      return { success: false, message: "Node not found in registry." };
+    }
+    
+    const claimAmount = pioneer.vestingShield || 0;
+    if (claimAmount <= 0) {
+      return { success: false, message: "No yield available to claim." };
+    }
+
+    // 2. Execute Native State Mutation
+    await registry.updateOne(
+      query,
+      { 
+        $inc: { activeFuel: claimAmount }, // Atomically add to fuel
+        $set: { 
+          vestingShield: 0, 
+          updatedAt: new Date().toISOString() 
+        } 
+      }
+    );
+
+    console.log(`[MESH-BRIDGE] 🟢 Yield Claimed for [${identifier}]: +${claimAmount} Test-Pi`);
+
+    revalidatePath("/enetwork/dashboard");
+    return { success: true, claimed: claimAmount };
+
+  } catch (error) {
+    console.error("[MESH-BRIDGE] 🚨 Yield Claim Fracture:", error);
+    return { success: false, message: "Internal server error during claim." };
+  }
+}

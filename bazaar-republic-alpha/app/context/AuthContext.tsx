@@ -20,15 +20,28 @@ type AuthContextType = {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// 🛡️ THE AUTH PROVIDER NODE
+// 🛡️ THE IDENTITY SHIELD
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [pioneer, setPioneer] = useState<PioneerState>({
     username: undefined,
     tier: undefined,
     isAuthenticated: false,
-    isHydrated: false, // Starts unhydrated to protect layout rendering
+    isHydrated: false, 
   });
 
+  useEffect(() => {
+    // 1. Recover identity from local storage (The Hard Drive)
+    const savedUser = localStorage.getItem('mesh_identity') || "Bazaar_Founder"; 
+    
+    // 2. Hydrate the Node
+    setPioneer({
+      username: savedUser,
+      tier: 'Standard',
+      isAuthenticated: true,
+      isHydrated: true, // ◄ LOCK: Prevents premature polls
+    });
+  }, []);
+  
   const login = () => {
     console.log("[MESH-BRIDGE] Explicit login trigger requested.");
   };
