@@ -29,18 +29,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     isHydrated: false, 
   });
 
-  useEffect(() => {
-    // 1. Recover identity from local storage (The Hard Drive)
-    const savedUser = localStorage.getItem('mesh_identity') || "Bazaar_Founder"; 
-    
-    // 2. Hydrate the Node
-    setPioneer({
-      username: savedUser,
-      tier: 'Standard',
-      isAuthenticated: true,
-      isHydrated: true, // ◄ LOCK: Prevents premature polls
-    });
-  }, []);
+  // 🛡️ THE IDENTITY HARDENING
+useEffect(() => {
+  const currentIdentity = localStorage.getItem('mesh_identity');
+  
+  if (currentIdentity !== "Bazaar_Founder") {
+    // 🛡️ FORCING CONSOLIDATION: Redirect to the Primary Node
+    localStorage.setItem('mesh_identity', "Bazaar_Founder");
+  }
+
+  setPioneer({
+    username: "Bazaar_Founder", // ◄ HARD-CODED LOCK
+    tier: 'Standard',
+    isAuthenticated: true,
+    isHydrated: true,
+  });
+}, []);
   
   const login = () => {
     console.log("[MESH-BRIDGE] Explicit login trigger requested.");
