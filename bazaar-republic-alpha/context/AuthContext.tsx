@@ -2,10 +2,13 @@
 
 import React, { createContext, useContext, useState, useEffect, useRef } from "react";
 
-// 🛡️ SDK INTERFACE DEFINITION
+// ----------------------------------------------------------------------
+// 🛡️ SDK INTERFACE DEFINITION (Upgraded with Payment Engine)
+// ----------------------------------------------------------------------
 interface PiSDK {
   init: (options: { version: string; sandbox: boolean }) => Promise<void>;
   authenticate: (scopes: string[], onIncompletePayment?: (payment: any) => void) => Promise<{ user: { uid: string; username: string } }>;
+  createPayment: (paymentData: any, callbacks: any) => void;
 }
 
 export type PioneerState = {
@@ -20,6 +23,7 @@ type AuthContextType = {
   pioneer: PioneerState;
   setPioneer: React.Dispatch<React.SetStateAction<PioneerState>>;
   login: () => void;    
+  executeStakePayment: (amount: number, memo: string) => void; // ◄ THE VAULT BRIDGE
   isHydrated: boolean; 
 };
 
@@ -39,6 +43,48 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     console.log("[MESH-BRIDGE] Explicit login trigger requested.");
   };
 
+  // ----------------------------------------------------------------------
+  // 🛡️ THE VAULT BRIDGE: SECURE PAYMENT EXECUTION
+  // ----------------------------------------------------------------------
+  const executeStakePayment = (amount: number, memo: string) => {
+    // 1. X570 Bypass Logic (For Local Staking Tests)
+    if (typeof window !== "undefined" && window.location.hostname === "localhost") {
+      console.warn(`[MESH-BRIDGE] 🛠️ X570 Bypass: Simulating payment of ${amount} Test-Pi.`);
+      console.log(`[MESH-BRIDGE] 🟢 Transaction ${memo} theoretically cleared for ${pioneer.username}.`);
+      return;
+    }
+
+    const pi = (window as any).Pi as PiSDK;
+    if (!pi) {
+      console.error("[MESH-FRACTURE] Pi SDK Not Found. Cannot execute payment.");
+      return;
+    }
+
+    pi.createPayment({
+      amount: amount,
+      memo: memo,
+      metadata: { type: "ALPHA_VAULT_STAKE", node: pioneer.username }
+    }, {
+      onReadyForServerApproval: (paymentId: string) => {
+        console.log(`[MESH-BRIDGE] ⏳ Payment Awaiting Server Approval: ${paymentId}`);
+        // In production, your Next.js API hits Pi servers here
+      },
+      onReadyForServerCompletion: (paymentId: string, txid: string) => {
+        console.log(`[MESH-BRIDGE] 🟢 Tx Broadcasted. ID: ${txid}`);
+        // 🚀 This is where you will trigger your tokenActions.ts to mint mBZR
+      },
+      onCancel: (paymentId: string) => {
+        console.warn(`[MESH-BRIDGE] ⚠️ Transaction Cancelled by Node.`);
+      },
+      onError: (error: Error, payment: any) => {
+        console.error(`[MESH-BRIDGE] 🚨 Payment Fracture:`, error);
+      }
+    });
+  };
+
+  // ----------------------------------------------------------------------
+  // 🛡️ THE BOOT SEQUENCE
+  // ----------------------------------------------------------------------
   useEffect(() => {
     if (initialized.current) return;
     initialized.current = true;
@@ -51,7 +97,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setPioneer({
           isAuthenticated: true,
           uid: "X570-DEV-NODE",
-          username: "Bazaar_Founder",
+          username: "PinoyQ8", // Hard-coded to your Founder alias for testing
           tier: "ADMIN",
           isHydrated: true
         });
@@ -64,7 +110,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const interval = setInterval(() => {
           if ((window as any).Pi || attempts > 40) {
             clearInterval(interval);
-            resolve((window as any).Pi as PiSDK); // CAST TO INTERFACE
+            resolve((window as any).Pi as PiSDK);
           }
           attempts++;
         }, 250);
@@ -81,12 +127,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.log("[MESH-BRIDGE] 🛰️ Initializing Pi Core...");
         await pi.init({ version: "2.0", sandbox: true });
 
-        // Buffer for Iframe Origin Settlement
         await new Promise(r => setTimeout(r, 500)); 
 
-        const auth = await pi.authenticate(['username', 'payments']);
+        // Added onIncompletePayment callback to prevent ghost states
+        const auth = await pi.authenticate(['username', 'payments'], (payment) => {
+           console.warn(`[MESH-SCAN] ⚠️ Ghost State Detected: Incomplete Payment`, payment);
+        });
 
-        // 🛡️ 4. SELF-HEALING REGISTRY PUSH (NON-BLOCKING)
+        // 🛡️ 4. SELF-HEALING REGISTRY PUSH
         try {
           const registryPush = await fetch('/api/mesh/register', {
             method: 'POST',
@@ -136,7 +184,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ pioneer, setPioneer, login, isHydrated: pioneer.isHydrated }}>
+    <AuthContext.Provider value={{ pioneer, setPioneer, login, executeStakePayment, isHydrated: pioneer.isHydrated }}>
       {children}
     </AuthContext.Provider>
   );

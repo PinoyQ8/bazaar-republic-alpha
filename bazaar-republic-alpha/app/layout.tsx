@@ -3,7 +3,7 @@ import { Inter } from "next/font/google";
 import Script from "next/script"; // 🛡️ CRITICAL: Import Next.js Script
 import "./globals.css";
 // 🛡️ CRITICAL: Import the Provider
-import { AuthProvider } from "@/context/AuthContext"; 
+import { AuthProvider } from "@/context/AuthContext";
 
 const inter = Inter({ subsets: ["latin"] });
 
