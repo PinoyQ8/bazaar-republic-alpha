@@ -140,26 +140,22 @@ export default function SecurityCircleGate() {
       <p className="text-slate-500 text-xs font-mono mb-6">Identity: {pioneer.username}</p>
       
       <form onSubmit={handleEnroll} className="flex flex-col gap-4">
-        <input 
-          placeholder="Paste G-Address..." 
-          className="bg-slate-900 border border-slate-700 p-3 text-white rounded-lg focus:border-emerald-500 outline-none font-mono text-sm"
-          value={address}
-          onChange={(e) => setAddress(e.target.value)}
-          required
-        />
+  {/* CORRECTED: Pull the ID from the validated pioneer context */}
+  <input type="hidden" name="pioneerId" value={pioneer.username} />
 
-        <div className="flex justify-between items-center bg-slate-900 p-4 rounded-lg border border-slate-800">
-           <span className="text-slate-400 text-sm">Bootstrap Stake</span>
-           <span className="text-emerald-500 font-bold">{STAKE_AMOUNT} Test-Pi</span>
-        </div>
-
-        <button 
-          disabled={isSyncing}
-          className="bg-emerald-600 p-3 text-white font-bold rounded-lg hover:bg-emerald-500 disabled:opacity-50 transition-all uppercase tracking-wider text-sm mt-2"
-        >
-          {isSyncing ? "VAULTING STAKE..." : "STAKE & SECURE NODE"}
-        </button>
-      </form>
+  <input 
+    placeholder="Paste G-Address..." 
+    name="publicAddress" 
+    className="bg-slate-900 border border-slate-700 p-3 text-white rounded-lg focus:border-emerald-500 outline-none font-mono text-sm"
+    value={address}
+    onChange={(e) => setAddress(e.target.value)}
+    required
+  />
+  
+  <button type="submit" className="bg-emerald-600 text-black font-bold p-3 rounded-lg uppercase tracking-widest hover:bg-emerald-500 transition-all">
+    {isSyncing ? "VAULTING..." : "Submit Stake"}
+  </button>
+</form>
     </div>
   );
 }
