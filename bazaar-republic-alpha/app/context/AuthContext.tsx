@@ -29,24 +29,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     isHydrated: false, 
   });
 
-  // 🛡️ THE IDENTITY LOCK: MANDATORY OVERRIDE
-useEffect(() => {
-  // 1. Nuke any existing identity that isn't the Founder
-  const currentStorage = localStorage.getItem('mesh_identity');
-  if (currentStorage !== "Bazaar_Founder") {
-    localStorage.removeItem('mesh_identity'); // Purge the ghost
-    localStorage.setItem('mesh_identity', "Bazaar_Founder");
-  }
-
-  // 2. Force the state to be BAZAAR_FOUNDER
-  setPioneer({
-    username: "Bazaar_Founder", // ◄ ABSOLUTE LOCK
-    tier: 'Standard',
-    isAuthenticated: true,
-    isHydrated: true,
-  });
-}, []);
-  
   const login = () => {
     console.log("[MESH-BRIDGE] Explicit login trigger requested.");
   };
