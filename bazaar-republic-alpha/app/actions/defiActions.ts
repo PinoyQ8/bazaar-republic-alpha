@@ -7,18 +7,15 @@ import { PioneerNode } from "@/models/PioneerNode";
  * 🛡️ MESH-VAULT: Register Node & Lock Stake (Sector 1)
  */
 export async function registerSecurityCircle(formData: FormData) {
+  // 1. VARIABLE DECLARATION (Inside the function scope)
   const pioneerId = formData.get("pioneerId") as string;
   const publicAddress = formData.get("publicAddress") as string;
   const stakeAmount = parseFloat(formData.get("stakeAmount") as string || "0");
 
-  // SANDBOX BYPASS: If testing, we simulate success
-  if (pioneerId === "GENESIS-ANCHOR") {
-    return { success: true, message: "[SANDBOX] Node Registered" };
-  }
-
   const MIN_STAKE_PI = 10;
   const MAX_STAKE_PI = 1000;
 
+  // 2. VALIDATION LOGIC
   if (stakeAmount < MIN_STAKE_PI || stakeAmount > MAX_STAKE_PI) {
     return { success: false, message: `MESH-REJECT: Stake must be between ${MIN_STAKE_PI} and ${MAX_STAKE_PI} Pi.` };
   }
@@ -41,7 +38,7 @@ export async function registerSecurityCircle(formData: FormData) {
   } catch (error) {
     return { success: false, message: "MESH-FRACTURE: Database transaction failed." };
   }
-}
+} // <--- ENSURE THIS CLOSING BRACE IS PRESENT
 
 /**
  * 🛡️ MESH-SCAN: Node Status Verifier
