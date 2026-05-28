@@ -1,16 +1,16 @@
 "use client";
 
 import SecurityCircleHUD from "../components/SecurityCircleHUD";
-// 🛡️ THE TRUE IMPORT BRIDGE (Pointing to your master context)
-import { useAuth } from "@/context/AuthContext"; // ◄ STRICT ALIGNMENT
+// 🛡️ THE TRUE IMPORT BRIDGE
+import { useAuth } from "@/context/AuthContext";
 
 export default function VaultPage() {
   // 1. Pull the exact variables broadcasted by your True Engine
   const { pioneer, isHydrated } = useAuth(); 
 
-  // 2. 🛑 THE AUTHENTICATION GATE (Reading the PioneerState Contract)
-  // We wait for hydration, and ensure the Pioneer is actively authenticated
-  if (!isHydrated || !pioneer.isAuthenticated || !pioneer.username) {
+  // 2. 🛑 THE AUTHENTICATION GATE (Bulletproofed with Optional Chaining)
+  // We wait for hydration, and gracefully handle a null pioneer object
+  if (!isHydrated || !pioneer?.isAuthenticated || !pioneer?.username) {
     return (
       <div className="min-h-screen bg-black text-zinc-400 p-6 flex items-center justify-center font-mono">
         <p className="animate-pulse tracking-widest text-emerald-900 border border-emerald-900 p-4 rounded bg-emerald-950/20">
@@ -24,7 +24,7 @@ export default function VaultPage() {
   const activeNodeId = pioneer.username;
 
   return (
-    <div className="min-h-screen bg-black text-zinc-300 p-6 md:p-12 font-mono">
+    <div className="min-h-screen bg-black text-zinc-300 p-6 md:p-12 font-mono pb-24 md:pb-12">
       <div className="max-w-2xl mx-auto space-y-6">
         
         {/* VAULT HEADER */}
