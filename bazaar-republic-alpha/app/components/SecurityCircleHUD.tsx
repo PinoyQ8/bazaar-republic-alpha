@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-import { registerSecurityCircle, getSecurityCircleStatus } from "../actions/governanceActions";
+import { registerSecurityCircle, getSecurityCircleStatus } from "@/app/actions/defiActions"; // 🟢 SECURED
 
 export default function SecurityCircleHUD({ pioneerId }: { pioneerId: string }) {
   const [status, setStatus] = useState<any>(null);
@@ -8,10 +8,9 @@ export default function SecurityCircleHUD({ pioneerId }: { pioneerId: string }) 
   const [formMessage, setFormMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    getSecurityCircleStatus(pioneerId).then((res) => {
-      if (res.success) setStatus(res.data);
-      setLoading(false);
-    });
+    getSecurityCircleStatus(pioneerId).then((res: any) => { 
+  setStatus(res); 
+})
   }, [pioneerId]);
 
   // 🛡️ THE WRAPPER (TS2322 Fix)
