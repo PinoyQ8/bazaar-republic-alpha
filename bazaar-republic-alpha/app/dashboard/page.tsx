@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { getProviderById } from "@/app/actions/enetworkActions";
+import { getNetworkTotalEquity } from "@/app/actions/defiActions";
 import WalletOnboardingShield from "@/app/components/mesh/WalletOnboardingShield";
 import PioneerHUD from "@/app/components/PioneerHUD";
 import DeFiVault from "@/components/DeFiVault";
@@ -17,9 +18,17 @@ interface PioneerStatus {
 export default function CitizenDashboard() {
   const { pioneer } = useAuth();
   const [pioneerState, setPioneerState] = useState<PioneerStatus | null>(null);
+  const [totalEquity, setTotalEquity] = useState<number>(0);
 
   useEffect(() => {
     const syncNodeLedger = async () => {
+      // 1. Fetch Network Equity
+      try {
+        const equityData = await getNetworkTotalEquity();
+        if (equityData.success) setTotalEquity(equityData.total);
+      } catch (e) { console.error("Equity Sync Failed"); }
+
+      // 2. Fetch Provider Data
       let wallet_address = "PENDING_ONBOARDING";
       if (pioneer?.username) {
         try {
@@ -49,21 +58,15 @@ export default function CitizenDashboard() {
   return (
     <main className="min-h-screen bg-zinc-950 text-zinc-100 font-mono p-4 md:p-8">
       <div className="max-w-6xl mx-auto space-y-6">
-        
-        {/* HEADER */}
         <header className="p-6 bg-zinc-900 border border-zinc-800 rounded-lg">
            <h1 className="text-xl font-bold tracking-widest text-emerald-400 uppercase">E-Network Command Center</h1>
            <p className="text-xs text-zinc-500 mt-1">Node: {pioneer?.username || "AWAITING_HANDSHAKE"}</p>
         </header>
 
-        {/* MASTER GRID */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div className="space-y-6">
             <PioneerHUD />
-            <MerchantPOS 
-                merchantId="SYSTEM_DAO_COLLECTOR" 
-                consumerId={pioneer?.username || "GHOST_NODE"} 
-            />
+            <MerchantPOS merchantId="SYSTEM_DAO_COLLECTOR" consumerId={pioneer?.username || "GHOST_NODE"} />
           </div>
           <div className="space-y-6">
             <DeFiVault />
