@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "next/navigation";
-import { registerSecurityCircle, getSecurityCircleStatus } from "@/app/actions/governanceActions";
+import { registerSecurityCircle, getSecurityCircleStatus } from "@/app/actions/defiActions";
 
 export default function SecurityCircleGate() {
   // 🛡️ CAST HOOK CONTEXT TO BYPASS THE MISSING ISHYDRATED CONTRACT SIGNATURE
