@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { useAuth } from "@/app/context/AuthContext";
+import { getUserStakeTotal } from "@/app/actions/defiActions";
 
 export default function DeFiVault() {
   const { pioneer } = useAuth();
@@ -10,10 +11,25 @@ export default function DeFiVault() {
   const ABSOLUTE_CAP = 50000;
   
   // State Management
-  const [activeStake, setActiveStake] = useState<number>(0); // In production, fetch this from the DB on load
+  const [activeStake, setActiveStake] = useState<number>(0); 
   const [stakeInput, setStakeInput] = useState<string>("");
   const [isProcessing, setIsProcessing] = useState(false);
   const [message, setMessage] = useState<{ text: string; type: "error" | "success" | "" }>({ text: "", type: "" });
+
+  // 🛡️ THE UPLINK: HYDRATE STATE FROM DATABASE
+  useEffect(() => {
+    const syncLedger = async () => {
+      if (pioneer?.username && pioneer.username !== "GHOST_NODE") {
+        try {
+          const total = await getUserStakeTotal(pioneer.username);
+          setActiveStake(total);
+        } catch (error) {
+          console.error("[MESH-SCAN] UI Hydration Fracture:", error);
+        }
+      }
+    };
+    syncLedger();
+  }, [pioneer.username]); // ◄ Re-sync if session identity changes
 
   const availableSpace = ABSOLUTE_CAP - activeStake;
 
@@ -29,7 +45,6 @@ export default function DeFiVault() {
       return;
     }
 
-    // 🛑 CLIENT-SIDE WHALE SHIELD
     if (amount > availableSpace) {
       setMessage({ 
         text: `EQUITY-FRACTURE: Cap breached. You can only lock an additional ${availableSpace.toLocaleString()} mBZR.`, 
@@ -42,10 +57,7 @@ export default function DeFiVault() {
     setMessage({ text: "", type: "" });
 
     try {
-      // 🚀 EXECUTE LOCK (Simulated API Call to defiActions.ts)
-      console.log(`[MESH-BRIDGE] ⏳ Executing Time-Lock for ${pioneer.username}: ${amount} mBZR`);
-      
-      // Simulate network delay
+      // Simulate/Trigger Lock
       await new Promise((resolve) => setTimeout(resolve, 1500));
       
       setActiveStake((prev) => prev + amount);
@@ -68,7 +80,6 @@ export default function DeFiVault() {
         <p className="text-zinc-500 text-xs mt-1">Dynamic Yield Bridge Active</p>
       </div>
 
-      {/* 📊 NODE EQUITY STATUS */}
       <div className="mb-6 p-4 bg-zinc-900 border border-zinc-800 rounded text-sm space-y-2">
         <div className="flex justify-between">
           <span className="text-zinc-500">Node Identity:</span>
@@ -86,7 +97,6 @@ export default function DeFiVault() {
         </div>
       </div>
 
-      {/* 🛡️ INPUT GATES */}
       <div className="space-y-4 mb-6">
         <div>
           <label className="block text-xs text-zinc-400 mb-1">Lock Amount (mBZR)</label>
@@ -101,7 +111,6 @@ export default function DeFiVault() {
         </div>
       </div>
 
-      {/* 🛡️ EXECUTION TRIGGER */}
       <button 
         onClick={handleStakeLock}
         disabled={isProcessing || availableSpace === 0}
@@ -114,7 +123,6 @@ export default function DeFiVault() {
         {isProcessing ? "Encrypting Lock..." : "Lock Liquidity"}
       </button>
 
-      {/* 🚨 TERMINAL OUTPUT */}
       {message.text && (
         <div className={`mt-4 p-3 border rounded text-xs ${
           message.type === "error" ? "bg-red-950/30 border-red-900/50 text-red-400" : "bg-emerald-950/30 border-emerald-900/50 text-emerald-400"
