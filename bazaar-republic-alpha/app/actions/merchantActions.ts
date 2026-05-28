@@ -1,11 +1,10 @@
 "use server";
 
-// 🛡️ THE MESH BRIDGE: Corrected Imports
 import { connectToDatabase } from "@/lib/db";
-import { PioneerNode } from "@/models/PioneerNode"; // Named export
-import { TreasuryLedger } from "@/models/TreasuryLedger"; // Named export
-import MarketTransaction from "@/models/MarketTransaction"; // ◄ REMOVE CURLY BRACES
-import { IMarketTransaction } from "@/models/MarketTransaction"; // ◄ Optional: Import interface if needed
+import { PioneerNode } from "@/models/PioneerNode"; 
+import { TreasuryLedger } from "@/models/TreasuryLedger"; 
+import MarketTransaction from "@/models/MarketTransaction"; 
+
 /**
  * 🛡️ THE MESH-MARKET: ZERO-TRUST SUBSIDY ENGINE
  * Logic: Buyer gets discount based on TS; Merchant gets taxed based on TS.
@@ -22,19 +21,20 @@ export async function executeMarketTransaction(
   try {
     await connectToDatabase();
 
-    // 🛡️ CHANGE THIS SECTION INSIDE app/actions/merchantActions.ts:
-const [buyer, merchant] = await Promise.all([
-  PioneerNode.findOne({ uid: buyerId }).lean(),
-  PioneerNode.findOne({ uid: merchantId }).lean()
-]);
+    // 1. NODE VERIFICATION
+    const [buyer, merchant] = await Promise.all([
+      PioneerNode.findOne({ uid: buyerId }).lean(),
+      PioneerNode.findOne({ uid: merchantId }).lean()
+    ]);
 
-    if (!buyer || !merchant) {
-      return { success: false, message: "MESH-FRACTURE: Node identity unverified." };
+    if (!buyer) {
+      return { success: false, message: "MESH-FRACTURE: Consumer Node unverified." };
     }
 
-   // 🛡️ REVERT TO TRUE ECONOMIC PROPERTIES
-const buyerTS = buyer.trust_score || 0; 
-const merchantTS = merchant.trust_score || 0;
+    // 2. TRUE ECONOMIC PROPERTIES
+    const buyerTS = buyer.trust_score || 0; 
+    // If merchant doesn't exist yet, default TS to 0 for initial tax calculation
+    const merchantTS = merchant ? (merchant.trust_score || 0) : 0; 
 
     const activeDiscount = MAX_DISCOUNT * (buyerTS / 100);
     const activeTaxRate = BASE_TAX * (1 - (merchantTS / 100));
@@ -44,22 +44,39 @@ const merchantTS = merchant.trust_score || 0;
     const merchantReceives = cartValue * (1 - activeTaxRate);
     const treasuryCollects = cartValue * activeTaxRate;
 
-    // 3. 🛑 ATOMIC BALANCE CHECK
+    // 3. ZERO-TRUST SHIELD: ATOMIC BALANCE CHECK
     if ((buyer.activeFuel || 0) < buyerPays) {
       return { success: false, message: "INSUFFICIENT_FUNDS: Buyer lacks required fuel." };
     }
 
-    // 4. 🚀 EXECUTE ATOMIC SETTLEMENT
-    // The Treasury must account for the subsidy paid OUT and the tax collected IN
+    // 4. ATOMIC SETTLEMENT & DIGITAL VOID SHIELD
     const treasuryNetImpact = treasuryCollects - treasurySubsidy;
 
     await Promise.all([
-      PioneerNode.updateOne({ username: buyerId }, { $inc: { activeFuel: -buyerPays } }),
-      PioneerNode.updateOne({ username: merchantId }, { $inc: { activeFuel: merchantReceives } }),
+      // 🚨 FIXED: Target 'uid' instead of 'username'
+      PioneerNode.updateOne(
+        { uid: buyerId }, 
+        { $inc: { activeFuel: -buyerPays } }
+      ),
+      
+      // 🚨 VOID SHIELD RESTORED: Merchant Genesis Protection
+      PioneerNode.updateOne(
+        { uid: merchantId }, 
+        { 
+          $inc: { activeFuel: merchantReceives },
+          $setOnInsert: { activeNodeCount: 1, uptimeStats: 100, referralCount: 0, trust_score: 50 }
+        },
+        { upsert: true } 
+      ),
+      
+      // 🚨 VOID SHIELD RESTORED: Treasury Genesis Protection
       TreasuryLedger.updateOne(
         { vaultType: "MARKET_VELOCITY" }, 
-        { $inc: { balance: treasuryNetImpact } }
+        { $inc: { balance: treasuryNetImpact } },
+        { upsert: true }
       ),
+      
+      // LOG TRANSACTION
       MarketTransaction.create({ 
         merchantId, 
         consumerId: buyerId, 

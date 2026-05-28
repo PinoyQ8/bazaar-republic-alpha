@@ -58,10 +58,25 @@ export default function CitizenDashboard() {
   return (
     <main className="min-h-screen bg-zinc-950 text-zinc-100 font-mono p-4 md:p-8">
       <div className="max-w-6xl mx-auto space-y-6">
-        <header className="p-6 bg-zinc-900 border border-zinc-800 rounded-lg">
-           <h1 className="text-xl font-bold tracking-widest text-emerald-400 uppercase">E-Network Command Center</h1>
-           <p className="text-xs text-zinc-500 mt-1">Node: {pioneer?.username || "AWAITING_HANDSHAKE"}</p>
-        </header>
+        <header className="p-6 bg-zinc-900 border border-zinc-800 rounded-lg flex justify-between items-center">
+  <div>
+    <h1 className="text-xl font-bold tracking-widest text-emerald-400 uppercase">E-Network Command Center</h1>
+    <p className="text-xs text-zinc-500 mt-1">Node: {pioneer?.username || "AWAITING_HANDSHAKE"}</p>
+  </div>
+  <div className="text-right hidden md:block">
+    <p className="text-xs text-zinc-500 uppercase">Network Equity</p>
+    <p className="text-lg font-bold text-emerald-500">{totalEquity.toLocaleString()} mBZR</p>
+  </div>
+</header>
+
+      <div className="mb-6 p-4 border border-emerald-900/50 bg-emerald-950/20 rounded font-mono text-xs">
+        <h3 className="text-emerald-400 font-bold uppercase mb-1">Status: Decentralized Simulation Active</h3>
+         <p className="text-emerald-600">
+    Welcome, Pioneer. You are currently operating within the MESH Protocol Stress-Test Environment. 
+    All mBZR stakes and treasury actions are simulated for network readiness. 
+    Real-time ledger synchronization is active.
+  </p>
+      </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div className="space-y-6">
