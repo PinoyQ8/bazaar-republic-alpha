@@ -1,5 +1,6 @@
 "use server";
 
+<<<<<<< HEAD
 // 🛡️ THE ALIGNED DATABASE BRIDGE
 import { connectToDatabase } from "@/lib/db"; 
 // 🛡️ THE ALIGNED SCHEMA BRIDGE (Using Named Destructuring)
@@ -109,4 +110,20 @@ export async function getSecurityCircleStatus(pioneerId: string) {
     console.error("[MESH-BRIDGE] 🚨 Status Scan Fracture:", error);
     return { success: false, message: "VAULT_READ_ERROR" };
   }
+=======
+export async function registerSecurityCircle(formData: FormData) {
+  return { success: true, message: "Registered" };
+}
+
+export async function getSecurityCircleStatus(pioneerId: string) {
+  return { success: true, data: { stake_amount: 1500 } };
+}
+
+export async function getUserStakeTotal(pioneerId: string) {
+  return 1500;
+}
+
+export async function getNetworkTotalEquity() {
+  return { total: 226500 };
+>>>>>>> main
 }

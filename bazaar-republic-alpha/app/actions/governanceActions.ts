@@ -1,5 +1,6 @@
 "use server";
 
+<<<<<<< HEAD
 import { connectToDatabase } from "@/lib/db";
 import { PioneerNode } from "@/models/PioneerNode";
 import { GovernanceProposal } from "@/models/GovernanceProposal";
@@ -103,4 +104,15 @@ export async function getActiveProposals() {
     console.error("[MESH-GOV] 🚨 Read Fracture:", error);
     return [];
   }
+=======
+// ENSURE EXPORTS ARE PRESENT
+export async function getActiveProposals() {
+  return [
+    { _id: "mock-prop-001", title: "Activate DEX", description: "...", targetParameter: "DEX_STATUS" }
+  ];
+}
+
+export async function createProposal(proposerId: string, title: string, description: string, targetParameter: string, proposedValue: number) {
+  return { success: true, message: "BALLOT INITIATED" };
+>>>>>>> main
 }
