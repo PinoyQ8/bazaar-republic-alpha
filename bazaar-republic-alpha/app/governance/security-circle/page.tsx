@@ -140,17 +140,26 @@ export default function SecurityCircleGate() {
       <p className="text-slate-500 text-xs font-mono mb-6">Identity: {pioneer.username}</p>
       
       <form onSubmit={handleEnroll} className="flex flex-col gap-4">
-  {/* CORRECTED: Pull the ID from the validated pioneer context */}
   <input type="hidden" name="pioneerId" value={pioneer.username} />
 
+  {/* Added a stress-test helper */}
+  <div className="flex gap-2">
   <input 
     placeholder="Paste G-Address..." 
     name="publicAddress" 
-    className="bg-slate-900 border border-slate-700 p-3 text-white rounded-lg focus:border-emerald-500 outline-none font-mono text-sm"
+    className="bg-slate-900 border border-slate-700 p-3 text-white rounded-lg grow focus:border-emerald-500 outline-none font-mono text-sm"
     value={address}
     onChange={(e) => setAddress(e.target.value)}
     required
   />
+  <button 
+    type="button" 
+    onClick={() => setAddress("GDUMMY_TEST_WALLET_ADDRESS_77X")}
+    className="bg-slate-800 text-emerald-500 px-3 rounded text-[10px] font-bold uppercase"
+  >
+    AUTO-FILL
+  </button>
+</div>
   
   <button type="submit" className="bg-emerald-600 text-black font-bold p-3 rounded-lg uppercase tracking-widest hover:bg-emerald-500 transition-all">
     {isSyncing ? "VAULTING..." : "Submit Stake"}
