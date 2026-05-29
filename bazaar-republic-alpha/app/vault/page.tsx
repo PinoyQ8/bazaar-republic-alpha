@@ -9,7 +9,6 @@ export default function VaultPage() {
   const { pioneer, isHydrated } = useAuth(); 
 
   // 2. 🛑 THE AUTHENTICATION GATE (Bulletproofed with Optional Chaining)
-  // We wait for hydration, and gracefully handle a null pioneer object
   if (!isHydrated || !pioneer?.isAuthenticated || !pioneer?.username) {
     return (
       <div className="min-h-screen bg-black text-zinc-400 p-6 flex items-center justify-center font-mono">
@@ -24,15 +23,16 @@ export default function VaultPage() {
   const activeNodeId = pioneer.username;
 
   return (
-    <div className="min-h-screen bg-black text-zinc-300 p-6 md:p-12 font-mono pb-24 md:pb-12">
-      <div className="max-w-2xl mx-auto space-y-6">
+    /* 🛡️ S23 VIEWPORT SHIELD: Locked to max-w-[384px] to align with Mobile Dock */
+    <div className="min-h-screen bg-black text-zinc-300 p-4 font-mono pb-24 flex flex-col items-center">
+      <div className="w-full max-w-[384px] space-y-6">
         
         {/* VAULT HEADER */}
-        <div className="border-b border-zinc-800 pb-4">
-          <h1 className="text-2xl font-bold text-emerald-400 tracking-widest">
-            DAO TREASURY VAULT
+        <div className="border-b border-zinc-800 pb-4 mt-4">
+          <h1 className="text-xl font-bold text-emerald-400 tracking-widest uppercase">
+            DAO Treasury Vault
           </h1>
-          <p className="text-zinc-500 text-sm mt-1">
+          <p className="text-zinc-500 text-xs mt-1">
             Sector 1: Security Circle & Node Staking
           </p>
         </div>
