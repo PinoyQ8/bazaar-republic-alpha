@@ -8,7 +8,7 @@ export default function PiArtForge() {
       {/* THE CANVAS CONTAINER - Scaled to fit dev screen, but true export size is 1080x1350 */}
       <div 
         id="pi-art-canvas"
-        className="relative w-270 h-[1350px] bg-[#050505] overflow-hidden flex items-center justify-center border border-zinc-900 shadow-2xl origin-center scale-[0.6] lg:scale-[0.7]"
+        className="relative w-[1080px] h-[1350px] bg-[#050505] overflow-hidden flex items-center justify-center border border-zinc-900 shadow-2xl origin-center scale-[0.6] lg:scale-[0.7]"
       >
         
         {/* THE MESH GLOW CORE */}
@@ -24,39 +24,39 @@ export default function PiArtForge() {
           </p>
         </div>
 
-        {/* ISOMETRIC SCREEN STACK */}
-        <div className="relative w-full h-full flex items-center justify-center mt-12">
+        {/* ISOMETRIC SCREEN STACK - Shifted up slightly */}
+        <div className="relative w-full h-full flex items-center justify-center -mt-8">
           
           {/* Screen 1: Far Left (Background) */}
-          <div className="absolute -translate-x-[420px] translate-y-[80px] -rotate-12 scale-[0.70] z-10 opacity-50 transition-all">
+          <div className="absolute -translate-x-[360px] translate-y-[20px] -rotate-12 scale-[0.70] z-10 opacity-50 transition-all">
             <ScreenMockup src="/screen-1.png" />
           </div>
 
           {/* Screen 2: Mid Left */}
-          <div className="absolute -translate-x-[260px] translate-y-[30px] -rotate-6 scale-[0.85] z-20 opacity-80 shadow-2xl">
+          <div className="absolute -translate-x-[200px] translate-y-[0px] -rotate-6 scale-[0.85] z-20 opacity-80 shadow-2xl transition-all">
             <ScreenMockup src="/screen-2.png" />
           </div>
 
           {/* Screen 4: Mid Right */}
-          <div className="absolute translate-x-[260px] translate-y-[30px] rotate-6 scale-[0.85] z-20 opacity-80 shadow-2xl">
+          <div className="absolute translate-x-[200px] translate-y-[0px] rotate-6 scale-[0.85] z-20 opacity-80 shadow-2xl transition-all">
             <ScreenMockup src="/screen-4.png" />
           </div>
 
           {/* Screen 5: Far Right (Background) */}
-          <div className="absolute translate-x-105 translate-y-[80px] rotate-12 scale-[0.70] z-10 opacity-50">
+          <div className="absolute translate-x-[360px] translate-y-[20px] rotate-12 scale-[0.70] z-10 opacity-50 transition-all">
             <ScreenMockup src="/screen-5.png" />
           </div>
 
-          {/* Screen 3: The Center Hero (Dashboard) */}
-          <div className="absolute z-30 scale-[1.05] shadow-[0_0_80px_rgba(16,185,129,0.25)] rounded-[2rem]">
+          {/* Screen 3: The Center Hero (Dashboard) - Hoisted to clear text */}
+          <div className="absolute z-30 -translate-y-[40px] scale-[1.05] shadow-[0_0_80px_rgba(16,185,129,0.25)] rounded-[2rem] transition-all">
             <ScreenMockup src="/screen-3.png" />
           </div>
 
         </div>
 
-        {/* BOTTOM MANIFESTO PANEL */}
-        <div className="absolute bottom-24 left-0 right-0 z-50 px-24">
-          <div className="border-l-4 border-emerald-500 bg-zinc-950/90 p-8 rounded border-y border-r border-zinc-800/80 backdrop-blur-md shadow-2xl">
+        {/* BOTTOM MANIFESTO PANEL - Pushed down to edge */}
+        <div className="absolute bottom-12 left-0 right-0 z-50 px-24">
+          <div className="border-l-4 border-l-emerald-500 border-y border-r border-zinc-800/80 bg-zinc-950/90 p-8 rounded backdrop-blur-md shadow-2xl">
             <p className="text-2xl text-zinc-300 leading-relaxed tracking-wide">
               A zero-trust digital economy where Real Pioneers lock stakes to secure the E-Network with hard-coded governance.
             </p>
