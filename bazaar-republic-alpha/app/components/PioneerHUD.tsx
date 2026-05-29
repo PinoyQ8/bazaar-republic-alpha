@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useAuth } from '@/context/AuthContext'; // 🛡️ THE IDENTITY BRIDGE
+import { useState, useEffect, useRef } from 'react';
+import { useAuth } from '@/context/AuthContext'; 
 
 interface HUDState {
   totalEquity: number;
@@ -11,7 +11,7 @@ interface HUDState {
 }
 
 export default function PioneerHUD() {
-  const { pioneer } = useAuth(); // 🛡️ PULL ACTIVE IDENTITY
+  const { pioneer } = useAuth(); 
   const [hudData, setHudData] = useState<HUDState>({
     totalEquity: 0,
     activeFuel: 0,
@@ -19,27 +19,33 @@ export default function PioneerHUD() {
     healthFactor: 150,
   });
 
-  // State to prevent notification spam
-  const [alertTriggered, setAlertTriggered] = useState(false);
+  // 🛡️ THE MESH LOCKS: Hardware-level throttling
+  const alertGate = useRef(false);
+  const syncInProgress = useRef(false);
+  const lastSyncTime = useRef(0);
+  
+  const activeNodeId = pioneer?.username || pioneer?.uid;
 
   useEffect(() => {
-    // THE MESH HEARTBEAT: 10-Second Autonomous Uplink
-    const syncInterval = setInterval(async () => {
+    // Hydration Shield
+    if (!activeNodeId) return;
+
+    const fetchTelemetry = async () => {
+      const now = Date.now();
+      
+      // 🛡️ THE THROTTLE SHIELD: 
+      // Block request if one is active OR if less than 2000ms has passed since the last pull
+      if (syncInProgress.current || now - lastSyncTime.current < 2000) {
+        return; 
+      }
+
+      syncInProgress.current = true; // Lock the gate
+
       try {
-        // 🛡️ THE HYDRATION SHIELD: Await identity before fetching
-        if (!pioneer.username && !pioneer.uid) {
-          return; 
-        }
-
-        const identifier = pioneer.username || pioneer.uid;
-
-        // 🛡️ DYNAMIC INJECTION: Ping the Republic Ledger with active node ID
-        const res = await fetch(`/api/mesh-scan/pioneer-data?id=${identifier}`);
-        
+        const res = await fetch(`/api/mesh-scan/pioneer-data?id=${activeNodeId}`);
         if (!res.ok) throw new Error('Uplink failed');
         const payload = await res.json();
 
-        // Update the Visual State gracefully (safeguard against undefined payload values)
         setHudData({
           totalEquity: payload.data?.totalEquity || 0,
           activeFuel: payload.data?.activeFuel || 0,
@@ -47,29 +53,37 @@ export default function PioneerHUD() {
           healthFactor: payload.data?.healthFactor || 0,
         });
 
-        // The PWA Notification Trigger Logic
-        if (payload.data?.vestingShield > 0 && !alertTriggered) {
+        // PWA Notification Trigger
+        if (payload.data?.vestingShield > 0 && !alertGate.current) {
           if ('Notification' in window && Notification.permission === 'granted') {
             new Notification('MESH Uptime Shield Active', {
               body: 'Yield Unlocked. Access your secure dashboard to claim.',
               icon: '/mesh-icon.png' 
             });
           }
-          setAlertTriggered(true); // Lock the gate
+          alertGate.current = true; 
         }
-
+        
+        lastSyncTime.current = Date.now(); // Update the timestamp only on success
       } catch (error) {
-        console.error('MESH Sync Interrupted. Retrying in 10s...');
+        console.error('[MESH_SCAN] HUD Sync Interrupted.');
+      } finally {
+        syncInProgress.current = false; // Release the lock
       }
-    }, 10000); 
+    };
 
-    // Cleanup interval on unmount to protect memory
+    // Initial Pull
+    fetchTelemetry();
+
+    // THE MESH HEARTBEAT: 10-Second Autonomous Uplink
+    const syncInterval = setInterval(fetchTelemetry, 10000); 
+
+    // Cleanup
     return () => clearInterval(syncInterval);
-  }, [alertTriggered, pioneer.username, pioneer.uid]); // 🛡️ LOCKED DEPENDENCIES
+  }, [activeNodeId]); // The hooks will fire, but the Throttle Shield will deflect the spam
 
   return (
     <div className="flex flex-col items-center w-full max-w-[384px] p-6 bg-zinc-950 text-white font-mono border border-zinc-800 rounded-lg shadow-2xl">
-      
       {/* MACRO VIEW: Total Equity */}
       <div className="text-center mb-6">
         <h2 className="text-zinc-400 text-sm tracking-widest uppercase mb-1">Total Network Equity</h2>
@@ -91,7 +105,6 @@ export default function PioneerHUD() {
 
       {/* MICRO VIEW: The Tranche Split */}
       <div className="w-full space-y-4">
-        
         {/* Tranche 1: Circulating Fuel */}
         <div className="flex justify-between items-center bg-zinc-900 p-4 rounded-md border border-zinc-700/50">
           <div className="flex items-center gap-2">
@@ -114,7 +127,6 @@ export default function PioneerHUD() {
           </div>
           <div className="font-bold text-amber-400">{hudData.vestingShield.toFixed(2)}</div>
         </div>
-
       </div>
 
       {/* MANUAL PULL ARCHITECTURE: The Claim Button */}
@@ -124,7 +136,6 @@ export default function PioneerHUD() {
       >
         Claim MESH Yield
       </button>
-
     </div>
   );
 }

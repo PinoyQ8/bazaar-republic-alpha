@@ -2,8 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { useAuth } from "@/app/context/AuthContext";
-// 🛡️ MESH-BRIDGE: Import the ledger verifier
-import { getNetworkTotalEquity, getSecurityCircleStatus } from "@/app/actions/defiActions";
+import { getSecurityCircleStatus } from "@/app/actions/defiActions";
 
 export default function DeFiVault() {
   const { pioneer } = useAuth();
@@ -16,31 +15,31 @@ export default function DeFiVault() {
   const [stakeInput, setStakeInput] = useState<string>("");
   const [isProcessing, setIsProcessing] = useState(false);
   const [message, setMessage] = useState<{ text: string; type: "error" | "success" | "" }>({ text: "", type: "" });
-  const [totalEquity, setTotalEquity] = useState<number>(0);
+
+  const activeNodeId = pioneer?.username;
 
   // 🛡️ THE UPLINK: HYDRATE STATE FROM DATABASE
   useEffect(() => {
-    const syncLedger = async () => {
-      if (pioneer?.username && pioneer.username !== "GHOST_NODE") {
-        try {
-          // 1. Fetch Network Equity (Global)
-          const networkResult = await getNetworkTotalEquity();
-          if (networkResult.success) {
-            setTotalEquity(networkResult.total);
-          }
+    let isMounted = true;
 
-          // 2. Fetch User Specific Status (To get individual activeStake)
-          const nodeResult = await getSecurityCircleStatus(pioneer.username);
-          if (nodeResult.success) {
-            setActiveStake(nodeResult.data.stake_amount || 0);
-          }
-        } catch (error) {
-          console.error("[MESH-SCAN] UI Hydration Fracture:", error);
+    const syncLedger = async () => {
+      if (!activeNodeId || activeNodeId === "GHOST_NODE") return;
+      
+      try {
+        // Fetch User Specific Status ONLY
+        const nodeResult = await getSecurityCircleStatus(activeNodeId);
+        if (isMounted && nodeResult.success) {
+          setActiveStake(nodeResult.data.stake_amount || 0);
         }
+      } catch (error) {
+        console.error("[MESH-SCAN] UI Hydration Fracture:", error);
       }
     };
+
     syncLedger();
-  }, [pioneer.username]);
+
+    return () => { isMounted = false; };
+  }, [activeNodeId]);
 
   const availableSpace = ABSOLUTE_CAP - activeStake;
 

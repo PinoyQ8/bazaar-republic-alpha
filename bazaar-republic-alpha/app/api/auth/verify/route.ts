@@ -1,10 +1,43 @@
 import { NextResponse } from "next/server";
 
+// 🛡️ MESH RATE LIMITER (In-Memory for Alpha-Track)
+const rateLimitMap = new Map<string, { count: number; startTime: number }>();
+const MAX_REQUESTS_PER_MINUTE = 10;
+
+function applyRateLimit(ip: string): boolean {
+  const currentTime = Date.now();
+  const windowData = rateLimitMap.get(ip);
+
+  if (!windowData || currentTime - windowData.startTime > 60000) {
+    rateLimitMap.set(ip, { count: 1, startTime: currentTime });
+    return true;
+  }
+  if (windowData.count >= MAX_REQUESTS_PER_MINUTE) return false;
+  
+  windowData.count++;
+  return true;
+}
+
 // 🛡️ THE ADJUDICATOR: HTTP Verification Bridge
 export async function POST(req: Request) {
   const serverTimestamp = Date.now();
 
   try {
+    // 0. 🛑 ORIGIN & RATE LIMIT SHIELD
+    const origin = req.headers.get("origin") || req.headers.get("referer") || "";
+    const isLocalhost = origin.includes("localhost") || origin.includes("127.0.0.1");
+    const isVercel = origin.includes("mesh-academy-alpha.vercel.app") || origin.includes("bazaar-republic-alpha");
+    
+    if (!isLocalhost && !isVercel && origin !== "") {
+      console.warn(`[MESH-BLOCK] Unauthorized origin attempted breach: ${origin}`);
+      return NextResponse.json({ success: false, message: "MESH-REJECT: ORIGIN UNKNOWN." }, { status: 403 });
+    }
+
+    const ip = req.headers.get('x-forwarded-for') || '127.0.0.1';
+    if (!applyRateLimit(ip)) {
+      return NextResponse.json({ success: false, message: "MESH-REJECT: NODE RATE LIMIT EXCEEDED." }, { status: 429 });
+    }
+
     // 1. EXTRACT PAYLOAD FROM MESH
     const body = await req.json();
     const { username, accessToken, uid } = body;
@@ -13,12 +46,8 @@ export async function POST(req: Request) {
     if (!username || (!accessToken && !uid)) {
       console.warn(`[MESH-SCAN] ⚠️ Verification rejected: Malformed or missing node credentials.`);
       return NextResponse.json(
-        { 
-          success: false, 
-          message: "ADJUDICATOR: MISSING CREDENTIALS. HANDSHAKE FAILED.",
-          timestamp: serverTimestamp
-        }, 
-        { status: 400 } // Bad Request
+        { success: false, message: "ADJUDICATOR: MISSING CREDENTIALS. HANDSHAKE FAILED.", timestamp: serverTimestamp }, 
+        { status: 400 } 
       );
     }
 
@@ -27,27 +56,14 @@ export async function POST(req: Request) {
     if (!PI_API_KEY) {
       console.error(`[MESH-SCAN] 🚨 FATAL: PI_API_KEY is missing from the environment vault.`);
       return NextResponse.json(
-        { 
-          success: false, 
-          message: "FATAL: BRIDGE CONNECTION FRACTURED. CHECK VAULT KEYS.",
-          timestamp: serverTimestamp
-        }, 
-        { status: 500 } // Internal Server Error
+        { success: false, message: "FATAL: BRIDGE CONNECTION FRACTURED. CHECK VAULT KEYS.", timestamp: serverTimestamp }, 
+        { status: 500 } 
       );
     }
 
     console.log(`[MESH-BRIDGE] 🟢 Initializing Pi Network Handshake for Node: ${username}`);
 
     // 4. 🌐 PI NETWORK API CALL (The External Bridge)
-    // Here we query the official Pi Network backend to validate the accessToken
-    /* 
-    const piResponse = await fetch("https://api.minepi.com/v2/me", {
-      headers: { Authorization: `Bearer ${accessToken}` }
-    });
-    const piData = await piResponse.json();
-    if (!piResponse.ok) throw new Error("Pi Network rejected the token");
-    */
-
     // Simulated Network Verification for the Alpha-Track Forge
     await new Promise((resolve) => setTimeout(resolve, 600));
 
@@ -59,7 +75,7 @@ export async function POST(req: Request) {
         success: true,
         tier: "PIONEER",
         anchor: "GENESIS ALPHA",
-        username: username, // Return normalized username
+        username: username, 
         message: "NODE VERIFIED. UPTIME SHIELD ACTIVE.",
         timestamp: serverTimestamp
       },
@@ -69,11 +85,7 @@ export async function POST(req: Request) {
   } catch (error) {
     console.error(`[MESH-SCAN] 🚨 CRITICAL API FAILURE:`, error);
     return NextResponse.json(
-      { 
-        success: false, 
-        message: "FATAL: PAYLOAD FRACTURED DURING TRANSIT.",
-        timestamp: serverTimestamp
-      }, 
+      { success: false, message: "FATAL: PAYLOAD FRACTURED DURING TRANSIT.", timestamp: serverTimestamp }, 
       { status: 500 }
     );
   }
@@ -83,6 +95,6 @@ export async function POST(req: Request) {
 export async function GET() {
   return NextResponse.json(
     { success: false, message: "ADJUDICATOR: GET METHOD RESTRICTED. USE POST." },
-    { status: 405 } // Method Not Allowed
+    { status: 405 }
   );
 }
