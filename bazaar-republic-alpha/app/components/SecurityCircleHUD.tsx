@@ -39,10 +39,11 @@ export default function SecurityCircleHUD({ pioneerId }: { pioneerId: string }) 
     setFormMessage({ text: "ENCRYPTING PAYLOAD...", type: "system" });
     
     try {
-      const response = await registerSecurityCircle(formData);
+      // 🛡️ ZERO-TRUST SHIELD: Pass the extracted string directly to the server action
+const response = await registerSecurityCircle(pioneerId);
       
       if (response.success) {
-         setFormMessage({ text: response.message || "TRANSACTION SECURED.", type: "success" });
+         setFormMessage({ text: "TRANSACTION SECURED.", type: "success" });
          
          // Re-scan the node to update the UI from Form to Status View
          const updated = await getSecurityCircleStatus(pioneerId);
@@ -50,7 +51,7 @@ export default function SecurityCircleHUD({ pioneerId }: { pioneerId: string }) 
             setStatus(updated.data);
          }
       } else {
-         setFormMessage({ text: response.message || "TRANSACTION REJECTED.", type: "error" });
+         setFormMessage({ text: response.error || "TRANSACTION FAILED.", type: "error" });
       }
     } catch (error) {
       setFormMessage({ text: "FATAL: UPLINK FRACTURED.", type: "error" });

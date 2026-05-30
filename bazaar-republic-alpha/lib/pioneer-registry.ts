@@ -12,9 +12,10 @@ export async function resolvePioneer(uid: string) {
   // 2. If new Pioneer, create their initial genesis node
   if (!pioneer) {
     pioneer = await Token.create({
-      ownerId: uid,
+     ownerId: uid,
       amount: 0, // Initial state
-      status: "ACTIVE_PIONEER"
+      // 🛡️ ZERO-TRUST SHIELD: Align to the strict Token Schema enum
+      status: "LIQUID"
     });
     console.log(`[MESH-LOG] Genesis node established for UID: ${uid}`);
   }

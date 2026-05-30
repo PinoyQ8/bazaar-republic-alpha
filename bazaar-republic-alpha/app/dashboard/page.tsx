@@ -1,3 +1,6 @@
+// Route: /app/components/CitizenDashboard.tsx
+// Logic: E-Network Citizen Dashboard & Ledger Sync (MESH Hardened)
+
 "use client";
 
 import React, { useState, useEffect } from "react";
@@ -20,8 +23,9 @@ export default function CitizenDashboard() {
   const [pioneerState, setPioneerState] = useState<PioneerStatus | null>(null);
   const [totalEquity, setTotalEquity] = useState<number>(0);
 
-  // 🛡️ PRIMITIVE EXTRACTION: Prevents referential loop fractures
-  const activeNodeId = pioneer?.username;
+  // 🛡️ PRIMITIVE EXTRACTION: MESH Ledger requires the immutable UID
+  const activeNodeId = pioneer?.uid;
+  const displayUsername = pioneer?.username || "AWAITING_HANDSHAKE";
 
   useEffect(() => {
     let isMounted = true; // Mount Guard
@@ -38,7 +42,7 @@ export default function CitizenDashboard() {
         console.error("[MESH_SCAN] Equity Sync Failed"); 
       }
 
-      // 2. Fetch Provider Data
+      // 2. Fetch Provider Data using UID
       let wallet_address = "PENDING_ONBOARDING";
       try {
         const providerData = await getProviderById(activeNodeId);
@@ -65,10 +69,10 @@ export default function CitizenDashboard() {
     return () => {
       isMounted = false;
     };
-  }, [activeNodeId]); // 🛡️ STRICT DEPENDENCY: Only re-runs if the Node ID string changes
+  }, [activeNodeId]); // 🛡️ STRICT DEPENDENCY: Only re-runs if the UID string changes
 
   // LOADING STATE
-  if (!pioneerState) return <div className="text-emerald-500 p-8 font-mono">SYNCING WITH LEDGER...</div>;
+  if (!pioneerState) return <div className="text-emerald-500 p-8 font-mono bg-zinc-950 min-h-screen">SYNCING WITH LEDGER...</div>;
 
   // ZERO-TRUST SHIELD
   if (pioneerState.wallet_address === "PENDING_ONBOARDING") {
@@ -78,10 +82,11 @@ export default function CitizenDashboard() {
   return (
     <main className="min-h-screen bg-zinc-950 text-zinc-100 font-mono p-4 md:p-8">
       <div className="max-w-6xl mx-auto space-y-6">
-        <header className="p-6 bg-zinc-900 border border-zinc-800 rounded-lg flex justify-between items-center">
+        <header className="p-6 bg-zinc-900 border border-zinc-800 rounded-lg flex justify-between items-center shadow-lg">
           <div>
             <h1 className="text-xl font-bold tracking-widest text-emerald-400 uppercase">E-Network Command Center</h1>
-            <p className="text-xs text-zinc-500 mt-1">Node: {activeNodeId || "AWAITING_HANDSHAKE"}</p>
+            <p className="text-xs text-zinc-500 mt-1">Node Operator: @{displayUsername}</p>
+            <p className="text-[10px] text-zinc-600 truncate max-w-50 mt-1">UID: {activeNodeId}</p>
           </div>
           <div className="text-right hidden md:block">
             <p className="text-xs text-zinc-500 uppercase">Network Equity</p>
@@ -89,7 +94,7 @@ export default function CitizenDashboard() {
           </div>
         </header>
 
-        <div className="mb-6 p-4 border border-emerald-900/50 bg-emerald-950/20 rounded font-mono text-xs">
+        <div className="mb-6 p-4 border border-emerald-900/50 bg-emerald-950/20 rounded font-mono text-xs shadow-inner">
           <h3 className="text-emerald-400 font-bold uppercase mb-1">Status: Decentralized Simulation Active</h3>
           <p className="text-emerald-600">
             Welcome, Pioneer. You are currently operating within the MESH Protocol Stress-Test Environment. 

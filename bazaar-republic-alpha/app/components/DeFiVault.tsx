@@ -1,3 +1,6 @@
+// Route: /app/components/DeFiVault.tsx
+// Logic: mBZR Staking Smart Contract Bridge (MESH Hardened)
+
 "use client";
 
 import React, { useState, useEffect } from "react";
@@ -5,7 +8,7 @@ import { useAuth } from "@/app/context/AuthContext";
 import { getSecurityCircleStatus, lockSecurityStake } from "@/app/actions/defiActions";
 
 export default function DeFiVault() {
-  const { pioneer } = useAuth();
+  const { pioneer } = useAuth() as any;
   
   // 🛡️ THE WHALE SHIELD PARAMETERS
   const ABSOLUTE_CAP = 50000;
@@ -16,20 +19,23 @@ export default function DeFiVault() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [message, setMessage] = useState<{ text: string; type: "error" | "success" | "" }>({ text: "", type: "" });
 
-  const activeNodeId = pioneer?.username;
+  // 🛡️ PRIMITIVE EXTRACTION: MESH Ledger requires the immutable UID
+  const activeNodeId = pioneer?.uid;
+  const displayUsername = pioneer?.username || "GHOST_NODE";
 
   // 🛡️ THE UPLINK: HYDRATE STATE FROM DATABASE
   useEffect(() => {
     let isMounted = true;
 
     const syncLedger = async () => {
-      if (!activeNodeId || activeNodeId === "GHOST_NODE") return;
+      // Gatekeeper: Halt fetch if UID is missing to prevent ghost queries
+      if (!activeNodeId) return; 
       
       try {
-        // Fetch User Specific Status ONLY
+        // Fetch User Specific Status ONLY using immutable UID
         const nodeResult = await getSecurityCircleStatus(activeNodeId);
         if (isMounted && nodeResult.success) {
-          setActiveStake(nodeResult.data.stake_amount || 0);
+          setActiveStake(nodeResult.data?.stake_amount || 0);
         }
       } catch (error) {
         console.error("[MESH-SCAN] UI Hydration Fracture:", error);
@@ -39,13 +45,14 @@ export default function DeFiVault() {
     syncLedger();
 
     return () => { isMounted = false; };
-  }, [activeNodeId]);
+  }, [activeNodeId]); // Strict dependency on UID
 
   const availableSpace = ABSOLUTE_CAP - activeStake;
 
   const handleStakeLock = async () => {
-    if (!pioneer.isAuthenticated || pioneer.username === "DISCONNECTED_NODE") {
-      setMessage({ text: "MESH-REJECT: Node disconnected.", type: "error" });
+    // 🛡️ ZERO-TRUST SHIELD: Verify immutable identity before execution
+    if (!activeNodeId) {
+      setMessage({ text: "MESH-REJECT: Node disconnected or missing UID.", type: "error" });
       return;
     }
 
@@ -67,8 +74,8 @@ export default function DeFiVault() {
     setMessage({ text: "", type: "" });
 
     try {
-      // 🛡️ THE DECLARATION: 'const' must be present to anchor the variable into memory
-      const lockResult = await lockSecurityStake(activeNodeId || "GHOST_NODE", amount);
+      // 🛡️ THE DECLARATION: Execute mutation via server action using UID
+      const lockResult = await lockSecurityStake(activeNodeId, amount);
 
       // 🛡️ THE VALIDATION: Must remain inside the 'try' block
       if (!lockResult.success) {
@@ -88,7 +95,7 @@ export default function DeFiVault() {
   };
 
   return (
-    <div className="max-w-md p-6 bg-zinc-950 border border-zinc-800 rounded-lg font-mono text-zinc-100">
+    <div className="max-w-md p-6 bg-zinc-950 border border-zinc-800 rounded-lg font-mono text-zinc-100 shadow-xl">
       <div className="mb-6 border-b border-zinc-800 pb-4">
         <h2 className="text-emerald-400 font-bold tracking-widest uppercase text-sm">
           Sector 3: DeFi Treasury Vault
@@ -96,10 +103,10 @@ export default function DeFiVault() {
         <p className="text-zinc-500 text-xs mt-1">Dynamic Yield Bridge Active</p>
       </div>
 
-      <div className="mb-6 p-4 bg-zinc-900 border border-zinc-800 rounded text-sm space-y-2">
+      <div className="mb-6 p-4 bg-zinc-900 border border-zinc-800 rounded text-sm space-y-2 shadow-inner">
         <div className="flex justify-between">
           <span className="text-zinc-500">Node Identity:</span>
-          <span className="font-bold text-emerald-300">{pioneer.username || "GHOST_NODE"}</span>
+          <span className="font-bold text-emerald-300">@{displayUsername}</span>
         </div>
         <div className="flex justify-between">
           <span className="text-zinc-500">Active Stake:</span>
@@ -115,13 +122,13 @@ export default function DeFiVault() {
 
       <div className="space-y-4 mb-6">
         <div>
-          <label className="block text-xs text-zinc-400 mb-1">Lock Amount (mBZR)</label>
+          <label className="block text-xs text-zinc-400 mb-1 uppercase tracking-wider">Lock Amount (mBZR)</label>
           <input 
             type="number" 
             value={stakeInput}
             onChange={(e) => setStakeInput(e.target.value)}
             disabled={availableSpace === 0}
-            className="w-full bg-zinc-900 border border-zinc-700 p-2 rounded text-emerald-300 focus:outline-none focus:border-emerald-500 disabled:opacity-50"
+            className="w-full bg-zinc-900 border border-zinc-700 p-3 rounded text-emerald-300 focus:outline-none focus:border-emerald-500 disabled:opacity-50 transition-colors"
             placeholder={availableSpace === 0 ? "EQUITY CAP REACHED" : "0.00"}
           />
         </div>
@@ -130,17 +137,17 @@ export default function DeFiVault() {
       <button 
         onClick={handleStakeLock}
         disabled={isProcessing || availableSpace === 0}
-        className={`w-full py-3 rounded text-sm font-bold uppercase tracking-wider transition-colors ${
+        className={`w-full py-3 rounded text-sm font-bold uppercase tracking-wider transition-all ${
           isProcessing || availableSpace === 0
-            ? "bg-zinc-800 text-zinc-500 cursor-not-allowed" 
-            : "bg-emerald-600 hover:bg-emerald-500 text-zinc-950"
+            ? "bg-zinc-800 text-zinc-500 cursor-not-allowed border border-zinc-700" 
+            : "bg-emerald-900/40 border border-emerald-600 text-emerald-400 hover:bg-emerald-800 hover:text-white"
         }`}
       >
-        {isProcessing ? "Encrypting Lock..." : "Lock Liquidity"}
+        {isProcessing ? "ENCRYPTING LOCK..." : "LOCK LIQUIDITY"}
       </button>
 
       {message.text && (
-        <div className={`mt-4 p-3 border rounded text-xs ${
+        <div className={`mt-6 p-3 border rounded text-xs ${
           message.type === "error" ? "bg-red-950/30 border-red-900/50 text-red-400" : "bg-emerald-950/30 border-emerald-900/50 text-emerald-400"
         }`}>
           {message.text}

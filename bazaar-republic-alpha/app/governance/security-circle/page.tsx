@@ -70,13 +70,17 @@ export default function SecurityCircleGate() {
           fd.append("publicAddress", address);
           fd.append("stakeAmount", STAKE_AMOUNT.toString());
 
-          const result = await registerSecurityCircle(fd);
+          // 🛡️ ZERO-TRUST SHIELD: Extract the raw UID string from the FormData payload
+const targetUid = fd.get("uid") as string;
+
+// Pass ONLY the strict string into the server action
+const result = await registerSecurityCircle(targetUid);
           
           if (result.success) {
             alert("BOOTSTRAP LOCKED: 10 Test-Pi secured in Treasury.");
             window.location.reload(); 
           } else {
-            alert("Vault Fracture: " + result.message);
+            alert(result.error || "TRANSACTION FAILED.");
           }
           setIsSyncing(false);
         },

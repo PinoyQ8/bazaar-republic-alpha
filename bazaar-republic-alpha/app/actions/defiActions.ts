@@ -1,78 +1,67 @@
+// Route: /app/actions/defiActions.ts
+// Logic: E-Network DeFi Server Actions (MESH Hardened)
+
 "use server";
 
-import { connectToLedger } from "@/lib/mongodb";
-import { ObjectId } from "mongodb";
+import Token from "@/models/Token"; 
+// Note: Align this import to your active database connection utility
+import { connectToLedger } from "@/lib/mongodb"; 
 
 /**
- * 🛡️ MESH-VAULT: Register Node & Lock Stake (Native Edge)
+ * 🛡️ MESH-SCAN: Status Verifier (Sector 3 Hydration)
  */
-export async function registerSecurityCircle(formData: FormData) {
-  const pioneerId = formData.get("pioneerId") as string;
-  const publicAddress = formData.get("publicAddress") as string;
-  const stakeAmount = parseFloat(formData.get("stakeAmount") as string || "0");
-
-  if (!pioneerId || pioneerId === "DISCONNECTED_NODE") {
-    return { success: false, message: "MESH-REJECT: Identity Void." };
-  }
-
+export async function getSecurityCircleStatus(uid: string) {
   try {
-    const db = await connectToLedger();
-    const updatedNode = await db.collection("pioneers").findOneAndUpdate(
-      { uid: pioneerId },
-      { 
-        $set: { 
-          uid: pioneerId, 
-          wallet_address: publicAddress, 
-          stake_amount: stakeAmount, 
-          kyc_status: "PASSED", 
-          status: "active",
-          updated_at: new Date()
-        } 
-      },
-      { upsert: true, returnDocument: 'after' }
-    );
+    await connectToLedger(); 
     
-    return { success: true, message: "[SECTOR 1 SECURED]", data: updatedNode };
+    // Query the Token ledger using the correct parameter (ownerId)
+    const rawNodeData = await Token.findOne({ ownerId: uid }).lean();
+
+    if (!rawNodeData) {
+      return { success: false, error: "Node not found in ledger." };
+    }
+
+    // The Sanitization Bridge (Serialization Fix)
+    const sanitizedData = {
+      ...rawNodeData,
+      _id: rawNodeData._id.toString(), 
+      // Map the database 'vaultBalance' to what the UI expects ('stake_amount')
+      stake_amount: rawNodeData.vaultBalance || 0,
+      updated_at: rawNodeData.lastStakeTimestamp ? rawNodeData.lastStakeTimestamp.toISOString() : null,
+    };
+
+    return { 
+      success: true, 
+      data: sanitizedData 
+    };
+
   } catch (error) {
-    console.error("[MESH-FRACTURE] Registration Fail:", error);
-    return { success: false, message: "MESH-FRACTURE: Database transaction failed." };
+    console.error("[MESH-FRACTURE] Ledger query failed:", error);
+    return { success: false, error: "Internal ledger routing error." };
   }
 }
 
 /**
- * 🛡️ MESH-SCAN: DYNAMIC EQUITY AGGREGATOR (Native Edge)
+ * 🛡️ MESH-SCAN: DYNAMIC EQUITY AGGREGATOR (Total Vault TVL)
  */
 export async function getNetworkTotalEquity() {
   try {
-    const db = await connectToLedger();
-    const stats = await db.collection("pioneers").aggregate([
-      { $match: { status: "active" } },
-      { $group: { _id: null, totalEquity: { $sum: "$stake_amount" } } }
-    ]).toArray();
+    await connectToLedger();
+    
+    // Use Mongoose aggregate to sum all 'vaultBalance' fields across the network
+    const stats = await Token.aggregate([
+      { $group: { _id: null, totalEquity: { $sum: "$vaultBalance" } } }
+    ]);
     
     return { success: true, total: stats.length > 0 ? stats[0].totalEquity : 0 };
   } catch (error) {
+    console.error("[MESH-FRACTURE] Equity Aggregation Failed:", error);
     return { success: false, total: 0 };
   }
 }
 
 /**
- * 🛡️ MESH-SCAN: Status Verifier (Native Edge)
- */
-export async function getSecurityCircleStatus(pioneerId: string) {
-  try {
-    const db = await connectToLedger();
-    const node = await db.collection("pioneers").findOne({ uid: pioneerId });
-    return node 
-      ? { success: true, data: JSON.parse(JSON.stringify(node)) } 
-      : { success: false, message: "NOT_FOUND" };
-  } catch (error) {
-    return { success: false, message: "VAULT_READ_ERROR" };
-  }
-}
-
-/**
- * 🛡️ MESH PROTOCOL: LOCK SECURITY STAKE (Sector 3 Yield Bridge - Native Edge)
+ * 🛡️ MESH PROTOCOL: LOCK SECURITY STAKE (Sector 3 Yield Bridge)
  */
 export async function lockSecurityStake(uid: string, amount: number) {
   try {
@@ -84,28 +73,69 @@ export async function lockSecurityStake(uid: string, amount: number) {
       return { success: false, error: "MESH-REJECT: Stake amount must be greater than zero." };
     }
 
-    const db = await connectToLedger();
+    await connectToLedger();
 
-    const result = await db.collection("pioneers").findOneAndUpdate(
-      { uid: uid },
-      { $inc: { stake_amount: amount } },
-      { returnDocument: 'after' }
+    // 1. Fetch current ledger to verify liquid balance
+    const pioneerVault = await Token.findOne({ ownerId: uid });
+
+    if (!pioneerVault) {
+       return { success: false, error: "FATAL: Node not found in ledger." };
+    }
+
+    // 2. Prevent Over-Staking (Zero-Trust Guard)
+    if (pioneerVault.amount < amount) {
+       return { success: false, error: "EQUITY-FRACTURE: Insufficient liquid mBZR to execute lock." };
+    }
+
+    // 3. Atomic Ledger Mutation (Deduct liquid, Add to Vault)
+    const result = await Token.findOneAndUpdate(
+      { ownerId: uid },
+      { 
+        $inc: { 
+          amount: -amount, 
+          vaultBalance: amount 
+        },
+        $set: { lastStakeTimestamp: new Date() }
+      },
+      { new: true } // Returns the mutated document
     );
 
     if (!result) {
-       return { success: false, error: "FATAL: Node not found in registry." };
+       return { success: false, error: "FATAL: Ledger mutation failed during execution." };
     }
 
     return { 
       success: true, 
       data: { 
         lockedAmount: amount,
-        newTotal: result.stake_amount,
+        newTotal: result.vaultBalance,
         timestamp: Date.now() 
       } 
     };
   } catch (error: any) {
     console.error("[MESH-FRACTURE] Ledger Mutation Failed:", error);
     return { success: false, error: "FATAL: Ledger write failure." };
+  }
+}
+/**
+ * 🛡️ MESH PROTOCOL: REGISTER NODE (Legacy HUD Bridge)
+ */
+export async function registerSecurityCircle(uid: string) {
+  try {
+    if (!uid || uid === "GHOST_NODE") return { success: false, error: "Invalid identity." };
+    
+    await connectToLedger();
+    
+    // Upsert the Genesis state for the Pioneer in the Token ledger safely
+    const node = await Token.findOneAndUpdate(
+      { ownerId: uid },
+      { $setOnInsert: { amount: 0, vaultBalance: 0, status: 'LIQUID' } },
+      { upsert: true, new: true }
+    );
+    
+    return { success: true, data: { uid: node.ownerId } };
+  } catch (error) {
+    console.error("[MESH-FRACTURE] Node Registration Failed:", error);
+    return { success: false, error: "Failed to register node in MESH." };
   }
 }

@@ -25,11 +25,15 @@ export default function PioneerAuth() {
       if (typeof window !== 'undefined' && (window as any).Pi) {
         try {
           const pi = (window as any).Pi;
-          // Sandbox flags true for vercel preview deployments, false for live mainnet address
+          // Sandbox flags true for Vercel preview deployments, false for live mainnet address
           const isLiveMainnet = window.location.hostname.includes("project-bazaar-mainnet");
           
           pi.init({ version: "2.0", sandbox: !isLiveMainnet });
-          console.log("[MESH-BRIDGE] 🟢 Pi SDK Initialized cleanly via Component Sector.");
+          
+          // [MESH-FIX]: We MUST physically set the flag in the window object so the guard can read it.
+          (window as any).__PI_INITIALIZED__ = true; 
+          
+          console.log(`[MESH-BRIDGE] 🟢 Pi SDK Initialized cleanly. Sandbox Mode: ${!isLiveMainnet}`);
           return true;
         } catch (err) {
           console.warn("[MESH-BRIDGE] SDK initialization collision handled.", err);
@@ -45,6 +49,9 @@ export default function PioneerAuth() {
       checkCount++;
       if (initializePiSDK() || checkCount > 20) {
         clearInterval(syncInterval);
+        if (checkCount > 20) {
+           console.error("[MESH-BRIDGE] 🚨 Pi SDK load timed out. Check <script> tags in layout.tsx");
+        }
       }
     }, 250);
 
@@ -52,18 +59,16 @@ export default function PioneerAuth() {
   }, []);
 
   // 🛡️ ENFORCE A RIGID HANDSHAKE GUARD AT THE RUNTIME LAYER
-const handlePioneerLogin = async () => {
-  // Check if initialization has physically locked into the window space
-  if (typeof window === 'undefined' || !(window as any).__PI_INITIALIZED__) {
-    setAuthError("Pi Network SDK failed to initialize. Ensure you are launching directly from develop.pi.");
-    return;
-  }
+  const handlePioneerLogin = async () => {
+    // [MESH-FIX]: The gate will now correctly read the assigned flag
+    if (typeof window === 'undefined' || !(window as any).__PI_INITIALIZED__) {
+      setAuthError("Pi Network SDK failed to initialize. Ensure you are launching directly from the Pi Browser.");
+      return;
+    }
 
-  setIsAuthenticating(true);
-  setAuthError(null);
+    setIsAuthenticating(true);
+    setAuthError(null);
   
-  // Your authentication and lowercase api routing calls follow below safely...
-
     try {
       const pi = (window as any).Pi;
       const scopes = ['username', 'payments'];
@@ -71,19 +76,20 @@ const handlePioneerLogin = async () => {
       console.log("[MESH-BRIDGE] 🛰️ Triggering Native Authenticate Prompt...");
       const authResults = await pi.authenticate(scopes, onIncompletePaymentFound);
 
-      // --- 🛡️ FIXED SECURITY INJECTION: Redirected from ghost path to active transaction sector ---
+      // --- 🛡️ TRANSACTION SECTOR BRIDGE ---
+      // Sending the UID and AccessToken to our unified backend route
       const backendVerify = await fetch('/api/mesh-transactions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          action: "verify-token", // Explicit action payload handling
+          action: "verify-token", 
           accessToken: authResults.accessToken,
           uid: authResults.user.uid
         })
       });
 
       if (!backendVerify.ok) {
-        throw new Error("Vault check failed. Rogue token discarded.");
+        throw new Error(`Vault check failed. Status: ${backendVerify.status}. Rogue token discarded.`);
       }
       // -----------------------------------------------------------------------------------------
 
@@ -104,10 +110,10 @@ const handlePioneerLogin = async () => {
     }
   };
 
-  // Callback for orphaned payments (DEX prep)
+  // Callback for orphaned payments (Protocol 24 Prep)
   const onIncompletePaymentFound = (payment: any) => {
     console.log("[MESH-BRIDGE] ⚠️ Orphaned payment detected. Routing to DEX resolve...", payment);
-    // Future Protocol 23 Logic goes here
+    // Protocol 24 resolution logic will hook here
   };
 
   return (
@@ -145,7 +151,7 @@ const handlePioneerLogin = async () => {
           )}
           
           {authError && (
-            <div className="mt-4 p-3 bg-red-900/30 border border-red-500 text-red-400 text-xs rounded">
+            <div className="mt-4 p-3 w-full bg-red-900/30 border border-red-500 text-red-400 text-xs rounded text-center">
               ⚠️ {authError}
             </div>
           )}

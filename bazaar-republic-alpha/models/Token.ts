@@ -1,21 +1,34 @@
-// models/Token.ts
-import mongoose, { Schema, models, model, Model, Document } from 'mongoose';
+// Route: /models/Token.ts
+// Logic: mBZR Ledger Schema (TypeScript & Mongoose Sync)
 
-// 1. Define the Interface
-interface IToken extends Document {
+import mongoose, { Schema, Document, Model } from "mongoose";
+
+// 1. TypeScript Interface: Must contain all properties
+// Route: /models/Token.ts
+
+export interface IToken extends Document {
+  id: string;
   amount: number;
   ownerId: string;
-  status: string; // Add this line to resolve the TS2769 error
+  status: 'LOCKED' | 'LIQUID';
+  vaultBalance: number;
+  lastStakeTimestamp: Date;
+  updatedAt?: Date; // 🛡️ TS2339 FIX: Forcing TypeScript to recognize the Mongoose timestamp
 }
 
-// 2. Define the Schema
-const TokenSchema = new Schema<IToken>({
-  amount: { type: Number, default: 0 },
-  ownerId: { type: String, required: true, unique: true, index: true },
-  status: { type: String, default: "ACTIVE" } // Matches the interface
+// 2. Mongoose Schema: Structural blueprint mapped to the Interface
+const TokenSchema: Schema = new Schema({
+  id: { type: String, required: true, unique: true },
+  amount: { type: Number, required: true, default: 0 },
+  ownerId: { type: String, required: true },
+  status: { type: String, enum: ['LOCKED', 'LIQUID'], default: 'LIQUID' },
+  vaultBalance: { type: Number, default: 0, required: true },
+  lastStakeTimestamp: { type: Date, default: Date.now }
+}, { 
+  timestamps: true 
 });
 
-// 3. Export the Model
-const Token: Model<IToken> = models.Token || model<IToken>('Token', TokenSchema);
+// 3. Export the locked model
+const Token: Model<IToken> = mongoose.models.Token || mongoose.model<IToken>("Token", TokenSchema);
 
 export default Token;
