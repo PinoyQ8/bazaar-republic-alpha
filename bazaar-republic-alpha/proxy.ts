@@ -1,3 +1,4 @@
+// TARGET FILE PATH: [project-root]/proxy.ts
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
@@ -10,13 +11,15 @@ import type { NextRequest } from "next/server";
 const RESTRICTED_SECTORS = ["/academy", "/enetwork", "/governance", "/treasury"];
 const RESTRICTED_API = ["/api/academy", "/api/governance", "/api/treasury", "/api/mesh-transactions"];
 
-// 🛡️ CRITICAL FIX: Edge router strictly requires a default export to bind the adapter
 export default function proxy(req: NextRequest) {
   const path = req.nextUrl.pathname;
 
-  // 1. 🛑 BYPASS
+  // 1. 🛑 BYPASS & ALPHA TRACK EXEMPTIONS
   if (
     path === "/" || 
+    path === "/log-in" ||            // ALPHA SHIELD: Authorize Login Sector
+    path === "/alpha-track" ||       // ALPHA SHIELD: Authorize Alpha Terminal
+    path === "/academy" ||           // ALPHA SHIELD: Temporarily bypass for client-side MASTER_TS test
     path === "/academy/vault" || 
     path.startsWith("/api/auth") ||
     path.startsWith("/governance/security-circle") || 
