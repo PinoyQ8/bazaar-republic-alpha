@@ -1,46 +1,68 @@
+// TARGET FILE PATH: [project-root]/app/log-in/page.tsx
 'use client';
 
+import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
-export default function PiLoginPage() {
+export default function PioneerLogin() {
   const router = useRouter();
+  const [nodeKey, setNodeKey] = useState<string>('');
+  const [isAuthenticating, setIsAuthenticating] = useState<boolean>(false);
+  const [authError, setAuthError] = useState<string>('');
 
-  // 🛡️ THE RESOLUTION PROTOCOL
-  const onIncompletePaymentFound = async (payment: any) => {
-    console.warn("MESH ALERT: Ghost transaction detected.", payment.identifier);
-    try {
-      // 🚀 Send the ghost transaction to our backend for adjudication
-      const res = await fetch('/api/mesh-transactions/resolve', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ paymentId: payment.identifier, txid: payment.transaction.txid })
-      });
+  const executeSync = (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthError('');
 
-      if (!res.ok) throw new Error("Failed to clear ghost transaction.");
-      console.log("MESH SYNC: Ghost transaction cleared.");
-    } catch (error) {
-      console.error("FRACTURE: Could not resolve incomplete payment.", error);
+    if (nodeKey.trim().length < 8) {
+      setAuthError('INVALID KEY: Node Key must be at least 8 characters.');
+      return;
     }
-  };
 
-  const handleLogin = async () => {
-    try {
-      const auth = await window.Pi.authenticate(['username', 'payments'], onIncompletePaymentFound);
-      localStorage.setItem('pioneer_uid', auth.user.uid);
-      router.push('/dashboard');
-    } catch (err) {
-      console.error("AUTH FRACTURE: Pi Login Failed.", err);
-    }
+    setIsAuthenticating(true);
+
+    setTimeout(() => {
+      const masterTS = `BZR_${Date.now()}_${crypto.randomUUID()}`;
+      localStorage.setItem('MASTER_TS', masterTS);
+      console.log('[MESH-SYNC] Master TS Generated & Stored. Rerouting to Academy.');
+      router.push('/academy');
+    }, 800);
   };
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-black p-6">
-      <button 
-        onClick={handleLogin}
-        className="w-full max-w-85 py-4 bg-amber-600 text-black font-bold uppercase tracking-widest rounded-sm shadow-[0_0_20px_rgba(217,119,6,0.3)] hover:bg-amber-500 transition-all"
-      >
-        Authenticate Pioneer
-      </button>
-    </div>
+    <main style={{ maxWidth: '384px', margin: '0 auto', padding: '16px' }}>
+      <div>
+        <h2>THE LOGIC FORGE</h2>
+        <p>Status: L1 Node Disconnected</p>
+      </div>
+
+      <hr />
+
+      <div style={{ marginTop: '24px' }}>
+        <h3>PIONEER AUTHENTICATION</h3>
+        <p>Please provide your authorized Node Key to synchronize the E-Network.</p>
+
+        <form onSubmit={executeSync} style={{ marginTop: '16px' }}>
+          <input
+            type="password"
+            value={nodeKey}
+            onChange={(e) => setNodeKey(e.target.value)}
+            placeholder="Enter Node Key..."
+            style={{ width: '100%', padding: '8px', marginBottom: '12px', color: '#000' }}
+            disabled={isAuthenticating}
+          />
+          
+          {authError && <p style={{ color: '#ff4444', fontSize: '14px', marginBottom: '12px' }}>{authError}</p>}
+
+          <button
+            type="submit"
+            style={{ width: '100%', padding: '10px' }}
+            disabled={isAuthenticating}
+          >
+            {isAuthenticating ? 'Forging Master TS...' : 'Initialize Sync'}
+          </button>
+        </form>
+      </div>
+    </main>
   );
 }
