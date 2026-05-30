@@ -2,10 +2,12 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import Script from "next/script"; // 🛡️ CRITICAL: Import Next.js Script
 import "./globals.css";
+
 // 🛡️ CRITICAL: Import the Provider
 import { AuthProvider } from "@/context/AuthContext";
+
 // 🛡️ THE MESH BRIDGE: Mobile Navigation
-import MobileDock from "@/components/MobileDock"; 
+import CommandNav from "@/app/components/CommandNav";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -30,12 +32,12 @@ export default function RootLayout({
           strategy="afterInteractive" 
         />
 
-        {/* The Provider is now defined and wrapped */}
+        {/* 🛡️ THE AUTHENTICATION SHIELD */}
         <AuthProvider>
           {children}
           
-          {/* 🛡️ TACTICAL THUMB ROUTING (S23 MOBILE NODE) */}
-          <MobileDock />
+          {/* 🛡️ THE GLOBAL COMMAND BAR (S23 MOBILE NODE) */}
+          <CommandNav />
         </AuthProvider>
       </body>
     </html>
