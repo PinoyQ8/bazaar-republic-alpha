@@ -2,16 +2,24 @@
 const db = require('./lib/db');
 const { PioneerNode } = require('./models/PioneerNode');
 
-async function executeAndAudit(cartValue, buyerUid = "PinoyQ8", merchantUid = "SYSTEM_DAO_COLLECTOR") {
+// REMOVE THE DEFAULT VALUES
+async function executeAndAudit(cartValue, buyerUid, merchantUid) {
+  // Add a hard-coded security guard
+  if (!buyerUid) {
+    throw new Error("MESH-SECURITY: Transaction failed. No Authenticated Buyer UID provided.");
+  }
+  
   try {
     await db.connectToDatabase();
     console.log(`\nSYNC: Phase 1 - Initiating Settlement | Value: ${cartValue} mBZR`);
 
-    // DEDUCT FROM BUYER
-    await PioneerNode.updateOne(
-      { uid: buyerUid },
+    // DEDUCT FROM BUYER (Now dynamic, not hard-coded)
+    const result = await PioneerNode.updateOne(
+      { uid: buyerUid }, 
       { $inc: { activeFuel: -cartValue } }
     );
+    
+    // ... rest of your logic
 
     // BULLETPROOF CREDIT (Upsert logic to prevent the void)
     await PioneerNode.updateOne(

@@ -91,14 +91,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     let isMounted = true; 
 
     const bootMeshNode = async () => {
-      // 1. X570 BYPASS (LOCAL DEV)
+      // 1. X570 BYPASS (LOCAL DEV) - NEUTRALIZED
       if (typeof window !== "undefined" && window.location.hostname === "localhost") {
-        console.warn("[MESH-BRIDGE] 🛠️ Localhost detected. Engaging X570 Dev-Bypass.");
+        console.warn("[MESH-BRIDGE] 🛠️ Localhost detected. Engaging Neutral Dev-Bypass.");
         setPioneer({
           isAuthenticated: true,
-          uid: "X570-DEV-NODE",
-          username: "PinoyQ8", // Hard-coded to your Founder alias for testing
-          tier: "ADMIN",
+          uid: "DEV-NODE-000", // Neutral ID
+          username: "Developer_Mode", // Neutral Alias
+          tier: "CITIZEN", // Changed from ADMIN to CITIZEN to test permission gates
           isHydrated: true
         });
         return;

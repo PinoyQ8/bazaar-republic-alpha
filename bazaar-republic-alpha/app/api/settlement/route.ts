@@ -11,7 +11,10 @@ export async function POST(request: Request) {
     // 2. Parse the Incoming Payload 
     const body = await request.json();
     const cartValue = body.cartValue || 500;
-    const buyerUid = body.buyerUid || "PinoyQ8";
+    // TARGET FILE PATH: [project-root]/app/api/settlement/route.ts
+
+// INITIATING CORRECTION...
+const buyerUid = body.buyerUid || "UNKNOWN_PIONEER";
     const merchantUid = body.merchantUid || "SYSTEM_DAO_COLLECTOR";
 
     console.log(`[API] SYNC: Initiating Settlement | Value: ${cartValue} mBZR`);

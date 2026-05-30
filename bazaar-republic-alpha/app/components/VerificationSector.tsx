@@ -56,7 +56,7 @@ export default function VerificationSector() {
       const auth = await (window as any).Pi.authenticate(['payments', 'username'], resolveStackedPayment);
       setPioneer(auth.user);
 
-      if (auth.user.username.toLowerCase() === 'pinoyq8') {
+      if (auth.user.username.toLowerCase() === '{user?.name || "Connecting..."}') {
         setTxStatus('SUCCESS');
         return;
       }

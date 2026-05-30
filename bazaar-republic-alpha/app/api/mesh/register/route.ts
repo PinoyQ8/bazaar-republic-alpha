@@ -27,9 +27,13 @@ export async function POST(request: Request) {
           uid: uid,
           status: status || 'active',
           last_sync: new Date().toISOString()
-        } 
+        },
+        $setOnInsert: {
+          tier: 'Citizen', // 🛡️ The baseline default for all new E-Network nodes
+          created_at: new Date().toISOString()
+        }
       },
-      { upsert: true } // 🛡️ This line is the Self-Healing core
+      { upsert: true } // 🛡️ Self-Healing core
     );
 
     return NextResponse.json({ 

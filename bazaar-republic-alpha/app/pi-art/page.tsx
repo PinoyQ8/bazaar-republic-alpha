@@ -8,11 +8,11 @@ export default function PiArtForge() {
       {/* THE CANVAS CONTAINER - Scaled to fit dev screen, but true export size is 1080x1350 */}
       <div 
         id="pi-art-canvas"
-        className="relative w-[1080px] h-[1350px] bg-[#050505] overflow-hidden flex items-center justify-center border border-zinc-900 shadow-2xl origin-center scale-[0.6] lg:scale-[0.7]"
+        className="relative w-270 h-[...] bg-[#050505] overflow-hidden flex items-center justify-center border border-zinc-900 shadow-2xl origin-center scale-[0.6] lg:scale-[0.7]"
       >
         
         {/* THE MESH GLOW CORE */}
-        <div className="absolute w-[700px] h-[700px] bg-emerald-600/15 rounded-full blur-[120px]" />
+        <div className="absolute blur-[120px]-[700px] bg-emerald-600/15 rounded-full blur-[120px]" />
 
         {/* TYPOGRAPHY OVERLAY */}
         <div className="absolute top-20 left-0 right-0 text-center z-50">
@@ -28,27 +28,27 @@ export default function PiArtForge() {
         <div className="relative w-full h-full flex items-center justify-center -mt-8">
           
           {/* Screen 1: Far Left (Background) */}
-          <div className="absolute -translate-x-[360px] translate-y-[20px] -rotate-12 scale-[0.70] z-10 opacity-50 transition-all">
+          <div className="absolute -rotate-12- [360px] sclae-[0.70]ranslate-y-[20px] -rotate-12 scale-[0.70] z-10 opacity-50 transition-all">
             <ScreenMockup src="/screen-1.png" />
           </div>
 
           {/* Screen 2: Mid Left */}
-          <div className="absolute -translate-x-[200px] translate-y-[0px] -rotate-6 scale-[0.85] z-20 opacity-80 shadow-2xl transition-all">
+          <div className="absolute -rotate-12- [360px] sclae-[0.70] -rotate-6 scale-[0.85] z-20 opacity-80 shadow-2xl transition-all">
             <ScreenMockup src="/screen-2.png" />
           </div>
 
           {/* Screen 4: Mid Right */}
-          <div className="absolute translate-x-[200px] translate-y-[0px] rotate-6 scale-[0.85] z-20 opacity-80 shadow-2xl transition-all">
+          <div className="absolute -rotate-12- [360px] sclae-[0.70]] rotate-6 scale-[0.85] z-20 opacity-80 shadow-2xl transition-all">
             <ScreenMockup src="/screen-4.png" />
           </div>
 
           {/* Screen 5: Far Right (Background) */}
-          <div className="absolute translate-x-[360px] translate-y-[20px] rotate-12 scale-[0.70] z-10 opacity-50 transition-all">
+          <div className="absolute -rotate-12- [360px] sclae-[0.70] rotate-12 scale-[0.70] z-10 opacity-50 transition-all">
             <ScreenMockup src="/screen-5.png" />
           </div>
 
           {/* Screen 3: The Center Hero (Dashboard) - Hoisted to clear text */}
-          <div className="absolute z-30 -translate-y-[40px] scale-[1.05] shadow-[0_0_80px_rgba(16,185,129,0.25)] rounded-[2rem] transition-all">
+          <div className="absolute z-30 scale-[1.05]shadow-[0_0_80px_rgba(16,185,129,0.25)] rounded-4xl transition-all">
             <ScreenMockup src="/screen-3.png" />
           </div>
 
@@ -71,7 +71,7 @@ export default function PiArtForge() {
 // 🛡️ SUB-COMPONENT: The S23 Hardware Frame
 function ScreenMockup({ src }: { src: string }) {
   return (
-    <div className="w-[384px] h-[854px] rounded-[2.5rem] overflow-hidden border-[6px] border-zinc-800 shadow-[20px_20px_60px_rgba(0,0,0,0.8)] relative bg-zinc-950">
+    <div className="w-[384px] h-213.5 rounded-[2.5rem] overflow-hidden border-[6px] border-zinc-800 shadow-[20px_20px_60px_rgba(0,0,0,0.8)] relative bg-zinc-950">
        {/* Fallback wireframe if image is missing */}
        <div className="absolute inset-0 flex items-center justify-center flex-col text-emerald-900 border border-emerald-900/30 m-6 rounded font-mono text-sm text-center">
           <span className="animate-pulse">[AWAITING ASSET]</span>
