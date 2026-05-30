@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { useAuth } from "@/app/context/AuthContext";
-import { getSecurityCircleStatus } from "@/app/actions/defiActions";
+import { getSecurityCircleStatus, lockSecurityStake } from "@/app/actions/defiActions";
 
 export default function DeFiVault() {
   const { pioneer } = useAuth();
@@ -67,15 +67,21 @@ export default function DeFiVault() {
     setMessage({ text: "", type: "" });
 
     try {
-      // Simulate/Trigger Lock
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+      // 🛡️ THE DECLARATION: 'const' must be present to anchor the variable into memory
+      const lockResult = await lockSecurityStake(activeNodeId || "GHOST_NODE", amount);
+
+      // 🛡️ THE VALIDATION: Must remain inside the 'try' block
+      if (!lockResult.success) {
+        throw new Error(lockResult.error || "Ledger Rejected Transaction");
+      }
       
+      // 🛡️ STATE SYNC: Update UI only after Ledger confirmation
       setActiveStake((prev) => prev + amount);
       setStakeInput("");
       setMessage({ text: `SUCCESS: ${amount.toLocaleString()} mBZR secured in the E-Network Staking Pool.`, type: "success" });
       
-    } catch (error) {
-      setMessage({ text: "FATAL: Ledger unreachable.", type: "error" });
+    } catch (error: any) {
+      setMessage({ text: `FATAL: ${error.message || "Ledger unreachable."}`, type: "error" });
     } finally {
       setIsProcessing(false);
     }

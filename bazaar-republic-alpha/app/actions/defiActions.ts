@@ -1,3 +1,5 @@
+// TARGET: [project-root]/app/actions/defiActions.ts
+
 "use server";
 
 import { connectToDatabase } from "@/lib/db";
@@ -54,5 +56,45 @@ export async function getSecurityCircleStatus(pioneerId: string) {
     return node ? { success: true, data: JSON.parse(JSON.stringify(node)) } : { success: false, message: "NOT_FOUND" };
   } catch (error) {
     return { success: false, message: "VAULT_READ_ERROR" };
+  }
+}
+
+/**
+ * 🛡️ MESH PROTOCOL: LOCK SECURITY STAKE (Sector 3 Yield Bridge)
+ */
+export async function lockSecurityStake(uid: string, amount: number) {
+  try {
+    if (!uid || uid === "GHOST_NODE" || uid === "DISCONNECTED_NODE") {
+      return { success: false, error: "MESH-REJECT: Invalid Node Identity." };
+    }
+
+    if (amount <= 0) {
+      return { success: false, error: "MESH-REJECT: Stake amount must be greater than zero." };
+    }
+
+    await connectToDatabase();
+
+    // 🛡️ The Hard-Coded Ledger Mutation: Increments existing stake
+    const updatedNode = await PioneerNode.findOneAndUpdate(
+      { uid: uid },
+      { $inc: { stake_amount: amount } },
+      { new: true }
+    );
+
+    if (!updatedNode) {
+       return { success: false, error: "FATAL: Node not found in registry." };
+    }
+
+    return { 
+      success: true, 
+      data: { 
+        lockedAmount: amount,
+        newTotal: updatedNode.stake_amount,
+        timestamp: Date.now() 
+      } 
+    };
+
+  } catch (error: any) {
+    return { success: false, error: "FATAL: Ledger write failure. Database unreachable." };
   }
 }
