@@ -9,21 +9,30 @@ export async function POST(request: Request) {
     const { senderWallet, lockedPiAmount, l1TxSignature } = payload;
 
     // 1. INBOUND PAYLOAD VALIDATION
-    if (!senderWallet || typeof lockedPiAmount !== 'number' || !l1TxSignature) {
-      console.warn("[MESH-REJECT] Malformed Genesis payload detected.");
-      return NextResponse.json(
-        { success: false, error: 'MESH-REJECT: Missing required Genesis vectors.' },
-        { status: 400 }
-      );
-    }
+const MAX_MINT_CAP = 1000; // 🛡️ ALPHA SAFETY VALVE
 
-    if (lockedPiAmount <= 0) {
-      console.warn(`[MESH-REJECT] Node [${senderWallet}] attempted zero or negative mint.`);
-      return NextResponse.json(
-        { success: false, error: 'EQUITY-FRACTURE: Vault deposit must be greater than zero.' },
-        { status: 422 }
-      );
-    }
+if (!senderWallet || typeof lockedPiAmount !== 'number' || !l1TxSignature) {
+  return NextResponse.json(
+    { success: false, error: 'MALFORMED_PAYLOAD: Missing required Genesis vectors.' },
+    { status: 400 }
+  );
+}
+
+if (lockedPiAmount <= 0) {
+  return NextResponse.json(
+    { success: false, error: 'INVALID_AMOUNT: Deposit must be > 0.' },
+    { status: 422 }
+  );
+}
+
+// 🛡️ ALPHA STRESS TEST GUARDRAIL
+if (lockedPiAmount > MAX_MINT_CAP) {
+  console.warn(`[MESH-REJECT] Node [${senderWallet}] attempted mint overflow: ${lockedPiAmount} Pi`);
+  return NextResponse.json(
+    { success: false, error: `ALPHA-LIMIT: Maximum Genesis Mint is ${MAX_MINT_CAP} Pi.` },
+    { status: 422 }
+  );
+}
 
     // 2. LAYER 1 CRYPTOGRAPHIC VERIFICATION (The Adjudicator Gate)
     // In production, this pings the Pi Mainnet horizon to verify the transaction hash

@@ -1,12 +1,10 @@
-// TARGET: [project-root]/app/actions/defiActions.ts
-
 "use server";
 
-import { connectToDatabase } from "@/lib/db";
-import { PioneerNode } from "@/models/PioneerNode";
+import { connectToLedger } from "@/lib/mongodb";
+import { ObjectId } from "mongodb";
 
 /**
- * 🛡️ MESH-VAULT: Register Node & Lock Stake
+ * 🛡️ MESH-VAULT: Register Node & Lock Stake (Native Edge)
  */
 export async function registerSecurityCircle(formData: FormData) {
   const pioneerId = formData.get("pioneerId") as string;
@@ -18,28 +16,40 @@ export async function registerSecurityCircle(formData: FormData) {
   }
 
   try {
-    await connectToDatabase();
-    const updatedNode = await PioneerNode.findOneAndUpdate(
+    const db = await connectToLedger();
+    const updatedNode = await db.collection("pioneers").findOneAndUpdate(
       { uid: pioneerId },
-      { uid: pioneerId, wallet_address: publicAddress, stake_amount: stakeAmount, kyc_status: "PASSED", status: "active" },
-      { new: true, upsert: true }
+      { 
+        $set: { 
+          uid: pioneerId, 
+          wallet_address: publicAddress, 
+          stake_amount: stakeAmount, 
+          kyc_status: "PASSED", 
+          status: "active",
+          updated_at: new Date()
+        } 
+      },
+      { upsert: true, returnDocument: 'after' }
     );
+    
     return { success: true, message: "[SECTOR 1 SECURED]", data: updatedNode };
   } catch (error) {
+    console.error("[MESH-FRACTURE] Registration Fail:", error);
     return { success: false, message: "MESH-FRACTURE: Database transaction failed." };
   }
 }
 
 /**
- * 🛡️ MESH-SCAN: DYNAMIC EQUITY AGGREGATOR
+ * 🛡️ MESH-SCAN: DYNAMIC EQUITY AGGREGATOR (Native Edge)
  */
 export async function getNetworkTotalEquity() {
   try {
-    await connectToDatabase();
-    const stats = await PioneerNode.aggregate([
+    const db = await connectToLedger();
+    const stats = await db.collection("pioneers").aggregate([
       { $match: { status: "active" } },
       { $group: { _id: null, totalEquity: { $sum: "$stake_amount" } } }
-    ]);
+    ]).toArray();
+    
     return { success: true, total: stats.length > 0 ? stats[0].totalEquity : 0 };
   } catch (error) {
     return { success: false, total: 0 };
@@ -47,20 +57,22 @@ export async function getNetworkTotalEquity() {
 }
 
 /**
- * 🛡️ MESH-SCAN: Status Verifier
+ * 🛡️ MESH-SCAN: Status Verifier (Native Edge)
  */
 export async function getSecurityCircleStatus(pioneerId: string) {
   try {
-    await connectToDatabase();
-    const node = await PioneerNode.findOne({ uid: pioneerId }).lean();
-    return node ? { success: true, data: JSON.parse(JSON.stringify(node)) } : { success: false, message: "NOT_FOUND" };
+    const db = await connectToLedger();
+    const node = await db.collection("pioneers").findOne({ uid: pioneerId });
+    return node 
+      ? { success: true, data: JSON.parse(JSON.stringify(node)) } 
+      : { success: false, message: "NOT_FOUND" };
   } catch (error) {
     return { success: false, message: "VAULT_READ_ERROR" };
   }
 }
 
 /**
- * 🛡️ MESH PROTOCOL: LOCK SECURITY STAKE (Sector 3 Yield Bridge)
+ * 🛡️ MESH PROTOCOL: LOCK SECURITY STAKE (Sector 3 Yield Bridge - Native Edge)
  */
 export async function lockSecurityStake(uid: string, amount: number) {
   try {
@@ -72,16 +84,15 @@ export async function lockSecurityStake(uid: string, amount: number) {
       return { success: false, error: "MESH-REJECT: Stake amount must be greater than zero." };
     }
 
-    await connectToDatabase();
+    const db = await connectToLedger();
 
-    // 🛡️ The Hard-Coded Ledger Mutation: Increments existing stake
-    const updatedNode = await PioneerNode.findOneAndUpdate(
+    const result = await db.collection("pioneers").findOneAndUpdate(
       { uid: uid },
       { $inc: { stake_amount: amount } },
-      { new: true }
+      { returnDocument: 'after' }
     );
 
-    if (!updatedNode) {
+    if (!result) {
        return { success: false, error: "FATAL: Node not found in registry." };
     }
 
@@ -89,12 +100,12 @@ export async function lockSecurityStake(uid: string, amount: number) {
       success: true, 
       data: { 
         lockedAmount: amount,
-        newTotal: updatedNode.stake_amount,
+        newTotal: result.stake_amount,
         timestamp: Date.now() 
       } 
     };
-
   } catch (error: any) {
-    return { success: false, error: "FATAL: Ledger write failure. Database unreachable." };
+    console.error("[MESH-FRACTURE] Ledger Mutation Failed:", error);
+    return { success: false, error: "FATAL: Ledger write failure." };
   }
 }
