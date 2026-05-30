@@ -27,52 +27,56 @@ export default function AcademyDashboard() {
     }
   }, [router]);
 
+  // TARGET: [project-root]/app/academy/page.tsx
+// Replace everything from Step 4 downward.
+
   // 4. PRE-FLIGHT RENDER BLOCK (Shields data during redirect)
   if (!isAuthorized) {
     return (
-      <main style={{ maxWidth: '384px', margin: '0 auto', padding: '16px', textAlign: 'center' }}>
-        <p>Verifying Master TS...</p>
+      <main className="max-w-[384px] mx-auto p-4 min-h-screen bg-zinc-950 flex items-center justify-center font-mono">
+        <p className="text-emerald-500 text-sm animate-pulse tracking-widest uppercase">Verifying Master TS...</p>
       </main>
     );
   }
 
   // 5. SECURE VIEWPORT RENDER (Locked for S23 Ultra)
   return (
-    <main style={{ maxWidth: '384px', margin: '0 auto', padding: '16px' }}>
-      <div>
-        <h2>MESH ACADEMY</h2>
-        <p>Over-Mint Shield: SECURED</p>
-        <p>Clearance: PIONEER VANGUARD</p>
+    <main className="max-w-[384px] mx-auto p-4 min-h-screen bg-zinc-950 text-zinc-100 font-mono selection:bg-emerald-500/30">
+      
+      {/* 🛡️ ACADEMY HEADER */}
+      <div className="mb-6 border-b border-zinc-800 pb-4">
+        <h2 className="text-emerald-400 font-bold tracking-widest uppercase text-sm">MESH ACADEMY</h2>
+        <p className="text-zinc-500 text-xs mt-1">Over-Mint Shield: <span className="text-emerald-500 font-bold">SECURED</span></p>
+        <p className="text-zinc-500 text-xs mt-1">Clearance: <span className="text-emerald-300 font-bold">PIONEER VANGUARD</span></p>
       </div>
       
-      <hr />
-
-      <div style={{ marginTop: '24px' }}>
-        <h3>THE LOGIC FORGE</h3>
-        <p>Welcome to the Academy. The E-Network data streams are active.</p>
+      <div className="mt-6">
+        {/* 🛡️ LOGIC FORGE GREETING */}
+        <h3 className="text-xs text-zinc-400 uppercase tracking-widest mb-2">THE LOGIC FORGE</h3>
+        <p className="text-sm text-zinc-300 mb-6 leading-relaxed">
+          Welcome to the Academy. The E-Network data streams are active.
+        </p>
         
-        {/* Future Academy curriculum and governance modules will render here */}
-        
-        <div style={{ padding: '12px', border: '1px solid #ccc', marginTop: '16px' }}>
-          <h4>Active Module: DAO Architecture</h4>
-          <p>Status: Synchronized</p>
-          <button style={{ width: '100%', marginTop: '8px' }}>Enter Matrix</button>
+        {/* 🛡️ ACTIVE MODULE CARD */}
+        <div className="p-4 bg-zinc-900/50 border border-zinc-800 rounded-lg mb-6">
+          <h4 className="text-emerald-300 font-bold text-sm tracking-wider uppercase mb-1">Active Module: DAO Architecture</h4>
+          <p className="text-xs text-zinc-500 mb-4">Status: <span className="text-emerald-400">Synchronized</span></p>
+          
+          {/* 🛡️ THE BRIDGE: Wrapped button in Next.js Link router */}
+          <Link href="/academy/dao-architecture" className="block w-full outline-none">
+            {/* 🛡️ AESTHETIC FIX: Swapped zinc-800 for emerald-600 */}
+            <button className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-zinc-950 text-sm font-bold uppercase tracking-wider rounded transition-colors">
+              Enter Matrix
+            </button>
+          </Link>
         </div>
 
-        {/* ALPHA TRACK BRIDGE */}
-        <div style={{ padding: '12px', border: '1px solid #00d28a', marginTop: '24px', backgroundColor: '#05140e' }}>
-          <h4 style={{ margin: '0 0 8px 0', color: '#00d28a' }}>The Logic Forge: Alpha Track</h4>
-          <p style={{ margin: '0 0 16px 0', fontSize: '14px', color: '#aaa' }}>Execute Genesis Mint and Redemption Payloads.</p>
-          <Link href="/alpha-track" style={{ textDecoration: 'none' }}>
-            <button style={{ 
-              width: '100%', 
-              padding: '12px', 
-              backgroundColor: '#00d28a', 
-              color: '#000', 
-              border: 'none', 
-              fontWeight: 'bold', 
-              cursor: 'pointer' 
-            }}>
+        {/* 🛡️ ALPHA TRACK BRIDGE */}
+        <div className="p-4 bg-[#05140e] border border-emerald-500/50 rounded-lg mt-6 shadow-[0_0_15px_rgba(0,210,138,0.05)]">
+          <h4 className="text-emerald-400 font-bold text-sm tracking-wider uppercase mb-2">The Logic Forge: Alpha Track</h4>
+          <p className="text-xs text-emerald-500/70 mb-4 leading-relaxed">Execute Genesis Mint and Redemption Payloads.</p>
+          <Link href="/alpha-track" className="block w-full outline-none">
+            <button className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-zinc-950 text-sm font-bold uppercase tracking-wider rounded transition-colors">
               ACCESS ALPHA TRACK
             </button>
           </Link>
