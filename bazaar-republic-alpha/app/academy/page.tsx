@@ -1,6 +1,7 @@
 // TARGET FILE PATH: [project-root]/app/academy/page.tsx
 'use client';
 
+import Link from 'next/link';
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation'; // Correct App Router engine
 
@@ -56,6 +57,25 @@ export default function AcademyDashboard() {
           <h4>Active Module: DAO Architecture</h4>
           <p>Status: Synchronized</p>
           <button style={{ width: '100%', marginTop: '8px' }}>Enter Matrix</button>
+        </div>
+
+        {/* ALPHA TRACK BRIDGE */}
+        <div style={{ padding: '12px', border: '1px solid #00d28a', marginTop: '24px', backgroundColor: '#05140e' }}>
+          <h4 style={{ margin: '0 0 8px 0', color: '#00d28a' }}>The Logic Forge: Alpha Track</h4>
+          <p style={{ margin: '0 0 16px 0', fontSize: '14px', color: '#aaa' }}>Execute Genesis Mint and Redemption Payloads.</p>
+          <Link href="/alpha-track" style={{ textDecoration: 'none' }}>
+            <button style={{ 
+              width: '100%', 
+              padding: '12px', 
+              backgroundColor: '#00d28a', 
+              color: '#000', 
+              border: 'none', 
+              fontWeight: 'bold', 
+              cursor: 'pointer' 
+            }}>
+              ACCESS ALPHA TRACK
+            </button>
+          </Link>
         </div>
       </div>
     </main>
