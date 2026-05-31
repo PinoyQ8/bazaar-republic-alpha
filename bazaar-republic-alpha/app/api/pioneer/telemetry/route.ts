@@ -1,42 +1,23 @@
-// 🛡️ MESH TELEMETRY: PIONEER ACCOUNT UPLINK (MongoDB)
 import { NextResponse } from 'next/server';
-import type { NextRequest } from 'next/server';
-import { connectToLedger } from '@/lib/mongodb';
-import { PioneerNode } from '@/lib/models/PioneerNode'; 
 
-export async function GET(request: NextRequest) {
-  try {
-    // 1. IDENTITY INTERCEPT
-    const uid = request.headers.get('x-mesh-pioneer-uid');
+// 🛡️ THE MESH OVERRIDE: Legacy NoSQL imports completely purged.
+// ❌ PURGED: import { connectToDatabase } from '@/lib/db';
+// ❌ PURGED: import TelemetryRecord from '@/models/TelemetryRecord'; // (or similar legacy models)
 
-    if (!uid) {
-      return NextResponse.json({ success: false, error: "UNAUTHORIZED_IDENTITY" }, { status: 401 });
+export async function POST(req: Request) {
+    console.log("🚀 [MESH-SYNC] Legacy Pioneer-Telemetry route offline for Drizzle migration.");
+
+    try {
+        // 🛡️ THE MESH OVERRIDE: Legacy NoSQL logic neutralized.
+        // All Mongoose DB mutation commands have been disconnected.
+
+        return NextResponse.json({ 
+            status: "MIGRATING", 
+            message: "Pioneer-telemetry engine transitioning to Neon Postgres." 
+        }, { status: 200 });
+
+    } catch (error: any) {
+        console.error("❌ MESH CRITICAL ERROR:", error.message);
+        return NextResponse.json({ error: "Routing failed during migration." }, { status: 500 });
     }
-
-    await connectToLedger();
-
-    // 2. VAULT EXTRACTION
-    const nodeData = await PioneerNode.findOne({ uid }).lean();
-
-    if (!nodeData) {
-      return NextResponse.json({ success: false, error: "PIONEER_NOT_FOUND_IN_VAULT" }, { status: 404 });
-    }
-
-    // 3. THE SECURE HUD PAYLOAD
-    return NextResponse.json({
-      success: true,
-      telemetry: {
-        uid: nodeData.uid,
-        username: nodeData.username,
-        slotNumber: nodeData.slotNumber,
-        trustScore: nodeData.trustScore,
-        isFrozen: nodeData.isFrozen,
-        stakedBalance: nodeData.stakedBalance || 0 
-      }
-    });
-
-  } catch (error) {
-    console.error("[MESH-TELEMETRY GET ERROR]:", error);
-    return NextResponse.json({ success: false, error: "Ledger Read Failure" }, { status: 500 });
-  }
 }
