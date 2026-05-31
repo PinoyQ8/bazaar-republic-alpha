@@ -1,33 +1,23 @@
 import { NextResponse } from 'next/server';
-import { connectToLedger } from '@/lib/mongodb';
-import { PioneerNode } from '@/lib/models/PioneerNode';
 
-export async function POST(request: Request) {
-  try {
-    const body = await request.json();
-    const { uid, amount } = body;
+// 🛡️ THE MESH OVERRIDE: Legacy NoSQL imports completely purged.
+// ❌ PURGED: import { connectToDatabase } from '@/lib/db';
+// ❌ PURGED: import DepositRecord from '@/models/DepositRecord'; // (or similar legacy models)
 
-    if (!uid || amount === undefined) {
-      return NextResponse.json({ success: false, error: "INVALID_PAYLOAD" }, { status: 400 });
+export async function POST(req: Request) {
+    console.log("🚀 [MESH-SYNC] Legacy Ledger Deposit route offline for Drizzle migration.");
+
+    try {
+        // 🛡️ THE MESH OVERRIDE: Legacy NoSQL logic neutralized.
+        // All Mongoose DB mutation commands have been disconnected.
+
+        return NextResponse.json({ 
+            status: "MIGRATING", 
+            message: "Ledger deposit engine transitioning to Neon Postgres." 
+        }, { status: 200 });
+
+    } catch (error: any) {
+        console.error("❌ MESH CRITICAL ERROR:", error.message);
+        return NextResponse.json({ error: "Routing failed during migration." }, { status: 500 });
     }
-
-    await connectToLedger();
-
-    const updatedNode = await PioneerNode.findOneAndUpdate(
-      { uid: uid.toLowerCase() },
-      { $inc: { stakedBalance: Number(amount) } },
-      { new: true }
-    ).lean();
-
-    if (!updatedNode) {
-      return NextResponse.json({ success: false, error: "NODE_NOT_FOUND" }, { status: 404 });
-    }
-
-    return NextResponse.json({ 
-      success: true, 
-      newBalance: updatedNode.stakedBalance 
-    });
-  } catch (error) {
-    return NextResponse.json({ success: false, error: "SERVER_ERROR" }, { status: 500 });
-  }
 }
