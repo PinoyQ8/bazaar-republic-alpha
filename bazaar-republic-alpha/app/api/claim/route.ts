@@ -1,10 +1,13 @@
 import { NextResponse } from 'next/server';
 import * as StellarSdk from '@stellar/stellar-sdk';
-import { db } from "@/lib/db"; 
+
+// 🛡️ THE MESH OVERRIDE: Bypassing Turbopack path aliasing
+import { db } from "../../../lib/db"; 
 import { eq } from "drizzle-orm";
-import { pioneers } from "@/db/schema"; 
+import { pioneers } from "../../db/schema"; 
 
 export async function POST(req: Request) {
+// ... rest of your code remains exactly the same
     console.log("🚀 MESH ENGINE: Claim Protocol Triggered");
 
     try {
