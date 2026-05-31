@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import * as StellarSdk from '@stellar/stellar-sdk';
 
 // 🛡️ THE MESH OVERRIDE: Bypassing Turbopack path aliasing
-import { db } from "../../../lib/db"; 
+import { db } from "../../db";
 import { eq } from "drizzle-orm";
 import { pioneers } from "../../db/schema"; 
 
