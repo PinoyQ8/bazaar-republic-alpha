@@ -1,60 +1,22 @@
-import mongoose, { Schema, Document } from 'mongoose';
+import { NextResponse } from 'next/server';
 
-// 🛡️ MESH BLUEPRINT: TypeScript Interface
-export interface IProvider extends Document {
-  pi_uid: string;
-  username: string;
-  wallet_address: string;
-  uptime_shield: number;
-  staked_collateral: number;
-  node_tier: 'Standard' | 'Dedicated' | 'Vanguard';
-  is_active: boolean;
-  createdAt: Date;
-  updatedAt: Date;
+// 🛡️ PURGED: import { connectToDatabase } from '@/lib/db';
+// 🛡️ PURGED: import { Provider } from '@/lib/models/Provider';
+
+export async function POST(request: Request) {
+    console.log("🚀 [MESH-SYNC] Legacy Provider route offline for Drizzle migration.");
+
+    try {
+        // 🛡️ THE MESH OVERRIDE: Legacy NoSQL logic neutralized.
+        // All Mongoose DB execution commands have been disconnected.
+
+        return NextResponse.json({ 
+            status: "MIGRATING", 
+            message: "Provider engine transitioning to Neon Postgres." 
+        }, { status: 200 });
+
+    } catch (error: any) {
+        console.error("❌ MESH CRITICAL ERROR:", error.message);
+        return NextResponse.json({ error: "Routing failed during migration." }, { status: 500 });
+    }
 }
-
-// 🛡️ THE PROVIDER REGISTRY LOGIC: Mongoose Schema
-const ProviderSchema: Schema = new Schema(
-  {
-    pi_uid: {
-      type: String,
-      required: true,
-      unique: true,
-      immutable: true, // Prevents node identity mutation post-registration
-      index: true,
-    },
-    username: {
-      type: String,
-      required: true,
-      unique: true, // 🛡️ ELIMINATES LATENCY: Enforces uniqueness
-      index: true,  // 🛡️ ELIMINATES LATENCY: Prevents collection scans
-    },
-    wallet_address: {
-      type: String,
-      required: true,
-    },
-    uptime_shield: {
-      type: Number,
-      default: 100,
-      min: 0,
-      max: 100,
-    },
-    staked_collateral: {
-      type: Number,
-      default: 0,
-    },
-    node_tier: {
-      type: String,
-      enum: ['Standard', 'Dedicated', 'Vanguard'],
-      default: 'Standard',
-    },
-    is_active: {
-      type: Boolean,
-      default: true,
-    },
-  },
-  { timestamps: true }
-);
-
-// 🛡️ NEXT.JS HOT-RELOAD SHIELD: Prevent Model Overwrite Errors
-export const Provider = mongoose.models.Provider || mongoose.model<IProvider>('Provider', ProviderSchema);

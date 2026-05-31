@@ -1,6 +1,5 @@
 "use server";
 
-import { connectToDatabase } from "@/lib/db";
 import { PioneerNode } from "@/models/PioneerNode";
 import { GovernanceProposal } from "@/models/GovernanceProposal";
 
@@ -15,9 +14,7 @@ export async function createProposal(
   proposedValue: number
 ) {
   try {
-    await connectToDatabase();
-    
-    if (proposerId === "GENESIS-ANCHOR") {
+        if (proposerId === "GENESIS-ANCHOR") {
        return { success: true, message: "BALLOT INITIATED (SANDBOX)" };
     }
 
@@ -48,8 +45,7 @@ export async function createProposal(
  */
 export async function getActiveProposals() {
   try {
-    await connectToDatabase();
-    const proposals = await GovernanceProposal.find({ status: "ACTIVE" })
+   const proposals = await GovernanceProposal.find({ status: "ACTIVE" })
       .sort({ createdAt: -1 })
       .lean();
     

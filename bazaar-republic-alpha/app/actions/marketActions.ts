@@ -1,6 +1,5 @@
 "use server";
 
-import { connectToDatabase } from "@/lib/db";
 import { PioneerNode } from "@/models/PioneerNode";
 // import { TreasuryLedger } from "@/models/TreasuryLedger"; // ◄ To be forged later for strict accounting
 
@@ -16,8 +15,7 @@ export async function executeMarketTransaction(
   const BASE_TAX = 0.03;     // 3% standard network tax for merchants
 
   try {
-    await connectToDatabase();
-
+    
     // 1. 🛑 FETCH IDENTITIES & REPUTATION
     const [buyer, merchant] = await Promise.all([
       PioneerNode.findOne({ username: buyerId }).lean(),

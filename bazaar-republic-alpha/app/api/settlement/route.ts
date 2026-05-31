@@ -1,14 +1,10 @@
 // /app/api/settlement/route.ts
 import { NextResponse } from 'next/server';
-import { connectToDatabase } from '@/lib/db'; // <-- THE FIX: Destructured named export
 import { PioneerNode } from '@/models/PioneerNode';
 
 export async function POST(request: Request) {
   try {
-    // 1. Establish the Handshake
-    await connectToDatabase(); // <-- THE FIX: Direct function call without 'db.'
-
-    // 2. Parse the Incoming Payload 
+  // 1. Parse the Incoming Payload 
     const body = await request.json();
     const cartValue = body.cartValue || 500;
     // TARGET FILE PATH: [project-root]/app/api/settlement/route.ts
@@ -19,7 +15,7 @@ const buyerUid = body.buyerUid || "UNKNOWN_PIONEER";
 
     console.log(`[API] SYNC: Initiating Settlement | Value: ${cartValue} mBZR`);
 
-    // 3. Phase 1: Execute the Settlement 
+    // 2. Phase 1: Execute the Settlement 
     // DEDUCT FROM BUYER
     await PioneerNode.updateOne(
       { uid: buyerUid },
@@ -41,7 +37,7 @@ const buyerUid = body.buyerUid || "UNKNOWN_PIONEER";
       { upsert: true }
     );
 
-    // 4. Phase 2: Instant Treasury Audit
+    // 3. Phase 2: Instant Treasury Audit
     const accounts = await PioneerNode.find({ uid: { $in: [buyerUid, merchantUid] } });
 
     // 5. Return the Validated Data to the Frontend

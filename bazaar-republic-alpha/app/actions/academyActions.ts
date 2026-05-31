@@ -1,7 +1,6 @@
 "use server";
 
 // 🛡️ THE UNIFIED MESH BRIDGES
-import { connectToDatabase } from "@/lib/db";
 import { PioneerNode } from "@/models/PioneerNode";
 import { AcademyLedger } from "@/models/AcademyLedger"; // ◄ Ensure you have forged this Mongoose schema
 
@@ -34,9 +33,6 @@ export async function commitModuleSignature(pioneerId: string, moduleId: string)
       console.error(`[MESH-SCAN] 🚨 FATAL: Missing node or module ID.`);
       return { success: false, message: "ADJUDICATOR: PAYLOAD FRACTURED.", timestamp: serverTimestamp };
     }
-
-    // 🚀 EXECUTE EXACT DB UPLINK
-    await connectToDatabase();
 
     // 2. 🏛️ THE QUORUM GATE (10-Node Requirement routed through PioneerNode)
     const quorumCount = await PioneerNode.countDocuments({ status: "active", stake_amount: { $gte: 10 } });
@@ -113,9 +109,7 @@ export async function unlockPremiumTier(pioneerId: string) {
   const TIER_COST = 50.00; // Fuel required for Pioneer+
 
   try {
-    await connectToDatabase();
-
-    // 1. Verify Node Balance
+      // 1. Verify Node Balance
     const node = await PioneerNode.findOne({ username: pioneerId }).lean();
     if (!node || (node.activeFuel || 0) < TIER_COST) {
       return { success: false, message: "INSUFFICIENT_FUEL_FOR_UPGRADE" };
