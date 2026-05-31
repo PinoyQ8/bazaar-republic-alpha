@@ -58,7 +58,7 @@ export default function RootLayout({
         <AuthProvider>
           
           {/* Main content pushed to fill vertical space */}
-          <main className="flex-grow">{children}</main>
+<main className="grow">{children}</main>
           
           {/* 🛡️ LAYER 2: THE VISUAL STAMP */}
           <footer className="w-full py-6 border-t border-zinc-800 bg-black text-center font-mono z-40">
