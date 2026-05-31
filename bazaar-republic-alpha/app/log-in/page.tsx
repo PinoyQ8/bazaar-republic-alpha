@@ -11,10 +11,23 @@ export default function PioneerLogin() {
   
   // Two-Stage State Management
   const [verifiedUsername, setVerifiedUsername] = useState<string>('');
-  const [walletInput, setWalletInput] = useState<string>('');
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
 
-  // THE SAFETY LOOP: Aggressively poll for the Pi SDK
+  // -------------------------------------------------------------
+  // 🛡️ THE MEMORY SCANNER (Prevents forced re-logins on refresh)
+  // -------------------------------------------------------------
+  useEffect(() => {
+    const existingToken = localStorage.getItem('MASTER_TS');
+    if (existingToken) {
+      setStatusMessage('Persistent Node Detected. Bypassing Authentication...');
+      setIsProcessing(true);
+      router.push('/mesh-scan'); 
+    }
+  }, [router]);
+
+  // -------------------------------------------------------------
+  // 🛡️ THE SAFETY LOOP: Aggressively poll for the Pi SDK
+  // -------------------------------------------------------------
   useEffect(() => {
     const checkPi = setInterval(() => {
       if (typeof window !== 'undefined' && window.Pi) {
@@ -22,18 +35,19 @@ export default function PioneerLogin() {
           window.Pi.init({ version: "2.0", sandbox: true }); 
           setIsSdkLoaded(true);
           console.log('[MESH-SYNC] Pi SDK Active');
-          clearInterval(checkPi); // Stop polling once locked
+          clearInterval(checkPi); 
         } catch (err) {
           console.error("Pi SDK Init Error:", err);
         }
       }
     }, 500);
 
-    // Memory leak cleanup
     return () => clearInterval(checkPi);
   }, []);
 
+  // -------------------------------------------------------------
   // STAGE 1: Cryptographic Identity Verification
+  // -------------------------------------------------------------
   const authenticateIdentity = async () => {
     setStatusMessage('');
     setIsProcessing(true);
@@ -42,7 +56,7 @@ export default function PioneerLogin() {
       if (!isSdkLoaded || !window.Pi) throw new Error("Pi SDK offline. Relaunch Pi Browser.");
 
       setStatusMessage('Requesting Identity Verification...');
-      const scopes = ['username', 'payments']; // STRICTLY ONLY VALID SCOPES
+      const scopes = ['username', 'payments']; 
       
       const onIncompletePaymentFound = (payment: any) => {
         console.log("[MESH-SCAN] Incomplete payment found:", payment);
@@ -58,52 +72,62 @@ export default function PioneerLogin() {
     }
   };
 
-  // STAGE 2: Hard-Code the Security Circle Node
-  const executeNodeLock = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setStatusMessage('');
-    
-    if (!walletInput.startsWith('G') || walletInput.length !== 56) {
-      setStatusMessage('ERROR: Invalid Public Key. Must start with G and be 56 characters.');
-      return;
-    }
-
+  // -------------------------------------------------------------
+  // STAGE 2: 0.1 Test-Pi Cryptographic Handshake
+  // -------------------------------------------------------------
+  const executeHandshake = () => {
+    setStatusMessage('Initiating 0.1 Test-Pi Handshake...');
     setIsProcessing(true);
 
-    try {
-      setStatusMessage('Transmitting to Neon Hard Drive...');
+    const paymentData = {
+      amount: 0.1,
+      memo: "Alpha Node Registration Handshake",
+      metadata: { type: "node_lock" }
+    };
 
-      const response = await fetch('/api/mesh-scan/register-node', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: verifiedUsername, walletAddress: walletInput })
-      });
+    // The 'as any' override bypasses the outdated v1 TypeScript definitions
+    const callbacks = {
+      onReadyForServerApproval: async (paymentId: string) => {
+        setStatusMessage('Requesting Adjudicator Approval...');
+        await fetch('/api/mesh-scan/handshake', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'approve', paymentId })
+        });
+      },
+      onReadyForServerCompletion: async (paymentId: string, txid: string) => {
+        setStatusMessage('Locking Cryptographic Signature...');
+        const res = await fetch('/api/mesh-scan/handshake', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'complete', paymentId, txid, username: verifiedUsername })
+        });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to lock node into the MESH.');
+        if (res.ok) {
+          const masterTS = `BZR_${Date.now()}_${crypto.randomUUID()}`;
+          localStorage.setItem('MASTER_TS', masterTS);
+          setStatusMessage('Node Locked. Rerouting...');
+          setTimeout(() => router.push('/mesh-scan'), 800);
+        } else {
+          setStatusMessage('ERROR: Neon Sync Failed.');
+          setIsProcessing(false);
+        }
+      },
+      onCancel: (paymentId: string) => {
+        setStatusMessage('Handshake Aborted by Pioneer.');
+        setIsProcessing(false);
+      },
+      onError: (error: any, payment: any) => {
+        setStatusMessage(`TX ERROR: ${error.message}`);
+        setIsProcessing(false);
       }
+    } as any; // <--- THE MESH OVERRIDE INJECTED HERE
 
-      // Generate the universal token
-      const masterTS = `BZR_${Date.now()}_${crypto.randomUUID()}`;
-      localStorage.setItem('MASTER_TS', masterTS);
-      setStatusMessage('Node Locked. Rerouting to Academy...');
-      
-      setTimeout(() => {
-        router.push('/mesh-scan'); 
-      }, 800);
-
-    } catch (error: any) {
-      setStatusMessage(`SYNC ERROR: ${error.message}`);
-      setIsProcessing(false);
-    }
-  };
+    window.Pi.createPayment(paymentData, callbacks);
 
   return (
     <main style={{ maxWidth: '384px', margin: '0 auto', padding: '24px', fontFamily: 'monospace', color: '#e0e0e0' }}>
       
-      {/* Script injected without onLoad trigger - the useEffect handles detection */}
       <Script src="https://sdk.minepi.com/pi-sdk.js" strategy="afterInteractive" />
 
       <div style={{ borderBottom: '1px solid #333', paddingBottom: '16px', marginBottom: '24px' }}>
@@ -123,7 +147,6 @@ export default function PioneerLogin() {
       <div>
         <h3 style={{ margin: '0 0 12px 0', letterSpacing: '1px' }}>PIONEER REGISTRATION</h3>
         
-        {/* DYNAMIC UI MESSAGING */}
         {statusMessage && (
           <p style={{ 
             color: statusMessage.includes('ERROR') ? '#ff4444' : '#00d28a', 
@@ -137,7 +160,7 @@ export default function PioneerLogin() {
           </p>
         )}
 
-        {/* STAGE 1: AUTHENTICATE */}
+        {/* UI RENDER LOGIC */}
         {!verifiedUsername ? (
           <button
             onClick={authenticateIdentity}
@@ -149,28 +172,15 @@ export default function PioneerLogin() {
             }}
             disabled={isProcessing || !isSdkLoaded}
           >
-            {isProcessing ? 'Verifying Identity...' : 'Step 1: Authenticate Identity'}
+            {isProcessing ? 'Verifying...' : 'Step 1: Authenticate Identity'}
           </button>
         ) : (
-          /* STAGE 2: LOCK NODE */
-          <form onSubmit={executeNodeLock}>
+          <div>
             <p style={{ fontSize: '14px', color: '#aaa', marginBottom: '16px' }}>
-              Identity verified. Please paste your Testnet Public Key to lock your slot in the Security Circle.
+              Identity verified. Please execute a 0.1 Test-Pi transaction to securely log your wallet into the E-Network.
             </p>
-            <input
-              type="text"
-              value={walletInput}
-              onChange={(e) => setWalletInput(e.target.value.trim())}
-              placeholder="G..."
-              style={{ 
-                width: '100%', padding: '14px', marginBottom: '16px', backgroundColor: '#0a0a0f', 
-                border: '1px solid #333', color: '#00d28a', borderRadius: '4px', fontFamily: 'monospace',
-                outline: 'none', boxSizing: 'border-box'
-              }}
-              disabled={isProcessing}
-            />
             <button
-              type="submit"
+              onClick={executeHandshake}
               style={{ 
                 width: '100%', padding: '14px', backgroundColor: isProcessing ? '#222' : '#00d28a', 
                 color: isProcessing ? '#666' : '#000', border: 'none', borderRadius: '4px', 
@@ -179,11 +189,12 @@ export default function PioneerLogin() {
               }}
               disabled={isProcessing}
             >
-              {isProcessing ? 'Forging Master TS...' : 'Step 2: Lock Node'}
+              {isProcessing ? 'Processing Handshake...' : 'Step 2: Transmit 0.1 Test-Pi'}
             </button>
-          </form>
+          </div>
         )}
       </div>
     </main>
   );
+}
 }

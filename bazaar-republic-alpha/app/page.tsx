@@ -164,7 +164,7 @@ export default function RepublicHeroSector() {
               : "INITIALIZE PI NODE"}
         </button>
 
-        <Link href="/log-in">
+        <a href="/log-in" style={{ textDecoration: 'none' }}>
   <button style={{ 
     padding: '16px 32px', backgroundColor: '#00d28a', color: '#000', 
     fontWeight: 'bold', border: 'none', borderRadius: '4px', cursor: 'pointer',
@@ -172,7 +172,7 @@ export default function RepublicHeroSector() {
   }}>
     Initialize Sync (Log In)
   </button>
-</Link>
+</a>
 
         {pioneer?.isAuthenticated && (
           <p className="mt-4 text-xs text-slate-500 tracking-wider">
