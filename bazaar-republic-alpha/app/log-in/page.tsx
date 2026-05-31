@@ -14,14 +14,24 @@ export default function PioneerLogin() {
   const [walletInput, setWalletInput] = useState<string>('');
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
 
-  // Initialize Pi SDK once the script loads
-  const initializePi = () => {
-    if (typeof window !== 'undefined' && window.Pi) {
-      window.Pi.init({ version: "2.0", sandbox: true }); 
-      setIsSdkLoaded(true);
-      console.log('[MESH-SYNC] Pi SDK Initialized');
-    }
-  };
+  // THE SAFETY LOOP: Aggressively poll for the Pi SDK
+  useEffect(() => {
+    const checkPi = setInterval(() => {
+      if (typeof window !== 'undefined' && window.Pi) {
+        try {
+          window.Pi.init({ version: "2.0", sandbox: true }); 
+          setIsSdkLoaded(true);
+          console.log('[MESH-SYNC] Pi SDK Active');
+          clearInterval(checkPi); // Stop polling once locked
+        } catch (err) {
+          console.error("Pi SDK Init Error:", err);
+        }
+      }
+    }, 500);
+
+    // Memory leak cleanup
+    return () => clearInterval(checkPi);
+  }, []);
 
   // STAGE 1: Cryptographic Identity Verification
   const authenticateIdentity = async () => {
@@ -29,7 +39,7 @@ export default function PioneerLogin() {
     setIsProcessing(true);
 
     try {
-      if (!isSdkLoaded || !window.Pi) throw new Error("Pi SDK offline. Use Pi Browser.");
+      if (!isSdkLoaded || !window.Pi) throw new Error("Pi SDK offline. Relaunch Pi Browser.");
 
       setStatusMessage('Requesting Identity Verification...');
       const scopes = ['username', 'payments']; // STRICTLY ONLY VALID SCOPES
@@ -75,12 +85,13 @@ export default function PioneerLogin() {
         throw new Error(data.error || 'Failed to lock node into the MESH.');
       }
 
+      // Generate the universal token
       const masterTS = `BZR_${Date.now()}_${crypto.randomUUID()}`;
       localStorage.setItem('MASTER_TS', masterTS);
       setStatusMessage('Node Locked. Rerouting to Academy...');
       
       setTimeout(() => {
-        router.push('/mesh-scan'); // Redirects directly to the dashboard to see the result
+        router.push('/mesh-scan'); 
       }, 800);
 
     } catch (error: any) {
@@ -92,15 +103,21 @@ export default function PioneerLogin() {
   return (
     <main style={{ maxWidth: '384px', margin: '0 auto', padding: '24px', fontFamily: 'monospace', color: '#e0e0e0' }}>
       
-      <Script src="https://sdk.minepi.com/pi-sdk.js" strategy="afterInteractive" onLoad={initializePi} />
+      {/* Script injected without onLoad trigger - the useEffect handles detection */}
+      <Script src="https://sdk.minepi.com/pi-sdk.js" strategy="afterInteractive" />
 
       <div style={{ borderBottom: '1px solid #333', paddingBottom: '16px', marginBottom: '24px' }}>
         <h2 style={{ color: '#00d28a', margin: '0 0 8px 0', letterSpacing: '1px' }}>THE LOGIC FORGE</h2>
         <p style={{ margin: 0, fontSize: '14px', color: '#888' }}>
-          Status: <span style={{ color: isSdkLoaded ? '#00d28a' : '#ff4444' }}>
+          Status: <span style={{ color: isSdkLoaded ? '#00d28a' : '#ff4444', fontWeight: 'bold' }}>
             {isSdkLoaded ? 'SDK Active' : 'L1 Node Disconnected'}
           </span>
         </p>
+        {isSdkLoaded && (
+          <p style={{ margin: '4px 0 0 0', fontSize: '10px', color: '#ffb86c' }}>
+            [TESTNET / SANDBOX ROUTING ENGAGED]
+          </p>
+        )}
       </div>
 
       <div>
