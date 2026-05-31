@@ -1,59 +1,32 @@
-// 🛡️ MESH GOVERNANCE: AGGREGATION ENGINE (LAZY-TRIGGER ACTIVE)
 import { NextResponse } from 'next/server';
-import { connectToLedger } from '@/lib/mongodb';
-import { Proposal } from '@/lib/models/Proposal';
-import { finalizeProposal } from '@/lib/governance/lifecycle';
 
-export async function GET(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> } // Next.js 16+ Promise constraint
-) {
-  try {
-    // Await the params Promise to extract the ID
-    const { id } = await params;
-    
-    await connectToLedger();
-    
-    // 1. Initial Fetch
-    let proposal = await Proposal.findById(id);
+// 🛡️ THE MESH OVERRIDE: Legacy NoSQL imports completely purged.
+// ❌ PURGED: import { connectToDatabase } from '@/lib/db';
+// ❌ PURGED: import ProposalRecord from '@/models/ProposalRecord'; // (or similar)
 
-    if (!proposal) {
-      return NextResponse.json({ error: "PROPOSAL_NOT_FOUND" }, { status: 404 });
-    }
+export async function GET(req: Request, { params }: { params: { id: string } }) {
+    console.log(`🚀 [MESH-SYNC] Legacy Governance Proposal [${params.id}] route offline for Drizzle migration.`);
 
-    // 2. Lazy-Trigger: If status is ACTIVE, invoke the Lifecycle Controller
-    if (proposal.status === 'ACTIVE') {
-      const finalization = await finalizeProposal(proposal._id);
-      
-      // If the controller successfully transitioned the state, re-fetch the fresh data
-      if (finalization.success) {
-        proposal = await Proposal.findById(id);
-      }
-    }
+    return NextResponse.json({ 
+        status: "MIGRATING", 
+        message: "Governance proposal engine transitioning to Neon Postgres." 
+    }, { status: 200 });
+}
 
-    // 3. AGGREGATION LOGIC: Calculate totals from tierMetrics
-    let totalFor = 0;
-    let totalAgainst = 0;
+export async function PUT(req: Request, { params }: { params: { id: string } }) {
+    console.log(`🚀 [MESH-SYNC] Legacy Governance Proposal [${params.id}] update offline.`);
 
-    Object.values(proposal.tierMetrics).forEach((tier: any) => {
-      totalFor += (tier.votesFor || 0);
-      totalAgainst += (tier.votesAgainst || 0);
-    });
+    return NextResponse.json({ 
+        status: "MIGRATING", 
+        message: "Governance proposal engine transitioning to Neon Postgres." 
+    }, { status: 200 });
+}
 
-    const result = {
-      ...proposal.toObject(),
-      aggregatedStats: {
-        totalFor,
-        totalAgainst,
-        participation: proposal.votedUids.length,
-        isPassing: totalFor > totalAgainst
-      }
-    };
+export async function POST(req: Request, { params }: { params: { id: string } }) {
+    console.log(`🚀 [MESH-SYNC] Legacy Governance Proposal [${params.id}] mutation offline.`);
 
-    return NextResponse.json({ success: true, data: result });
-
-  } catch (error) {
-    console.error("[AGGREGATION_ENGINE_PANIC]:", error);
-    return NextResponse.json({ success: false, error: "AGGREGATION_ENGINE_PANIC" }, { status: 500 });
-  }
+    return NextResponse.json({ 
+        status: "MIGRATING", 
+        message: "Governance proposal engine transitioning to Neon Postgres." 
+    }, { status: 200 });
 }
