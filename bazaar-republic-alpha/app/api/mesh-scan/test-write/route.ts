@@ -1,35 +1,23 @@
 import { NextResponse } from 'next/server';
-import { connectToLedger } from '@/lib/mongodb'; // Ensure this matches your file path
 
-export async function POST() {
-  try {
-    // 1. Establish the MESH Uplink
-    const db = await connectToLedger();
-    const collection = db.collection('pioneercdps');
+// 🛡️ THE MESH OVERRIDE: Legacy NoSQL imports completely purged.
+// ❌ PURGED: import { connectToDatabase } from '@/lib/db';
+// ❌ PURGED: import TestRecord from '@/models/TestRecord'; // (or similar legacy models)
 
-    // 2. The Native Test Payload
-    // Without Mongoose, we enforce the 150% Uptime Shield directly in the payload logic
-    const testCDP = {
-      pioneerId: 'VANGUARD-NATIVE-001',
-      stakedPi: 100,
-      mintedMBZR: 50,
-      healthFactor: 150, 
-      lastUpdated: new Date()
-    };
+export async function POST(req: Request) {
+    console.log("🚀 [MESH-SYNC] Legacy Test-Write route offline for Drizzle migration.");
 
-    // 3. Execute the Forge
-    await collection.insertOne(testCDP);
+    try {
+        // 🛡️ THE MESH OVERRIDE: Legacy NoSQL logic neutralized.
+        // All Mongoose DB mutation commands have been disconnected.
 
-    return NextResponse.json({ 
-      status: 'MESH_SYNC_SUCCESS', 
-      message: 'Native driver CDP successfully forged in the Republic Ledger.', 
-      data: testCDP 
-    }, { status: 201 });
+        return NextResponse.json({ 
+            status: "MIGRATING", 
+            message: "Test-Write oracle engine transitioning to Neon Postgres." 
+        }, { status: 200 });
 
-  } catch (error: any) {
-    return NextResponse.json({ 
-      status: 'MESH_SYNC_FAILED', 
-      error: error.message 
-    }, { status: 500 });
-  }
+    } catch (error: any) {
+        console.error("❌ MESH CRITICAL ERROR:", error.message);
+        return NextResponse.json({ error: "Routing failed during migration." }, { status: 500 });
+    }
 }
