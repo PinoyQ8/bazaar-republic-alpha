@@ -6,6 +6,7 @@
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
+import Link from 'next/link';
 
 export default function RepublicHeroSector() {
   const router = useRouter();
@@ -162,6 +163,16 @@ export default function RepublicHeroSector() {
               ? "ENTER COMMAND DASHBOARD" 
               : "INITIALIZE PI NODE"}
         </button>
+
+        <Link href="/log-in">
+  <button style={{ 
+    padding: '16px 32px', backgroundColor: '#00d28a', color: '#000', 
+    fontWeight: 'bold', border: 'none', borderRadius: '4px', cursor: 'pointer',
+    textTransform: 'uppercase', letterSpacing: '2px', marginTop: '24px'
+  }}>
+    Initialize Sync (Log In)
+  </button>
+</Link>
 
         {pioneer?.isAuthenticated && (
           <p className="mt-4 text-xs text-slate-500 tracking-wider">
