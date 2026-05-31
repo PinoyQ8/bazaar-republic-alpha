@@ -1,10 +1,12 @@
 // app/api/faucet/claim/route.ts
 import { NextResponse } from 'next/server';
-import { connectToLedger } from '../../../../lib/mongodb'; 
-import ClaimEvent from '../../../../lib/models/ClaimEvent'; 
-import { executeFaucetTransfer } from '../../../../lib/faucet';
 
-// 🛡️ MESH-LOCK: The Genesis Whitelist (Active Inner Ring)
+// 🛡️ THE MESH OVERRIDE: Legacy NoSQL imports completely purged.
+// ❌ PURGED: import { connectToLedger } from '../../../../lib/mongodb'; 
+// ❌ PURGED: import ClaimEvent from '../../../../lib/models/ClaimEvent'; 
+// ❌ PURGED (Temporarily): import { executeFaucetTransfer } from '../../../../lib/faucet';
+
+// 🛡️ MESH-LOCK: The Genesis Whitelist (Active Inner Ring) - PRESERVED
 const MESH_WHITELIST = [
   "PinoyQ8",         // Node 01: The Founder
   "Mommydors",       // Node 02
@@ -24,6 +26,8 @@ const MESH_WHITELIST = [
 ];
 
 export async function POST(req: Request) {
+  console.log("🚀 [MESH-SYNC] Legacy Faucet Claim route offline for Drizzle migration.");
+
   try {
     const { pioneerUid, walletAddress } = await req.json();
 
@@ -31,7 +35,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ status: "FRACTURE", error: "Missing Pioneer credentials." }, { status: 400 });
     }
 
-    // 🛡️ THE HYBRID GATE: Whitelist Enforcement
+    // 🛡️ THE HYBRID GATE: Whitelist Enforcement Remains Active
     if (!MESH_WHITELIST.includes(pioneerUid)) {
       console.warn(`[MESH-DEFENSE] Unauthorized Sandbox access attempt by UID: ${pioneerUid}`);
       return NextResponse.json({ 
@@ -40,35 +44,17 @@ export async function POST(req: Request) {
       }, { status: 403 });
     }
 
-    await connectToLedger();
+    // 🛡️ THE MESH OVERRIDE: Legacy NoSQL logic neutralized.
+    // connectToLedger(), ClaimEvent(), and executeFaucetTransfer() are disconnected
+    // until the Neon Postgres routing is forged.
 
-    // The Sybil Ledger Lock 
-    const existingClaim = await ClaimEvent.findOne({ pioneerUid });
-    if (existingClaim) {
-      console.warn(`[MESH-DEFENSE] Sybil block activated for UID: ${pioneerUid}`);
-      return NextResponse.json({ status: "DENIED", error: "Allocation already claimed by this Pioneer." }, { status: 403 });
-    }
-
-    // The Hot Wallet Execution
-    const transferAmount = 50; 
-    const txHash = await executeFaucetTransfer(walletAddress, transferAmount.toString());
-
-    if (!txHash) {
-      throw new Error("Blockchain payload rejected by Horizon ledger.");
-    }
-
-    // Seal the Immutable Record
-    const newClaim = await ClaimEvent.create({
-      pioneerUid,
-      walletAddress,
-      amountClaimed: transferAmount
-    });
-
-    console.log(`[MESH-SECURE] Faucet successful. UID: ${pioneerUid} secured ${transferAmount} mBZR.`);
-    return NextResponse.json({ status: "SECURE", hash: txHash, claim: newClaim }, { status: 200 });
+    return NextResponse.json({ 
+        status: "MIGRATING", 
+        message: "Faucet claim engine transitioning to Neon Postgres." 
+    }, { status: 200 });
 
   } catch (error: any) {
-    console.error("[MESH-FRACTURE] API Route Error:", error.message);
-    return NextResponse.json({ status: "FRACTURE", error: error.message }, { status: 500 });
+    console.error("❌ MESH CRITICAL ERROR:", error.message);
+    return NextResponse.json({ error: "Routing failed during migration." }, { status: 500 });
   }
 }
