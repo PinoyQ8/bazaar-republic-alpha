@@ -1,6 +1,5 @@
 // 🛡️ MESH E-NETWORK: PUBLIC DIRECTORY RADAR
 import { NextResponse } from 'next/server';
-import { connectToLedger } from '@/lib/mongodb';
 import { ServiceProvider } from '@/lib/models/ServiceProvider';
 
 // 🛡️ PRE-FLIGHT LOCK: Disable static caching to ensure real-time directory sync
@@ -8,7 +7,6 @@ export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
-    await connectToLedger();
 
     // 🛡️ 1. MESH-SCAN: Isolate only ACTIVE nodes
     // 🛡️ 2. PRIVACY SHIELD: Select only public-facing parameters

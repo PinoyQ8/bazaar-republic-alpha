@@ -1,6 +1,5 @@
 // 🛡️ 1. THE DEPENDENCY BRIDGE (Do not remove these lines)
 import { NextResponse } from 'next/server';
-import { connectToLedger } from '@/lib/mongodb';
 import BurnEvent from '@/models/BurnEvent';
 
 export const dynamic = 'force-dynamic';
@@ -8,7 +7,6 @@ export const dynamic = 'force-dynamic';
 // 🛡️ 2. TELEMETRY NODE (Read-Only)
 export async function GET() {
   try {
-    await connectToLedger();
 
     const result = await BurnEvent.aggregate([
       { $group: { _id: null, total: { $sum: "$amount" } } }
@@ -36,7 +34,6 @@ export async function POST(req: Request) {
     const body = await req.json();
     
     if (body.action === 'INITIALIZE_GENESIS_BIND') {
-      await connectToLedger();
       
       // The Ledger confirms the binding authorization
       return NextResponse.json({ 

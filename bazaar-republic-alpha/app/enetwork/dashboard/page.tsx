@@ -1,8 +1,8 @@
 import { Suspense } from "react";
 import { getActiveProviders } from "@/app/actions/enetworkActions";
-import { ProviderList } from "@/components/ProviderList";
-import { Header } from "@/components/layout/Header";
-import { ProviderLoadingShell } from "@/components/ProviderLoadingShell";
+import { ProviderList } from "@/app/components/ProviderList";
+import { Header } from "@/app/components/layout/Header";
+import { ProviderLoadingShell } from "@/app/components/ProviderLoadingShell";
 
 export default async function Dashboard() {
   const providers = await getActiveProviders();

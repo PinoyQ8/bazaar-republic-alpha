@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { connectToLedger } from '@/lib/mongodb';
+import { connectToLedger } from "@/lib/mongodb";
 
 export async function POST(req: Request) {
   try {
@@ -10,8 +10,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'NODE_IDENTITY_MISSING' }, { status: 400 });
     }
 
-    // 1. Establish Secure Handshake
-    // 'db' is the native MongoDB Db instance
+    // 1. Extract payload (Assuming wallet_address is parsed here)
+    // const { wallet_address } = ...
+
+    // 🛡️ MESH-FIX: Establish the ledger connection to instantiate 'db'
     const db = await connectToLedger();
 
     // 🛡️ MESH-SCAN: Direct collection access
@@ -19,7 +21,6 @@ export async function POST(req: Request) {
 
     // 2. Locate Pioneer in the Data Fortress
     const pioneer = await collection.findOne({ wallet_address });
-
     if (!pioneer) {
       return NextResponse.json({ error: 'LEDGER_VOID' }, { status: 404 });
     }

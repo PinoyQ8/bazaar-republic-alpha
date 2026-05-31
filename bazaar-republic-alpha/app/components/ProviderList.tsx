@@ -1,4 +1,4 @@
-import { ProviderNodeItem } from "@/components/ProviderNodeItem";
+import { ProviderNodeItem } from "@/app/components/ProviderNodeItem";
 
 export function ProviderList({ providers }: { providers: any[] }) {
   if (providers.length === 0) {

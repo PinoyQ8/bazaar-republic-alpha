@@ -1,6 +1,5 @@
 // 🛡️ MESH E-NETWORK: PENDING NODES RADAR
 import { NextResponse } from 'next/server';
-import { connectToLedger } from '@/lib/mongodb';
 import { ServiceProvider } from '@/lib/models/ServiceProvider';
 
 // 🛡️ PRE-FLIGHT LOCK: Disable static caching to ensure real-time telemetry
@@ -15,7 +14,6 @@ export async function GET(request: Request) {
       return NextResponse.json({ success: false, error: "INSUFFICIENT_CLEARANCE_LEVEL" }, { status: 403 });
     }
 
-    await connectToLedger();
 
     // 🛡️ 2. MESH-SCAN: Isolate nodes in stasis
     // Sort by oldest first (1) to ensure the backlog is processed fairly.

@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { connectToLedger } from '@/lib/mongodb';
 import GenesisNode from '@/models/GenesisNode';
 import crypto from 'crypto';
 
@@ -18,7 +17,6 @@ export async function POST(request: Request) {
     const uid = session.value.split('-AUTH-')[0];
 
     // 2. 🛡️ CHECK STASIS LEDGER & GENESIS STATUS
-    await connectToLedger();
     const pioneerNode = await GenesisNode.findOne({ uid });
 
     if (!pioneerNode) {

@@ -9,8 +9,8 @@ import { getProviderById } from "@/app/actions/enetworkActions";
 import { getNetworkTotalEquity } from "@/app/actions/defiActions";
 import WalletOnboardingShield from "@/app/components/mesh/WalletOnboardingShield";
 import PioneerHUD from "@/app/components/PioneerHUD";
-import DeFiVault from "@/components/DeFiVault";
-import MerchantPOS from "@/components/MerchantPOS";
+import DeFiVault from "@/app/components/DeFiVault";
+import MerchantPOS from "@/app/components/MerchantPOS";
 
 interface PioneerStatus {
   status: 'NULL' | 'BOOTSTRAP_LOCKED' | 'VALIDATOR_ACTIVE';

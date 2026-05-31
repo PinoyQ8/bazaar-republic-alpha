@@ -1,6 +1,5 @@
 // 🛡️ MESH CORE: INDIVIDUAL PROVIDER TELEMETRY
 import { NextResponse } from 'next/server';
-import { connectToLedger } from '@/lib/mongodb';
 import { ServiceProvider } from '@/lib/models/ServiceProvider';
 
 export const dynamic = 'force-dynamic';
@@ -15,7 +14,6 @@ export async function GET(request: Request) {
       return NextResponse.json({ success: false, error: "MISSING_PIONEER_UID" }, { status: 401 });
     }
 
-    await connectToLedger();
 
     const provider = await ServiceProvider.findOne({ pioneerUid: pioneerUid });
 

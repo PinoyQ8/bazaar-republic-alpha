@@ -2,7 +2,6 @@
 import { NextResponse } from 'next/server';
 
 // 🛡️ THE MESH OVERRIDE: Legacy NoSQL imports completely purged.
-// ❌ PURGED: import { connectToLedger } from '../../../../lib/mongodb'; 
 // ❌ PURGED: import ClaimEvent from '../../../../lib/models/ClaimEvent'; 
 // ❌ PURGED (Temporarily): import { executeFaucetTransfer } from '../../../../lib/faucet';
 

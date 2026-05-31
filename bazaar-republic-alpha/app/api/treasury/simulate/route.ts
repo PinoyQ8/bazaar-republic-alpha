@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server';
-import { connectToLedger } from '@/lib/mongodb';
 import BurnEvent from '@/models/BurnEvent';
 
 export const dynamic = 'force-dynamic';
@@ -7,7 +6,6 @@ export const dynamic = 'force-dynamic';
 export async function POST() {
   try {
     // 🛡️ Initialize the serverless Mongoose uplink
-    await connectToLedger();
 
     // 🛡️ MESH-SCAN: Forge the Genesis Test Data
     const mockBurn = new BurnEvent({

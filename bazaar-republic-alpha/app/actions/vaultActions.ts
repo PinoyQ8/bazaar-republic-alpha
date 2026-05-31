@@ -56,7 +56,7 @@ export async function syncVaultData(pioneerId: string, payload: VaultPayload): P
     // Tap into the stabilized connection pool
     // 🛡️ THE MESH OPTIMIZED BYPASS
 // 🛡️ THE MESH OPTIMIZED BYPASS
-const db = await connectToLedger();
+const db = (await connectToLedger()) as any;
     const collection = db.collection("vault_ledger");
 
     // The Upsert Maneuver: Maintains Uptime Shield by avoiding duplicate key crashes

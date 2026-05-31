@@ -1,6 +1,5 @@
 // 🛡️ MESH GOVERNANCE: MASTER INDEX (ACTIVE TELEMETRY)
 import { NextResponse } from 'next/server';
-import { connectToLedger } from '@/lib/mongodb';
 import { Proposal } from '@/lib/models/Proposal';
 
 // 🛡️ PRE-FLIGHT LOCK: Disable static caching
@@ -9,7 +8,6 @@ export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
-    await connectToLedger();
 
     // 🛡️ MESH-SCAN: Sweep the ledger for active governance nodes
     // We use projection { _id: 1 } to extract only the IDs, saving RAM and bandwidth

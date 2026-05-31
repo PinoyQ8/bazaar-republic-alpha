@@ -4,7 +4,8 @@ import Script from "next/script";
 import "./globals.css";
 
 // 🛡️ THE MESH COMPONENTS
-import { AlphaGuardrail } from '@/components/AlphaGuardrail';
+// 🛡️ MESH-FIX: Correcting the path to align with the app/ directory structure
+import { AlphaGuardrail } from '@/app/components/AlphaGuardrail';
 import { AuthProvider } from "@/context/AuthContext";
 import CommandNav from "@/app/components/CommandNav";
 

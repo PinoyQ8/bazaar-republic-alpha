@@ -1,7 +1,7 @@
-"use client";
+"use client"; // Must be on Line 1
 
+import { useAuth } from "@/context/AuthContext";
 import React, { useState } from "react";
-import { useAuth } from "@/app/context/AuthContext"; // Adjust path if necessary
 import { executeMarketTransaction } from "@/app/actions/marketActions";
 
 export default function MerchantHUD() {

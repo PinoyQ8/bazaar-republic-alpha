@@ -1,6 +1,7 @@
 {
   "name": "bazaar-republic-alpha",
   "version": "0.1.0",
+  "type": "module",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -52,6 +53,7 @@
     "eslint-config-next": "16.2.4",
     "husky": "^9.1.7",
     "tailwindcss": "^4",
+    "tsx": "^4.22.4",
     "typescript": "^5"
   }
 }
