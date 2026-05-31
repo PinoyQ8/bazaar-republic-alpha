@@ -1,11 +1,9 @@
-// 🛡️ MESH-OVERRIDE: MongoDB driver neutralized for Drizzle migration.
-// All execution blocks and environment variable checks are severed.
+// 🛡️ MESH-OVERRIDE: Inert stub to prevent build-time evaluation.
+// This prevents the MONGODB_URI check from executing during build.
 
-export const MongoClient = class {
-    constructor(uri: any, options: any) {}
-    async connect() { return this; }
-    db(name: string) { return { collection: (name: string) => ({}) }; }
-    close() {}
+export const connectToLedger = async () => {
+    console.log("🚀 [MESH-SYNC] Ledger connection bypassed for Drizzle migration.");
+    return null;
 };
 
-export const clientPromise = Promise.resolve(new (MongoClient as any)());
+export const clientPromise = Promise.resolve(null);
