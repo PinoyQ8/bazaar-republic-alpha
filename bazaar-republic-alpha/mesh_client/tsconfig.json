@@ -1,0 +1,30 @@
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "NodeNext",
+    "moduleResolution": "nodenext",
+    "declaration": true,
+    "outDir": "./dist",
+    "strictNullChecks": true,
+    "skipLibCheck": true,
+    "rootDir": ".",
+    "baseUrl": ".",
+    "jsx": "preserve",
+    "esModuleInterop": true,
+    "incremental": true,
+    "plugins": [
+      { "name": "next" }
+    ]
+  },
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    ".next",
+    "dist"
+  ]
+}

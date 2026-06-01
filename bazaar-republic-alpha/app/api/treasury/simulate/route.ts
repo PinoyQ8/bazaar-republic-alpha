@@ -1,27 +1,33 @@
 import { NextResponse } from 'next/server';
+import { connectToLedger } from '@/lib/mongodb'; // 🛡️ Ensure this connection is bridged
 import BurnEvent from '@/models/BurnEvent';
 
 export const dynamic = 'force-dynamic';
 
-export async function POST() {
+export async function POST(req: Request) {
   try {
-    // 🛡️ Initialize the serverless Mongoose uplink
+    // 🛡️ Initialize MESH uplink
+    await connectToLedger();
 
-    // 🛡️ MESH-SCAN: Forge the Genesis Test Data
-    const mockBurn = new BurnEvent({
-      pioneerUid: "SIM-NODE-ALPHA",
-      amount: 314.15, // Standard Pi Network Test Value
-      txHash: "MESH-GENESIS-HASH-0001",
+    // 🛡️ Parse dynamic payload
+    const body = await req.json();
+    const { pioneerId, amount, memo } = body;
+
+    // 🛡️ MESH-SCAN: Forge Dynamic Interaction Data
+    const newInteraction = new BurnEvent({
+      pioneerUid: pioneerId || "UNKNOWN_NODE", // Dynamic ID
+      amount: amount || 314.15,
+      txHash: `MESH-${Math.random().toString(36).substring(2, 11).toUpperCase()}`, // Dynamic Hash
       timestamp: new Date()
     });
 
     // 🛡️ Execute the Database Write
-    await mockBurn.save();
+    await newInteraction.save();
 
     return NextResponse.json({ 
       status: "INCINERATION_SUCCESS", 
-      message: "Genesis BurnEvent locked into the Telemetry Vault.",
-      data: mockBurn
+      message: "Interaction locked into the Telemetry Vault.",
+      data: newInteraction
     }, { status: 201 });
 
   } catch (error: any) {

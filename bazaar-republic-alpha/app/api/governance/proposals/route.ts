@@ -1,30 +1,24 @@
-// 🛡️ MESH GOVERNANCE: MASTER INDEX (ACTIVE TELEMETRY)
 import { NextResponse } from 'next/server';
-import { Proposal } from '@/lib/models/Proposal';
-
-// 🛡️ PRE-FLIGHT LOCK: Disable static caching
-// The DAO must reflect real-time ledger states. This prevents Turbopack from serving stale feed data.
-export const dynamic = 'force-dynamic';
+import { connectToLedger } from '@/lib/mongodb';
+import { Proposal } from '@/models/proposal'; 
 
 export async function GET() {
   try {
+    console.log("[MESH-SYNC] 📡 Viewport requesting Ledger data...");
+    await connectToLedger();
+    
+    // 🛡️ THE MESH BYPASS: Fetching all payloads regardless of strict-mode status stripping
+    const activeProposals = await Proposal.find().sort({ createdAt: -1 }); 
 
-    // 🛡️ MESH-SCAN: Sweep the ledger for active governance nodes
-    // We use projection { _id: 1 } to extract only the IDs, saving RAM and bandwidth
-    const activeProposals = await Proposal.find(
-      { status: 'ACTIVE' },
-      { _id: 1 }
-    ).sort({ createdAt: -1 }); // Sort by newest first
-
-    const proposalIds = activeProposals.map(prop => prop._id.toString());
+    console.log(`[MESH-SYNC] ✅ Successfully retrieved ${activeProposals.length} active payloads.`);
 
     return NextResponse.json({ 
-      success: true, 
-      proposalIds 
-    });
+      status: "SYNC_COMPLETE", 
+      proposals: activeProposals 
+    }, { status: 200 });
 
   } catch (error) {
-    console.error("[MASTER_INDEX_PANIC]:", error);
-    return NextResponse.json({ success: false, error: "MASTER_INDEX_PANIC" }, { status: 500 });
+    console.error("[MESH-GET FRACTURE]", error);
+    return NextResponse.json({ status: "FRACTURE", message: "Failed to read from the Ledger." }, { status: 500 });
   }
 }

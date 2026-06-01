@@ -1,89 +1,44 @@
-import React from 'react';
-import { db } from '@/app/db'; // Adjust path if you used a different database export file
-import { securityCircleNodes } from '@/app/db/schema';
-import { desc } from 'drizzle-orm';
+"use client";
 
-// Opt out of Next.js caching to ensure real-time terminal telemetry
-export const dynamic = 'force-dynamic';
+import { useAuth } from "../context/AuthContext";
 
-export default async function MeshScanDashboard() {
-  // Pull the live nodes from the Neon Hard Drive
-  const nodes = await db
-    .select()
-    .from(securityCircleNodes)
-    .orderBy(desc(securityCircleNodes.capturedAt));
+export default function MeshScanNode() {
+  const { pioneer, executeStakePayment } = useAuth();
+  
+  const status = pioneer?.isAuthenticated 
+    ? `Aligned: ${pioneer.username}` 
+    : "Awaiting Uplink...";
 
-  const totalCaptured = nodes.length;
-  const isLocked = totalCaptured >= 10;
-
-  // Generate 10 total slots for visual tracking
-  const emptySlots = Math.max(0, 10 - totalCaptured);
+  const handleSync = () => {
+    if (typeof executeStakePayment === 'function') {
+      executeStakePayment(10, "MESH_SYNC_AUTH");
+      console.log("[MESH-BRIDGE] Payment request broadcasted.");
+    } else {
+      console.error("[MESH-BRIDGE] Payment function missing in Context.");
+    }
+  };
 
   return (
-    <main style={{ maxWidth: '800px', margin: '40px auto', padding: '24px', fontFamily: 'monospace', color: '#e0e0e0' }}>
+    <div className="flex flex-col items-center justify-center min-h-screen bg-white text-gray-900 font-mono p-8">
+      <h1 className="text-3xl font-bold mb-4 tracking-widest border-b border-gray-900 pb-2">
+        X570 TERMINAL: MESH-SCAN
+      </h1>
       
-      {/* HEADER SECTION */}
-      <div style={{ borderBottom: '1px solid #333', paddingBottom: '16px', marginBottom: '32px' }}>
-        <h1 style={{ color: '#00d28a', margin: '0 0 8px 0', letterSpacing: '2px', textTransform: 'uppercase' }}>
-          MESH-SCAN: Security Circle
-        </h1>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <p style={{ margin: 0, fontSize: '14px', color: '#888' }}>
-            System Status: {isLocked ? <span style={{ color: '#ff4444' }}>LOCKED (MAX CAPACITY)</span> : <span style={{ color: '#00d28a' }}>AWAITING NODES</span>}
-          </p>
-          <p style={{ margin: 0, fontSize: '16px', fontWeight: 'bold', color: isLocked ? '#ff4444' : '#e0e0e0' }}>
-            Nodes Captured: {totalCaptured} / 10
-          </p>
-        </div>
+      <div className="bg-gray-100 p-6 rounded-md border border-gray-400 w-full max-w-2xl mb-8">
+        <p className="mb-4">SYSTEM STATUS: {status}</p>
+        <p className="text-xs text-gray-500">
+          NODE: {pioneer?.isAuthenticated ? pioneer.username : "OFFLINE"}
+        </p>
       </div>
 
-      {/* NODE LEDGER */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-        {nodes.map((node, index) => (
-          <div key={node.id} style={{ 
-            display: 'flex', 
-            justifyContent: 'space-between', 
-            padding: '16px', 
-            backgroundColor: '#111', 
-            border: '1px solid #00d28a',
-            borderRadius: '4px'
-          }}>
-            <div>
-              <span style={{ color: '#555', marginRight: '12px' }}>[0{index + 1}]</span>
-              <span style={{ fontWeight: 'bold', color: '#fff', fontSize: '16px' }}>{node.username}</span>
-            </div>
-            <div style={{ color: '#00d28a', fontSize: '14px', letterSpacing: '1px' }}>
-              {node.walletAddress.substring(0, 8)}...{node.walletAddress.substring(50)}
-            </div>
-          </div>
-        ))}
-
-        {/* EMPTY SLOTS RENDERER */}
-        {Array.from({ length: emptySlots }).map((_, idx) => (
-          <div key={`empty-${idx}`} style={{ 
-            display: 'flex', 
-            justifyContent: 'space-between', 
-            padding: '16px', 
-            backgroundColor: '#0a0a0a', 
-            border: '1px dashed #333',
-            borderRadius: '4px',
-            color: '#444'
-          }}>
-            <div>
-              <span style={{ marginRight: '12px' }}>[0{totalCaptured + idx + 1}]</span>
-              <span>UNALLOCATED_NODE</span>
-            </div>
-            <div>WAITING_FOR_SYNC...</div>
-          </div>
-        ))}
+      <div className="flex gap-4">
+        <button 
+          onClick={handleSync}
+          className="px-6 py-3 font-bold bg-blue-600 text-white rounded uppercase hover:bg-blue-700 transition-colors"
+        >
+          Execute Sync
+        </button>
       </div>
-
-      {/* FOOTER METRICS */}
-      <div style={{ marginTop: '40px', paddingTop: '16px', borderTop: '1px solid #333', fontSize: '12px', color: '#666', textAlign: 'center' }}>
-        <p>BAZAAR REPUBLIC E-NETWORK // ALPHA-TRACK ROUTING</p>
-        <p>Uptime Shield: 92% | Hard Drive: Neon Serverless</p>
-      </div>
-
-    </main>
+    </div>
   );
 }

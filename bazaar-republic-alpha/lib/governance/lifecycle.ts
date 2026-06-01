@@ -1,5 +1,5 @@
 // 🛡️ MESH GOVERNANCE: LIFECYCLE AUTOMATION
-import { Proposal } from '@/lib/models/Proposal';
+import { Proposal } from '@/models/proposal'; // ⚡ FIXED: Perfectly aligned with the core Ledger schema
 
 export async function finalizeProposal(proposalId: string) {
   const proposal = await Proposal.findById(proposalId);

@@ -1,4 +1,15 @@
 [workspace]
 resolver = "2"
-members = ["bazaar-republic-alpha/bazaar_contracts/pioneer_registry","contracts/bazaar-registry-contract"]
-exclude = ["bazaar-republic-alpha"]
+members = [
+    "pioneer_auth"
+]
+
+[profile.release]
+opt-level = "z"
+overflow-checks = true
+debug = 0
+strip = "symbols"
+debug-assertions = false
+panic = "abort"
+codegen-units = 1
+lto = true
