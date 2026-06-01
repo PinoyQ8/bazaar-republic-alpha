@@ -1,89 +1,169 @@
 "use server";
 
-// 🛡️ THE MESH OVERRIDE: All legacy NoSQL imports completely purged.
-// ❌ PURGED: import { Provider } from "@/lib/models/Provider";
-// ❌ PURGED: import { connectToLedger } from '@/lib/mongodb';
-// ❌ PURGED: import { ObjectId } from 'mongodb'; 
-
 import { revalidatePath } from "next/cache";
+import { db } from '@/app/db'; 
+import { securityCircleNodes } from '@/app/db/schema'; 
+import { eq } from 'drizzle-orm';
 
 // ----------------------------------------------------------------------
-// 🛡️ MESH SANITIZATION PROTOCOL: NO-OP OVERRIDES APPLIED
-// All trailing execution commands (find, updateOne, ObjectId) are severed.
-// The file is structurally pure for the Turbopack compiler.
+// 🛡️ ACTION 1: THE SMART NODE FETCH
 // ----------------------------------------------------------------------
-
-export async function fetchProviders() {
-    console.log("🚀 [MESH-SYNC] Legacy fetchProviders offline. Migrating to Drizzle.");
-    return []; 
+export async function getProviderById(id: string) {
+  if (!id || id === 'NODE_OFFLINE') return null;
+  
+  try {
+    const data = await db.select()
+      .from(securityCircleNodes)
+      .where(eq(securityCircleNodes.id, id)) // MESH-LOCK: Mapped to .id
+      .limit(1);
+      
+    return data.length > 0 ? data[0] : null;
+  } catch (error) {
+    console.error(`[MESH-SCAN] Drizzle Read Failure for ID: ${id}`, error);
+    return null;
+  }
 }
 
-export async function fetchProviderById(id: string) {
-    console.log(`🚀 [MESH-SYNC] Legacy fetchProviderById offline for ID: ${id}`);
-    return []; 
-}
+export const fetchProviderById = getProviderById;
 
-export async function mutateProvider(payload: any) {
-    console.log("🚀 [MESH-SYNC] Legacy mutateProvider write logic disconnected.");
-    return { success: false, message: "E-Network sector migrating to Neon Postgres." };
-}
-
-// ----------------------------------------------------------------------
-// 🛡️ ACTION 2: THE FETCH LOGIC 
-// ----------------------------------------------------------------------
 export async function getActiveProviders() {
-    console.log("🚀 [MESH-SYNC] Legacy getActiveProviders read offline.");
-    // Return empty array to satisfy the Next.js Client Boundary
+  try {
+    const data = await db.select().from(securityCircleNodes);
+    return data;
+  } catch (error) {
     return [];
+  }
 }
 
-// ----------------------------------------------------------------------
-// 🛡️ ACTION 3: THE SMART NODE FETCH
-// ----------------------------------------------------------------------
-export async function getEnetworkProviders() {
-    console.log("🚀 [MESH-SYNC] Legacy getEnetworkProviders read offline.");
-    return []; 
-}
+export const fetchProviders = getActiveProviders;
+export const getEnetworkProviders = getActiveProviders;
 
 // ----------------------------------------------------------------------
-// 🛡️ ACTION 4: THE WALLET SYNC (Native Edge Bypass)
+// 🛡️ ACTION 2: THE WALLET SYNC (Write/Upsert)
 // ----------------------------------------------------------------------
-export async function updateProviderWallet(identifier: string, walletAddress: string) {
-    console.log(`🚀 [MESH-BRIDGE] Legacy Wallet Sync disconnected for [${identifier}]`);
+export async function updateProviderWallet(uid: string, walletAddress: string) {
+  try {
+    if (!uid || !walletAddress) {
+      return { success: false, message: "CRITICAL: Payload missing UID or Wallet Address." };
+    }
+
+    const activeUid = uid === "NODE_OFFLINE" ? "LOCAL_DEV_PIONEER_01" : uid;
+
+    const existingNode = await db.select()
+      .from(securityCircleNodes)
+      .where(eq(securityCircleNodes.id, activeUid)) // MESH-LOCK: Mapped to .id
+      .limit(1);
+
+    if (existingNode.length > 0) {
+      await db.update(securityCircleNodes)
+        .set({ walletAddress: walletAddress }) // MESH-LOCK: Mapped to camelCase
+        .where(eq(securityCircleNodes.id, activeUid));
+    } else {
+      await db.insert(securityCircleNodes).values({
+        id: activeUid, // MESH-LOCK: Mapped uid to id
+        walletAddress: walletAddress,
+        username: `Pioneer_${activeUid.substring(0, 6)}`, // MESH-LOCK: Provided required username
+      });
+    }
+
+    console.log(`[MESH-SYNC] Wallet Anchored to Node: ${activeUid}`);
     
-    // Force UI Refresh to maintain state continuity
+    revalidatePath("/dashboard");
     revalidatePath("/enetwork/dashboard");
-    revalidatePath(`/enetwork/provider/${identifier}`);
-
-    return { success: false, message: "Wallet sync migrating to Neon Postgres." };
+    
+    return { success: true };
+  } catch (error) {
+    console.error("[MESH-SCAN] Wallet Sync Failed:", error);
+    return { success: false, message: "Neon Postgres execution failed." };
+  }
 }
 
 // ----------------------------------------------------------------------
-// 🛡️ ACTION 5: THE MESH YIELD CLAIM (Native Edge Bypass)
+// 🛡️ ACTION 3: E-NETWORK REGISTRATION & MUTATION
 // ----------------------------------------------------------------------
-export async function claimMeshYield(identifier: string) {
-    console.log(`🚀 [MESH-BRIDGE] Legacy Yield Claim disconnected for [${identifier}]`);
-    
-    revalidatePath("/enetwork/dashboard");
-    
-    return { success: false, message: "Yield claim migrating to Neon Postgres." };
-}
-
-// ----------------------------------------------------------------------
-// 🛡️ ACTION 6: THE MISSING UI LINKS (No-Op Overrides)
-// Restoring exact function signatures required by the frontend compiler.
-// ----------------------------------------------------------------------
-
-export async function getProviderById(id: string): Promise<any> {
-    console.log(`🚀 [MESH-SYNC] Legacy getProviderById read offline for ID: ${id}`);
-    
-    // Return null (or an empty object) to safely bypass the UI's optional chaining checks
-    return null; 
-}
-
 export async function registerServiceProvider(payload: any) {
-    console.log("🚀 [MESH-SYNC] Legacy registerServiceProvider write disconnected.");
+  try {
+    await db.insert(securityCircleNodes).values({
+      id: payload.uid || "LOCAL_DEV_PIONEER_01",
+      walletAddress: payload.walletAddress || "PENDING",
+      username: payload.serviceTitle || `Node_${Date.now()}` // Required field mapped
+    });
     
-    // Return a structured fallback to prevent the registration form from crashing
-    return { success: false, message: "E-Network registration migrating to Neon Postgres." };
+    revalidatePath("/dashboard");
+    revalidatePath("/registry");
+    return { success: true, message: "Node Registered in E-Network" };
+  } catch (error) {
+    console.error("[MESH-SCAN] Provider Registration Failed:", error);
+    return { success: false, message: "Ledger insertion failed." };
+  }
+}
+
+export const mutateProvider = registerServiceProvider;
+
+// ----------------------------------------------------------------------
+// 🛡️ ACTION 4: THE MESH YIELD CLAIM (App-to-User Transaction)
+// ----------------------------------------------------------------------
+export async function claimMeshYield(uid: string) {
+  try {
+    if (!uid || uid === 'NODE_OFFLINE') {
+      return { success: false, message: "CRITICAL: Invalid Node Identity." };
+    }
+
+    const apiKey = process.env.PI_API_KEY;
+    if (!apiKey) {
+      console.error("[MESH-SCAN] PI_API_KEY missing from vault.");
+      return { success: false, message: "Vault Keys missing. Connection severed." };
+    }
+
+    console.log(`[MESH-BRIDGE] Initiating Yield Claim for Node [${uid}]`);
+
+    // STEP 1: Create the A2U Payment Request
+    const createRes = await fetch('https://api.minepi.com/v2/payments', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Key ${apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        payment: {
+          amount: 1, // Distributing 1 Test-Pi as Yield
+          memo: "Project Bazaar MESH Yield",
+          metadata: { type: "yield_claim", node: uid }
+        },
+        uid: uid // The exact Pioneer receiving the Pi
+      })
+    });
+
+    const paymentData = await createRes.json();
+    if (!createRes.ok) {
+      console.error("[MESH-SCAN] API Rejection:", paymentData);
+      return { success: false, message: `E-Network Error: ${paymentData.error?.message || "Creation Failed"}` };
+    }
+
+    const paymentId = paymentData.identifier;
+
+    // STEP 2: Submit and Execute on the Blockchain
+    const submitRes = await fetch(`https://api.minepi.com/v2/payments/${paymentId}/submit`, {
+      method: 'POST',
+      headers: { 
+        'Authorization': `Key ${apiKey}` 
+      }
+    });
+
+    if (!submitRes.ok) {
+      const submitData = await submitRes.json();
+      console.error("[MESH-SCAN] Blockchain Execution Failed:", submitData);
+      return { success: false, message: "Blockchain settlement failed." };
+    }
+
+    console.log(`[MESH-SYNC] 1 Test-Pi successfully routed to Node: ${uid}`);
+    
+    // Refresh the UI to update the DeFi Vault display
+    revalidatePath("/dashboard");
+    return { success: true, message: "Yield successfully claimed and settled." };
+
+  } catch (error) {
+    console.error("[MESH-SCAN] Fatal Yield Error:", error);
+    return { success: false, message: "Fatal E-Network Yield execution failure." };
+  }
 }
