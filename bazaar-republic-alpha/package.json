@@ -24,6 +24,7 @@
     "@vercel/kv": "^3.0.0",
     "@vercel/postgres": "^0.10.0",
     "ai": "^3.4.33",
+    "bindings": "file:src/lib/bindings",
     "bip39": "^3.1.0",
     "bzr-db": "file:prisma/generated/client",
     "dotenv": "^17.4.2",

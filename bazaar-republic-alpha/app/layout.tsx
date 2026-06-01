@@ -1,13 +1,9 @@
-import { AuthProvider } from "./context/AuthContext"; // Adjust path if needed
+import "./globals.css"; // Ensure this is at the TOP of imports
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body>
-        <AuthProvider>
-          {children}
-        </AuthProvider>
-      </body>
+      <body>{children}</body>
     </html>
   );
 }
