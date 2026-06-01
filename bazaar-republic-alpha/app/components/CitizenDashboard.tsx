@@ -26,7 +26,7 @@ export default function CitizenDashboard() {
       // 2. Ledger Handshake
       try {
         const provider = await getProviderById(pioneer.uid);
-        setWalletAddress(provider?.wallet_address || "PENDING_ONBOARDING");
+        setWalletAddress(provider?.walletAddress || "PENDING_ONBOARDING");
       } catch (e) {
         console.error("[MESH-SCAN] Handshake Failure:", e);
         setWalletAddress("PENDING_ONBOARDING"); // Fallback to shield on error
