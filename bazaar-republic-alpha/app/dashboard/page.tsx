@@ -1,6 +1,5 @@
 // Route: /app/components/CitizenDashboard.tsx
 // Logic: E-Network Citizen Dashboard & Ledger Sync (MESH Hardened)
-
 "use client";
 
 import React, { useState, useEffect } from "react";
@@ -27,49 +26,40 @@ export default function CitizenDashboard() {
   const activeNodeId = pioneer?.uid;
   const displayUsername = pioneer?.username || "AWAITING_HANDSHAKE";
 
-  useEffect(() => {
-    let isMounted = true; // Mount Guard
+useEffect(() => {
+    let isMounted = true;
 
     const syncNodeLedger = async () => {
-      // Gatekeeper: Do not fetch if the node identity is missing
-      if (!activeNodeId) return; 
+      if (!activeNodeId) return;
 
-      // 1. Fetch Network Equity
       try {
-        const equityData = await getNetworkTotalEquity();
-        if (isMounted && equityData.success) setTotalEquity(equityData.total);
-      } catch (e) { 
-        console.error("[MESH_SCAN] Equity Sync Failed"); 
-      }
+        // 1. Parallel Fetching (Faster MESH performance)
+        const [equityRes, providerRes] = await Promise.all([
+          getNetworkTotalEquity(),
+          getProviderById(activeNodeId)
+        ]);
 
-      // 2. Fetch Provider Data using UID
-      let wallet_address = "PENDING_ONBOARDING";
-      try {
-        const providerData = await getProviderById(activeNodeId);
-        if (providerData?.wallet_address) {
-          wallet_address = providerData.wallet_address;
+        if (isMounted) {
+          if (equityRes.success) setTotalEquity(equityRes.total);
+          
+          setPioneerState({ 
+            status: 'VALIDATOR_ACTIVE', 
+            contract_id: 'CA_MESH_001',
+            wallet_address: providerRes?.wallet_address || "PENDING_ONBOARDING" 
+          });
         }
-      } catch (error) {
-        console.error("[MESH_SCAN] Ledger sync failed", error);
-      }
-
-      // 3. Lock State
-      if (isMounted) {
-        setPioneerState({ 
-          status: 'VALIDATOR_ACTIVE', 
-          contract_id: 'CA_MESH_001',
-          wallet_address 
-        });
+      } catch (e) {
+        console.error("[MESH_SCAN] Sync Critical Failure", e);
+        // Fallback: If sync fails, force state to avoid infinite loading
+        if (isMounted) {
+          setPioneerState({ status: 'NULL', contract_id: 'ERR_SYNC_FAIL' });
+        }
       }
     };
 
     syncNodeLedger();
-
-    // Cleanup function to lock the mount guard
-    return () => {
-      isMounted = false;
-    };
-  }, [activeNodeId]); // 🛡️ STRICT DEPENDENCY: Only re-runs if the UID string changes
+    return () => { isMounted = false; };
+  }, [activeNodeId]);
 
   // LOADING STATE
   if (!pioneerState) return <div className="text-emerald-500 p-8 font-mono bg-zinc-950 min-h-screen">SYNCING WITH LEDGER...</div>;
@@ -79,7 +69,7 @@ export default function CitizenDashboard() {
     return <WalletOnboardingShield />;
   }
 
-  return (
+    return (
     <main className="min-h-screen bg-zinc-950 text-zinc-100 font-mono p-4 md:p-8">
       <div className="max-w-6xl mx-auto space-y-6">
         <header className="p-6 bg-zinc-900 border border-zinc-800 rounded-lg flex justify-between items-center shadow-lg">

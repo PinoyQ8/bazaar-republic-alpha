@@ -163,6 +163,24 @@ export default function AlphaTrackDashboard() {
           <button type="submit" className="w-full py-3 bg-red-900/80 hover:bg-red-800 text-red-100 border border-red-700/50 text-sm font-bold uppercase tracking-wider rounded transition-colors">
             Execute Redeem
           </button>
+
+       <div style={{ 
+  position: 'fixed', 
+  top: 20, 
+  left: 20, 
+  zIndex: 99999, 
+  background: '#ff00ff', 
+  color: '#ffffff', 
+  padding: '15px', 
+  border: '2px solid white', 
+  fontWeight: 'bold',
+  borderRadius: '8px',
+  boxShadow: '0 0 20px #ff00ff'
+}}>
+  <button onClick={() => window.location.href = '/academy'}>
+    NAVIGATE TO ACADEMY
+  </button>
+</div>
         </form>
       </div>
     </main>

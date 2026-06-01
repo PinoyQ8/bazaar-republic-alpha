@@ -20,7 +20,7 @@
       "@/lib/*": ["./lib/*"],
       "@/models/*": ["./models/*"],
       "@/services/*": ["./services/*"],
-      "@/*": ["./*"]
+      "@/*": ["./src/*"]
     }
   },
   "include": [

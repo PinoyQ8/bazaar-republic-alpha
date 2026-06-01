@@ -12,12 +12,13 @@ export default function AcademyDashboard() {
   useEffect(() => {
     const masterToken = localStorage.getItem('MASTER_TS');
 
-    if (!masterToken) {
-      console.error("[MESH-FRACTURE] Access Denied: Unauthorized Node.");
-      router.push('/log-in'); 
-    } else {
-      setIsAuthorized(true);
-    }
+   // Force-override the auth gate for testing
+// if (!masterToken) {
+//   console.error("[MESH-FRACTURE] Access Denied: Unauthorized Node.");
+//   router.push('/log-in'); 
+// } else {
+     setIsAuthorized(true); // Manually force the lock to open
+// }
   }, [router]);
 
   // 🛡️ PRE-FLIGHT RENDER BLOCK

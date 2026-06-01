@@ -1,37 +1,21 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import Script from 'next/script';
-
-export default function PioneerLogin() { // 1. Component START
-  const router = useRouter();
-  const [isSdkLoaded, setIsSdkLoaded] = useState<boolean>(false);
-  const [statusMessage, setStatusMessage] = useState<string>('');
-  const [isProcessing, setIsProcessing] = useState<boolean>(false);
-  const [verifiedUsername, setVerifiedUsername] = useState<string>('');
-
-  // 🛡️ All hooks are now safely nested INSIDE PioneerLogin
-  useEffect(() => {
-    const existingToken = localStorage.getItem('MASTER_TS');
-    if (existingToken) {
-      setStatusMessage('Persistent Node Detected...');
-      setIsProcessing(true);
-      router.push('/mesh-scan'); 
-    }
-  }, [router]);
-
-  // ... [Rest of your useEffects and Handshake logic]
-
-  return ( // 2. Return START
-    <main>
-      {/* 🛡️ Buffer Overlay using isProcessing state */}
-      {isProcessing && (
-        <div style={{ /* ... CSS properties ... */ }}>
-          [MESH-BRIDGE] Initializing Cryptographic Handshake...
-        </div>
-      )}
-      {/* ... [UI Content] */}
-    </main>
-  ); // 2. Return END
-} // 1. Component END (Ensure this is the final line!)
+export default function LogInPage() {
+  return (
+    <div style={{ background: '#000', color: '#0f0', padding: '50px', height: '100vh', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+      <h1>[REPUBLIC EMERGENCY SHELL]</h1>
+      <p>Status: Manual Override Active</p>
+      
+      {/* Direct-Render Button (Bypassing external component) */}
+      <button 
+        onClick={() => {
+          console.log("Navigating to Academy...");
+          window.location.href = '/academy';
+        }}
+        style={{ padding: '20px', background: '#0f0', color: '#000', fontWeight: 'bold', fontSize: '20px', cursor: 'pointer' }}
+      >
+        FORCE NAVIGATE TO ACADEMY
+      </button>
+    </div>
+  );
+}
