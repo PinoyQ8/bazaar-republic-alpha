@@ -1,52 +1,82 @@
-"use client"; // 🛡️ Marks this as a Client Component, enabling React hooks & onClick
+"use client";
 
-import { TierGuard } from "./TierGuard";
-
-interface ProviderNode {
-  id: string;
-  pioneer: string;
-  service: string;
-  rate: string;
-  status: string;
-}
+import { ProviderNode } from "@/app/components/ProviderList";
+import { ShieldAlert, ShieldCheck, ShieldBan } from "lucide-react"; 
 
 export function ProviderNodeItem({ node }: { node: ProviderNode }) {
-  const handleContract = (id: string) => {
-    console.log(`[MESH-SYNC] Initiating contract for node: ${id}`);
-    // Add your contract logic here
+  // 1. Trust-Graph Visual Adjudicator Logic
+  const getStatusDisplay = () => {
+    const currentTS = node.trustScore ?? 100; 
+
+    if (currentTS === 0 || node.status === "FROZEN") {
+      return {
+        style: "text-red-500 bg-red-950/30 border-red-900/50 grayscale opacity-70",
+        icon: <ShieldBan className="w-3 h-3 mr-1" />,
+        label: "FROZEN",
+        btnStyle: "bg-neutral-800 text-neutral-600 cursor-not-allowed",
+        btnLabel: "LOCKED"
+      };
+    }
+    if (currentTS < 25) {
+      return {
+        style: "text-orange-500 bg-orange-950/20 border-orange-900/50",
+        icon: <ShieldAlert className="w-3 h-3 mr-1" />,
+        label: `WARNING (TS: ${currentTS})`,
+        btnStyle: "bg-amber-600/20 text-amber-500 hover:bg-amber-600 hover:text-neutral-950",
+        btnLabel: "PROCEED WITH CAUTION"
+      };
+    }
+    return {
+      style: "text-emerald-400 bg-emerald-950/20 border-emerald-900/30",
+      icon: <ShieldCheck className="w-3 h-3 mr-1" />,
+      label: `VERIFIED (TS: ${currentTS})`,
+      btnStyle: "bg-amber-600/20 text-amber-500 hover:bg-amber-600 hover:text-neutral-950 border border-amber-600/30",
+      btnLabel: "INITIATE ESCROW"
+    };
   };
 
+  const statusUI = getStatusDisplay();
+
+  // 2. Component Render (Mobile-Optimized & Tailwind Canonical)
   return (
-    <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-4 flex flex-col hover:border-emerald-500/30 transition-all shadow-sm">
+    <div className={`p-3 rounded border transition-all duration-200 ${statusUI.style.includes('grayscale') ? 'bg-neutral-950 border-neutral-800' : 'bg-neutral-900 border-neutral-800 hover:border-amber-500/50'}`}>
+      
+      {/* Header Row: Pioneer Identity & Dynamic Shield */}
       <div className="flex justify-between items-start mb-2">
-        <div>
-          <h3 className="text-sm font-mono font-bold text-slate-200">{node.service}</h3>
-          <p className="text-[10px] font-mono text-slate-400">Node: {node.pioneer}</p>
+        <div className="overflow-hidden">
+          {/* APPLIED OPTIMIZATION: max-w-[180px] converted to max-w-45 */}
+          <h3 className={`text-sm font-bold truncate max-w-45 ${statusUI.style.includes('grayscale') ? 'text-neutral-500 line-through' : 'text-amber-400'}`}>
+            {node.pioneer}
+          </h3>
+          <p className="text-[10px] text-neutral-400 tracking-wide mt-0.5">{node.service}</p>
         </div>
-        <div className="px-2 py-0.5 rounded bg-emerald-950/50 border border-emerald-900 text-emerald-400 text-[8px] font-mono uppercase tracking-widest">
-          {node.status}
+        <div className={`flex items-center px-2 py-1 rounded border text-[9px] font-bold tracking-wider ${statusUI.style}`}>
+          {statusUI.icon}
+          {statusUI.label}
         </div>
       </div>
-      <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-800/50">
-        <span className="text-[10px] font-mono text-blue-400 font-bold">{node.rate}</span>
-        
-        {/* 🛡️ RBAC PROTECTED GATE */}
-        <TierGuard 
-          allowedTiers={["PIONEER", "ELDER", "ADMIN"]} 
-          fallback={
-            <button className="px-4 py-1 bg-slate-900 text-[10px] font-mono text-slate-500 border border-slate-800 rounded cursor-not-allowed">
-              RESTRICTED
-            </button>
-          }
+
+      {/* Metric Row: Rates */}
+      <div className="mb-4">
+        <p className="text-[10px] text-neutral-500 font-mono">
+          BASE RATE: <span className="text-neutral-300">{node.rate}</span>
+        </p>
+      </div>
+
+      {/* Footer Row: Action Trigger */}
+      <div className="flex justify-between items-end border-t border-neutral-800/50 pt-3">
+        {/* APPLIED OPTIMIZATION: max-w-[120px] converted to max-w-30 */}
+        <p className="text-[8px] text-neutral-600 font-mono tracking-widest uppercase truncate max-w-30">
+          ID: {node.id.split('-')[0] || node.id}
+        </p>
+        <button 
+          disabled={statusUI.style.includes('grayscale')}
+          className={`text-[9px] px-3 py-1.5 rounded font-bold transition-colors shadow-sm ${statusUI.btnStyle}`}
         >
-          <button 
-            onClick={() => handleContract(node.id)}
-            className="px-4 py-1 bg-slate-800 text-[10px] font-mono text-emerald-400 border border-emerald-500/20 rounded hover:bg-emerald-600/20 transition-all"
-          >
-            CONTRACT
-          </button>
-        </TierGuard>
+          {statusUI.btnLabel}
+        </button>
       </div>
+
     </div>
   );
 }
