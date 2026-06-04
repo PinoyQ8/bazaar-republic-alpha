@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
-import { neonClient } from "@/lib/neo-client"; // 🛡️ Hooked directly to your verified Prisma 7 singleton
+import { prisma } from "../../../../prisma/client"; // 🛡️ Linked directly to your unified MongoDB ledger
 
 export async function GET(request: Request) {
   // 🛡️ GATE 0: RUNTIME CONDUIT CHECK (Bypasses Next.js Build Workers)
-  if (!process.env.NEON_DATABASE_URL) {
-    console.error("[MESH-SCAN] Critical Failure: NEON_DATABASE_URL environment key missing.");
+  if (!process.env.MONGODB_URI) {
+    console.error("[MESH-SCAN] Critical Failure: MONGODB_URI environment vault token missing.");
     return NextResponse.json(
       { status: "ERROR", message: "Conduit Disconnected" }, 
       { status: 500 }
@@ -23,19 +23,19 @@ export async function GET(request: Request) {
       );
     }
 
-    // 2. 🛡️ REPAIRED INTEGRATION LAYER
-    // Targets the exact 'citizenPassport' table populated during the registration upsert
-    const passport = await neonClient.citizenPassport.findUnique({
+    // 2. 🛡️ REALIGNED INTEGRATION LAYER
+    // Targets the unified pioneerNode collection where the CITIZEN identity data is compiled
+    const passport = await prisma.pioneerNode.findUnique({
       where: { 
-        pioneerUid: uid 
+        username: uid // Matches your schema's strict @unique username identifier
       },
     });
 
     // 3. VALIDATE ENTRY EXISTENCE
     if (!passport) {
       return NextResponse.json(
-        { status: "NOT_FOUND", message: "Pioneer Passport not initialized." }, 
-        { status: 404 } // ⚡ MESH LAW: Standardized REST status for missing records
+        { status: "NOT_FOUND", message: "Pioneer Passport identity frame not initialized." }, 
+        { status: 404 } // ⚡ MESH LAW: Standard REST code for missing node blocks
       );
     }
 
@@ -43,7 +43,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ status: "SECURE", passport }, { status: 200 });
 
   } catch (error: any) {
-    console.error("[MESH-SCAN] Passport Query Fracture:", error.message);
+    console.error("[MESH-SCAN] Passport Query Fracture:", error?.message || error);
     return NextResponse.json(
       { status: "FRACTURE", message: "Internal ledger synchronization failure." }, 
       { status: 500 }

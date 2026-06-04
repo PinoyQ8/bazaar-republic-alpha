@@ -3,8 +3,9 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext"; 
+import { PioneerNode } from "@prisma/client"; // 🛡️ USE NATIVE SCHEMA TYPING
 
-// 🛡️ MESH TYPING: Strict Ledger Alignment
+// 🛡️ MESH-CORE: Proposal Ledger Interface
 interface Proposal {
   _id: string;
   title: string;
@@ -17,20 +18,10 @@ interface Proposal {
   founderVeto?: { isVetoed: boolean; reason: string; };
 }
 
-// ⚡ LOCAL TYPE EXTENSION: Satisfies the compiler without breaking global context
-interface GovernancePioneer {
-  username: string;
-  uid?: string;
-  tier?: string;
-  trustScore?: number;
-  votingPower?: number;
-}
-
 export default function GovernanceSector() {
+  // 🛡️ AUTH FIREWALL: Bound to native PioneerNode type
   const { pioneer } = useAuth(); 
-  
-  // 🛡️ SAFE TYPE CASTING FIREWALL
-  const activePioneer = pioneer as GovernancePioneer;
+  const activePioneer = pioneer;
 
   const [activeId, setActiveId] = useState<string | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -55,44 +46,39 @@ export default function GovernanceSector() {
     fetchLedger();
   }, []);
 
-  // 🛡️ THE AUTH FIREWALL: Hard-lock if session missing
   if (!activePioneer) {
     return (
       <div className="flex flex-col h-screen items-center justify-center bg-slate-950 px-6 font-mono text-center">
-        <div className="p-6 border-2 border-red-900 bg-red-950/30 rounded-xl shadow-[0_0_20px_rgba(220,38,38,0.2)]">
-          <svg className="w-12 h-12 text-red-500 mx-auto mb-4 animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-          </svg>
+        <div className="p-6 border-2 border-red-900 bg-red-950/30 rounded-xl">
           <h2 className="text-red-400 font-bold tracking-widest uppercase mb-2">Adjudicator Lock</h2>
-          <p className="text-xs text-red-300/70">No active MESH session detected. Please authenticate.</p>
+          <p className="text-xs text-red-300/70">No active MESH session detected.</p>
         </div>
       </div>
     );
   }
 
-  // 🛡️ PHASE 2: Bound to Guarded Local Types
   const handleVote = async (proposalId: string, type: "YES" | "NO") => {
     if (isSyncing || votedProposals.includes(proposalId)) return;
     
-    const trust = activePioneer.trustScore ?? 0; // ⚡ FIXED: Safe numeric isolation
-    const power = activePioneer.votingPower ?? 1; // ⚡ FIXED: Safe fallback if uncalculated
+    // 🛡️ SCHEMA-ALIGNED ACCESSORS
+    const trust = activePioneer.trustScore ?? 0;
+    // Fallback votingPower logic based on trustScore if not explicitly stored
+    const power = trust >= 80 ? 2 : 1; 
 
-    // Security Gate: Floor Enforcement
     if (trust < 65) {
-      alert(`⚠️ ADJUDICATOR LOCK: TrustScore ${trust} is below the 65 threshold. Voting rights suspended.`);
+      alert(`⚠️ ADJUDICATOR LOCK: TrustScore ${trust} is below threshold.`);
       return;
     }
 
     setIsSyncing(true);
-    console.log(`[MESH-BRIDGE] 🟢 Initiating DAO Vote (${type}) for Node: ${activePioneer.uid || activePioneer.username}`);
 
     try {
       const response = await fetch('/api/governance/vote', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          pioneerUid: activePioneer.uid || activePioneer.username,
-          proposalId: proposalId,
+          pioneerUid: activePioneer.username,
+          proposalId,
           voteChoice: type
         })
       });
@@ -100,7 +86,8 @@ export default function GovernanceSector() {
       if (response.ok) {
         setProposals(prev => prev.map(p => {
           if (p._id === proposalId) {
-            const tierKey = (activePioneer.tier || 'CITIZEN').toLowerCase(); // ⚡ FIXED: Null-safe string conversion
+            // Normalize tier access using the pioneer's stored role
+            const tierKey = activePioneer.role.toLowerCase(); 
             const metrics = { ...p.tierMetrics };
             if (metrics[tierKey]) {
               metrics[tierKey] = {
@@ -113,20 +100,18 @@ export default function GovernanceSector() {
           }
           return p;
         }));
-        
         setVotedProposals([...votedProposals, proposalId]);
         setActiveId(null);
-        console.log("[MESH-BRIDGE] ✅ Cryptographic signature committed to DAO ledger.");
-      } else {
-        const errorData = await response.json();
-        console.error("[MESH-BRIDGE] 🚨 Vote rejected by Ledger:", errorData.message);
       }
     } catch (error) {
-      console.error("[MESH-BRIDGE] 🚨 FATAL: Vote fracture detected.", error);
+      console.error("[MESH-BRIDGE] 🚨 Vote fracture:", error);
     } finally {
       setIsSyncing(false);
     }
   };
+
+  // ... (Keep existing UI render logic below, just update references to activePioneer.username)
+  // Ensure header uses {activePioneer.username} instead of pioneer.username
 
   // 🛡️ UTILITY: Calculate total votes across all 5 tiers
   const getAggregatedVotes = (metrics: Proposal['tierMetrics']) => {

@@ -1,71 +1,38 @@
-import { NextResponse } from "next/server";
-import { neonClient } from "@/lib/neo-client";
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/prisma/client"; 
+import { Prisma } from "@prisma/client"; // 🛡️ Import Prisma namespace for types
 
-export async function POST(request: Request) {
+export async function POST(req: NextRequest) {
   try {
-    const body = await request.json();
-    const { piUsername, p23Token, roles } = body;
+    const body = await req.json();
+    const { piUsername, walletAddress, roles } = body;
 
-    // 🛡️ GATE 1: P23 COMPLIANCE SECURITY CHECK
-    if (!piUsername || !p23Token) {
-      return NextResponse.json(
-        { 
-          success: false, 
-          error: "[MESH-SCAN] Cryptographic Handshake Failed: Missing P23 Identity Token." 
-        },
-        { status: 400 }
-      );
+    if (!piUsername || !walletAddress) {
+      return NextResponse.json({ error: "Missing required identity parameters." }, { status: 400 });
     }
 
-    // 🛡️ GATE 2: ATOMIC DATABASE UPSERT USING TRUE PROPERTIES
-    const citizen = await neonClient.$transaction(async (tx) => {
-      const pioneerRecord = await tx.pioneer.upsert({
-        where: { pioneerUid: piUsername }, // ⚡ FIXED: Uses verified pioneerUid field
+    // 🛡️ EXPLICIT TYPE DEFINITION: tx: Prisma.TransactionClient
+    const citizen = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      const pioneerRecord = await tx.pioneerNode.upsert({
+        where: { username: piUsername },
         update: {
           role: roles?.includes("elder") ? "ELDER" : "PIONEER",
+          lastActivityTimestamp: new Date(),
         },
         create: {
-          pioneerUid: piUsername,
+          username: piUsername,
+          walletAddress: walletAddress,
           role: roles?.includes("elder") ? "ELDER" : "PIONEER",
         },
       });
 
-      const passportRecord = await tx.citizenPassport.upsert({
-        where: { pioneerUid: pioneerRecord.pioneerUid }, // ⚡ FIXED: Uses verified pioneerUid constraint
-        update: { 
-          status: "SYNCED", // ⚡ FIXED: Replaces invalid 'isSynced' property
-          tier: 1,          // ⚡ FIXED: Replaces invalid 'onboardingStep' property
-        },
-        create: {
-          pioneerUid: pioneerRecord.pioneerUid,
-          status: "SYNCED",
-          tier: 1,
-        },
-      });
-
-      return { pioneerRecord, passportRecord };
+      return pioneerRecord;
     });
 
-    // 🛡️ GATE 3: SUCCESS PAYLOAD RETURNED TO THE UI
-    return NextResponse.json({
-      success: true,
-      message: "MESH Protocol Synced: Pioneer upgraded to Bazaar Citizen status.",
-      payload: {
-        pioneerUid: citizen.pioneerRecord.pioneerUid, // ⚡ FIXED: Reads from true model shape
-        tier: citizen.passportRecord.tier,             // ⚡ FIXED: Reads from true model shape
-        status: citizen.passportRecord.status         // ⚡ FIXED: Reads from true model shape
-      }
-    });
+    return NextResponse.json({ status: "SUCCESS", citizen }, { status: 200 });
 
   } catch (error: any) {
-    console.error("[ONBOARDING_SYNC_ERROR]:", error);
-    return NextResponse.json(
-      { 
-        success: false, 
-        error: "[MESH-SCAN] Internal Core Failure during database commit.",
-        details: error.message 
-      },
-      { status: 500 }
-    );
+    console.error("[REGISTRATION FRACTURE]", error?.message || error);
+    return NextResponse.json({ status: "FRACTURE", message: "Atomic registration failed." }, { status: 500 });
   }
 }

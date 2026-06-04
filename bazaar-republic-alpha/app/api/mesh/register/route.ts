@@ -1,23 +1,42 @@
-import { NextResponse } from 'next/server';
+export const runtime = 'nodejs'; // 🛡️ LOCK TO NODE.JS RUNTIME
 
-// 🛡️ THE MESH OVERRIDE: Legacy NoSQL imports completely purged.
-// ❌ PURGED: import { connectToDatabase } from '@/lib/db';
-// ❌ PURGED: import RegisterRecord from '@/models/RegisterRecord'; // (or similar legacy models)
+import { NextResponse } from 'next/server';
+import { prisma } from '@/prisma/client'; // Ensure this matches your directory structure
 
 export async function POST(req: Request) {
-    console.log("🚀 [MESH-SYNC] Legacy Mesh-Register route offline for Drizzle migration.");
-
     try {
-        // 🛡️ THE MESH OVERRIDE: Legacy NoSQL logic neutralized.
-        // All Mongoose DB mutation commands have been disconnected.
+        const body = await req.json();
+        const { username, walletAddress, role } = body;
+
+        // 🛡️ MESH VALIDATION: Ensure node integrity
+        if (!username || !walletAddress) {
+            return NextResponse.json({ error: "Missing identity parameters." }, { status: 400 });
+        }
+
+        // 🛡️ BAZAAR REGISTRY: Forge the node record
+        const newNode = await prisma.pioneerNode.create({
+            data: {
+                username,
+                walletAddress,
+                role: role || "CITIZEN",
+                status: "VERIFIED",
+            },
+        });
+
+        console.log(`🚀 [MESH-SYNC] Node registered for Pioneer: ${username}`);
 
         return NextResponse.json({ 
-            status: "MIGRATING", 
-            message: "Mesh-Register engine transitioning to Neon Postgres." 
-        }, { status: 200 });
+            status: "SUCCESS", 
+            node: newNode 
+        }, { status: 201 });
 
     } catch (error: any) {
+        // Handle unique constraint violations (e.g., duplicate wallet/username)
+        if (error.code === 'P2002') {
+            return NextResponse.json({ error: "Node already exists in the E-Network." }, { status: 409 });
+        }
+
         console.error("❌ MESH CRITICAL ERROR:", error.message);
-        return NextResponse.json({ error: "Routing failed during migration." }, { status: 500 });
+        return NextResponse.json({ error: "Registration engine failed to forge record." }, { status: 500 });
     }
 }

@@ -2,6 +2,10 @@
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // 🛡️ NEO PROTOCOL OVERRIDE: Force Prisma to run as a native Node binary
+  // This bypasses the Turbopack "client engine" constructor error.
+  serverExternalPackages: ['@prisma/client', 'prisma'],
+
   async headers() {
     return [
       {

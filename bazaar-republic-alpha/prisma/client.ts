@@ -1,16 +1,13 @@
-import { PrismaClient } from '@prisma/client'
+// prisma/client.ts
+import { PrismaClient } from '@prisma/client';
 
-// 🛡️ Standard architecture: URL is automatically inherited from schema.prisma
-const prismaClientSingleton = () => {
-  return new PrismaClient()
+const globalForPrisma = global as unknown as { prisma: PrismaClient };
+
+// 🛡️ NEO PROTOCOL: Pure Initialization. No adapter hacks.
+export const prisma = globalForPrisma.prisma || new PrismaClient({
+  log: ['error', 'warn'],
+});
+
+if (process.env.NODE_ENV !== 'production') {
+  globalForPrisma.prisma = prisma;
 }
-
-declare global {
-  var prisma: undefined | ReturnType<typeof prismaClientSingleton>
-}
-
-const prisma = globalThis.prisma ?? prismaClientSingleton()
-
-export default prisma
-
-if (process.env.NODE_ENV !== 'production') globalThis.prisma = prisma
