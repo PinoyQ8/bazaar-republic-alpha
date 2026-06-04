@@ -4,7 +4,7 @@
     {
       "label": "MESH-SCAN: Environment Audit",
       "type": "shell",
-      "command": "node scripts/mesh-audit.js",
+      "command": "node scripts/mesh-audit.cjs",
       "problemMatcher": [],
       "group": {
         "kind": "test",
