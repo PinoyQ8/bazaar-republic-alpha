@@ -4,20 +4,35 @@ generator client {
   engineType = "library" // 🛡️ STRICT NODE.JS BINARY LOCK
 }
 
+// 🛡️ NEO PROTOCOL: Hard-coded MongoDB routing
 datasource db {
   provider = "mongodb"
-  }
+  url      = env("DATABASE_URL")
+}
 
+// 🛡️ MESH LEDGER: Expanded PioneerNode Model
 model PioneerNode {
   id                    String   @id @default(auto()) @map("_id") @db.ObjectId
-  username              String   @unique
-  walletAddress         String   @unique
-  role                  String
-  status                String
-  createdAt     DateTime @default(now()) // Ensure this is exactly 'createdAt'
-  trustScore            Int      @default(100)
+  
+  // 🛡️ THE HARDWARE BINDING (Required for Telemetry targeting)
+  uid                   String   @unique @default("PinoyQ8-Node-01")
+
+  // Existing Identity Fields
+  username              String?  @unique
+  walletAddress         String?  @unique
+  role                  String   @default("CITIZEN")
+  status                String   @default("SYNCING")
+  trustScore            Int      @default(0)
+  stakedPi              Float    @default(0)
   lastActivityTimestamp DateTime @default(now())
-  stakedPi              Float    @default(0) // 🛡️ NEW: E-Network Asset Stake
+  createdAt             DateTime @default(now())
+
+  // 🛰️ NEW: HARD-CODED TELEMETRY FIELDS
+  ledgerHeight          Int      @default(0)
+  syncState             String   @default("Unknown")
+  activePeers           Int      @default(0)
+  protocol              String   @default("24")
+  lastHeartbeat         DateTime @default(now())
 }
 
 // 🛰️ ADD THE MISSING ACADEMY LOG MODEL FOR TS VALIDATION
