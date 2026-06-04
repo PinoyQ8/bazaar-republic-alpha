@@ -1,4 +1,5 @@
-import { neonClient } from "../neo-client";        // 🛡️ Synced to your neo-client filename
+// 🛡️ THE MESH LAW: Unified MongoDB Atlas Connection
+import { prisma } from "../../prisma/client"; // Adjust relative path if needed based on directory depth
 import { connectToLedger } from "../mongodb";       // 🛡️ Cached NoSQL bridge
 import BurnEvent from "../../models/BurnEvent";     // 🛡️ Telemetry target model
 
@@ -32,8 +33,8 @@ export async function verifySystemEquilibrium(): Promise<StateAttestation> {
   const burnedMass = burnResult.length > 0 ? burnResult[0].total : 0;
 
   // 3. 🛡️ REPAIRED SEGMENT: Count active network nodes
-  // Replaced invalid numeric _sum with an immutable node population count
-  const totalRegisteredPioneers = await neonClient.pioneer.count();
+   // Replaced invalid numeric _sum with an immutable node population count
+   const totalRegisteredPioneers = await prisma.pioneerNode.count(); // 🛡️ FIXED: Atlas routing & accurate Schema naming
   
   // Dynamic mock integration for relational ecosystem sync
   const treasuryMass = 25000000; 

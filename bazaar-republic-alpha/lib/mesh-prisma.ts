@@ -1,16 +1,21 @@
-// 🛡️ BAZAAR REPUBLIC: PRISMA 7 NEON HTTP ENGINE
-import { PrismaClient } from '@prisma/client';
-import { PrismaNeonHttp } from '@prisma/adapter-neon';
+import { PrismaClient } from "@prisma/client";
+import "dotenv/config";
 
-// 1. Define the Bridge Path with an active build-time fallback emulator string
-const connectionString = process.env.DATABASE_URL || "postgresql://postgres:mock_bypass@localhost:5432/bazaar_republic?schema=public";
+// 🛡️ MESH HARDENING: Explicitly check for build phase
+const isBuildTime = process.env.NEXT_PHASE === 'phase-production-build';
 
-// 2. 🛡️ HARD-CODED INTERFACE alignment: Pass raw string and empty options array
-const adapter = new PrismaNeonHttp(connectionString, {});
+// 🛡️ DEAD-HAND PROXY: Returns a no-op function for any method access
+const buildTimeMock = new Proxy({} as any, {
+  get: () => () => Promise.resolve(null), 
+});
 
-// 3. Global Singleton Configuration (Eliminates development hot-reload leaks)
-const globalForPrisma = globalThis as unknown as { prisma: PrismaClient | undefined };
+const globalForPrisma = globalThis as unknown as { prisma: PrismaClient };
 
-export const prisma = globalForPrisma.prisma || new PrismaClient({ adapter });
+// 🛡️ MESH CONDUIT: Initialize real client only if NOT build time
+export const prisma = isBuildTime
+  ? buildTimeMock
+  : (globalForPrisma.prisma || new PrismaClient());
 
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
+if (process.env.NODE_ENV !== "production" && !isBuildTime) {
+  globalForPrisma.prisma = prisma;
+}

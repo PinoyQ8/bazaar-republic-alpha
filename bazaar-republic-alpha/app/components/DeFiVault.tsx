@@ -1,11 +1,14 @@
-// Route: /app/components/DeFiVault.tsx
-// Logic: mBZR Staking Smart Contract Bridge (MESH Hardened)
-
 "use client";
 
 import React, { useState, useEffect } from "react";
 import { useAuth } from "@/app/context/AuthContext";
 import { getSecurityCircleStatus, lockSecurityStake } from "@/app/actions/defiActions";
+
+// 🛡️ MESH TYPE DEFINITION: Ensures compile-time safety
+interface VaultMessage {
+  text: string;
+  type: "error" | "success" | "";
+}
 
 export default function DeFiVault() {
   const { pioneer } = useAuth() as any;
@@ -17,9 +20,9 @@ export default function DeFiVault() {
   const [activeStake, setActiveStake] = useState<number>(0); 
   const [stakeInput, setStakeInput] = useState<string>("");
   const [isProcessing, setIsProcessing] = useState(false);
-  const [message, setMessage] = useState<{ text: string; type: "error" | "success" | "" }>({ text: "", type: "" });
+  const [message, setMessage] = useState<VaultMessage>({ text: "", type: "" });
 
-  // 🛡️ PRIMITIVE EXTRACTION: MESH Ledger requires the immutable UID
+  // 🛡️ PRIMITIVE EXTRACTION: Immutable UID access
   const activeNodeId = pioneer?.uid;
   const displayUsername = pioneer?.username || "GHOST_NODE";
 
@@ -28,14 +31,13 @@ export default function DeFiVault() {
     let isMounted = true;
 
     const syncLedger = async () => {
-      // Gatekeeper: Halt fetch if UID is missing to prevent ghost queries
       if (!activeNodeId) return; 
       
       try {
-        // Fetch User Specific Status ONLY using immutable UID
         const nodeResult = await getSecurityCircleStatus(activeNodeId);
-        if (isMounted && nodeResult.success) {
-          setActiveStake(nodeResult.data?.stake_amount || 0);
+        if (isMounted && nodeResult.success && nodeResult.data) {
+          // 🛡️ MESH SYNC: Mapping vaultBalance to internal UI state
+          setActiveStake(nodeResult.data.vaultBalance || 0);
         }
       } catch (error) {
         console.error("[MESH-SCAN] UI Hydration Fracture:", error);
@@ -43,9 +45,8 @@ export default function DeFiVault() {
     };
 
     syncLedger();
-
     return () => { isMounted = false; };
-  }, [activeNodeId]); // Strict dependency on UID
+  }, [activeNodeId]);
 
   const availableSpace = ABSOLUTE_CAP - activeStake;
 
@@ -56,8 +57,10 @@ export default function DeFiVault() {
       return;
     }
 
-    const amount = Number(stakeInput);
-    if (amount <= 0) {
+    const amount = parseFloat(stakeInput);
+    
+    // 🛡️ INPUT SANITIZATION
+    if (isNaN(amount) || amount <= 0) {
       setMessage({ text: "MESH-REJECT: Invalid payload.", type: "error" });
       return;
     }
@@ -74,10 +77,9 @@ export default function DeFiVault() {
     setMessage({ text: "", type: "" });
 
     try {
-      // 🛡️ THE DECLARATION: Execute mutation via server action using UID
+      // 🛡️ THE DECLARATION: Execute mutation via server action
       const lockResult = await lockSecurityStake(activeNodeId, amount);
 
-      // 🛡️ THE VALIDATION: Must remain inside the 'try' block
       if (!lockResult.success) {
         throw new Error(lockResult.error || "Ledger Rejected Transaction");
       }
@@ -127,7 +129,7 @@ export default function DeFiVault() {
             type="number" 
             value={stakeInput}
             onChange={(e) => setStakeInput(e.target.value)}
-            disabled={availableSpace === 0}
+            disabled={availableSpace === 0 || isProcessing}
             className="w-full bg-zinc-900 border border-zinc-700 p-3 rounded text-emerald-300 focus:outline-none focus:border-emerald-500 disabled:opacity-50 transition-colors"
             placeholder={availableSpace === 0 ? "EQUITY CAP REACHED" : "0.00"}
           />

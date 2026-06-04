@@ -1,12 +1,22 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '../../../../prisma/client'; // 🛡️ Root Prisma map
+import { NextResponse } from "next/server";
+import { prisma } from "@/lib/mesh-prisma";
 
-const PI_API_URL = "https://api.minepi.com/v2";
+// 🛡️ NEO PROTOCOL: Enforce dynamic execution to bypass build-time static analysis
+export const dynamic = 'force-dynamic';
 
-export async function POST(req: NextRequest) {
+const PI_API_URL = process.env.PI_API_URL || "https://api.minepi.com/v2";
+
+export async function POST(request: Request) {
+  // 🛡️ MESH CONDUIT CHECK
+  if (!process.env.PI_API_KEY || !process.env.DATABASE_URL) {
+    console.error("[MESH-SCAN] Critical Failure: Environment variables missing.");
+    return NextResponse.json({ error: "Conduit Disconnected" }, { status: 500 });
+  }
+
   try {
-    const body = await req.json();
-    const { paymentId, txid, developerApproved } = body;
+    // 🛡️ FIX: Corrected variable reference from 'req' to 'request'
+    const body = await request.json();
+    const { paymentId, txid } = body;
 
     if (!paymentId || !txid) {
       return NextResponse.json({ error: 'Missing core tracking payload identifiers.' }, { status: 400 });
@@ -20,14 +30,30 @@ export async function POST(req: NextRequest) {
     });
 
     if (existingPayment) {
-      console.warn(`[SECURITY ALERT] Payment ${paymentId} already processed.`);
       return NextResponse.json({
         status: 'MESH_SYNC_ALREADY_PROCESSED',
         message: 'Transaction already settled in the ledger.',
       }, { status: 200 });
     }
 
-    // 2. 🛡️ OUTBOUND HANDSHAKE: PI NETWORK BLOCKCHAIN COMPLETION
+    // 2. 🛡️ FETCH METADATA FIRST (Validate structural integrity before commit)
+    const metaResponse = await fetch(`${PI_API_URL}/payments/${paymentId}`, {
+      headers: { Authorization: `Key ${process.env.PI_API_KEY}` },
+    });
+    
+    if (!metaResponse.ok) {
+      return NextResponse.json({ error: 'Failed to synchronize structural txn metadata.' }, { status: 502 });
+    }
+
+    const paymentData = await metaResponse.json();
+    const targetUid = paymentData.metadata?.pioneerUid;
+    const transactionAmount = parseFloat(paymentData.amount);
+
+    if (!targetUid) {
+      return NextResponse.json({ error: 'Transaction metadata lacks pioneer linkage.' }, { status: 422 });
+    }
+
+    // 3. 🛡️ OUTBOUND HANDSHAKE: Commit to Pi Blockchain
     const piResponse = await fetch(`${PI_API_URL}/payments/${paymentId}/complete`, {
       method: 'POST',
       headers: {
@@ -38,52 +64,33 @@ export async function POST(req: NextRequest) {
     });
 
     if (!piResponse.ok) {
-      const errorMsg = await piResponse.text();
-      console.error(`[VAULT FRACTURE] Pi Server rejected completion: ${errorMsg}`);
+      console.error(`[VAULT FRACTURE] Pi Server rejected completion: ${await piResponse.text()}`);
       return NextResponse.json({ error: 'Pi Blockchain failed to commit completion frame.' }, { status: 502 });
     }
 
-    // Securely pull metadata to identify the Pioneer Node that initiated this
-    const metaResponse = await fetch(`${PI_API_URL}/payments/${paymentId}`, {
-      headers: { Authorization: `Key ${process.env.PI_API_KEY}` },
-    });
-    
-    if (!metaResponse.ok) {
-      return NextResponse.json({ error: 'Failed to synchronize structural txn metadata.' }, { status: 502 });
-    }
-
-    const verifiedPaymentData = await metaResponse.json();
-    const targetUid = verifiedPaymentData.metadata?.pioneerUid; // Or username, depending on your frontend payload
-    const transactionAmount = verifiedPaymentData.amount;
-
-    if (!targetUid) {
-      return NextResponse.json({ error: 'Transaction metadata lacks pioneer linkage.' }, { status: 422 });
-    }
-
-    // 3. 🛡️ UNIFIED LEDGER SYNC: Lock Payment & Update Pioneer Node
-    // Using a Prisma transaction ensures both database writes succeed, or both fail (Zero-Harm integrity)
+    // 4. 🛡️ UNIFIED LEDGER SYNC: Atomic Transaction
     await prisma.$transaction([
-      // Lock the payment hash
       prisma.payment.create({
         data: {
           paymentId,
           txid,
-          amount: parseFloat(transactionAmount),
+          payerUid: targetUid,
+          merchantUid: paymentData.metadata?.merchantUid || "SYSTEM_DAO_COLLECTOR",
+          amount: transactionAmount,
           status: "COMPLETED"
         }
       }),
-      // Increment stakedPi on the PioneerNode (Replaces the broken userWallet logic)
       prisma.pioneerNode.update({
         where: { username: targetUid },
         data: {
-          stakedPi: { increment: parseFloat(transactionAmount) },
+          stakedPi: { increment: transactionAmount },
           status: "VERIFIED",
           lastActivityTimestamp: new Date(),
         }
       })
     ]);
 
-    console.log(`[VAULT SYNC] Payment ${paymentId} committed. Pioneer ${targetUid} stake incremented.`);
+    console.log(`[VAULT SYNC] Payment ${paymentId} committed. Pioneer ${targetUid} stake updated.`);
 
     return NextResponse.json({ 
       status: 'MESH_SYNC_OK', 

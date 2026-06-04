@@ -10,13 +10,14 @@ export default function MeshScanNode() {
     : "Awaiting Uplink...";
 
   const handleSync = () => {
-    if (typeof executeStakePayment === 'function') {
-      executeStakePayment(10, "MESH_SYNC_AUTH");
-      console.log("[MESH-BRIDGE] Payment request broadcasted.");
-    } else {
-      console.error("[MESH-BRIDGE] Payment function missing in Context.");
-    }
-  };
+      if (typeof executeStakePayment === 'function') {
+        // 🛡️ SCHEMA ALIGNED: The Context strictly expects a number. 
+        executeStakePayment(10);
+        console.log("[MESH-BRIDGE] Payment request broadcasted.");
+      } else {
+        console.error("[MESH-BRIDGE] Payment function missing in Context.");
+      }
+    };
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-white text-gray-900 font-mono p-8">

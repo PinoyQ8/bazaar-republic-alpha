@@ -4,6 +4,10 @@ import { ProviderList, ProviderNode } from "@/app/components/ProviderList";
 import { Header } from "@/app/components/layout/Header";
 import { ProviderLoadingShell } from "@/app/components/ProviderLoadingShell";
 
+// 🛡️ MESH PROTOCOL: Lockdown to Dynamic Execution
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export default async function Dashboard() {
   // 1. Fetch raw database records from the backend action
   const rawProviders = await getActiveProviders();

@@ -4,7 +4,7 @@ import React, { useEffect, useRef } from "react";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import { useChat } from "@ai-sdk/react"; 
-import type { Message } from "ai"; // 🛡️ MESH-FIX: Aligned to UIMessage
+import { Message } from "ai";
 
 export default function EldersChatSector() {
   const { pioneer } = useAuth();
@@ -27,16 +27,30 @@ export default function EldersChatSector() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, error, isLoading]);
 
-  // Format time for terminal aesthetic
-  const formatTime = (date?: Date) => {
-    if (!date) return "LIVE";
-    return new Date(date).toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  // 🛡️ FORMATTING: Terminal-grade timestamping
+  const formatTime = (createdAt?: Date) => {
+    if (!createdAt) return "LIVE";
+    return new Date(createdAt).toLocaleTimeString('en-US', { 
+      hour12: false, 
+      hour: '2-digit', 
+      minute: '2-digit', 
+      second: '2-digit' 
+    });
+  };
+
+  // 🛡️ ERROR PARSING: Safe extraction of Adjudicator rejection payloads
+  const parseErrorMessage = (err: Error) => {
+    try {
+      // Attempt to extract JSON body if available
+      const parsed = JSON.parse(err.message);
+      return parsed.error || err.message;
+    } catch {
+      return err.message;
+    }
   };
 
   return (
     <div className="flex flex-col min-h-screen bg-slate-950 animate-in fade-in duration-700">
-      
-      {/* 🛡️ VIEWPORT LOCK: max-w-sm perfectly aligns with S23 Ultra */}
       <div className="flex flex-col flex-1 w-full max-w-sm mx-auto h-screen relative shadow-2xl shadow-emerald-900/10">
         
         {/* 🧭 Sticky Header */}
@@ -62,23 +76,20 @@ export default function EldersChatSector() {
           </div>
         </div>
 
-        {/* 💬 The Terminal Readout (Messages Area) */}
-        <div className="flex-1 overflow-y-auto px-4 pt-24 pb-20 space-y-4 custom-scrollbar">
-          {/* MESH-FIX: TypeScript now perfectly understands 'UIMessage' */}
+        {/* 💬 The Terminal Readout */}
+        <div className="flex-1 overflow-y-auto px-4 pt-24 pb-24 space-y-4 custom-scrollbar">
           {messages.map((msg: Message) => (
             <div 
               key={msg.id} 
               className={`flex flex-col ${msg.role === 'system' ? "items-center" : msg.role === 'user' ? "items-end" : "items-start"}`}
             >
               {msg.role === 'system' ? (
-                // SYSTEM LOGIC BUBBLE
                 <div className="bg-slate-900/80 border border-slate-700 rounded px-3 py-1 my-4">
                   <p className="text-[10px] font-mono text-slate-400 text-center tracking-widest whitespace-pre-wrap">
                     {msg.content}
                   </p>
                 </div>
               ) : (
-                // PIONEER & ADJUDICATOR BUBBLES
                 <div className={`max-w-[85%] flex flex-col ${msg.role === 'user' ? "items-end" : "items-start"}`}>
                   <span className="text-[9px] font-mono text-slate-500 mb-1 px-1 uppercase tracking-widest">
                     {msg.role === 'user' ? (pioneer?.username || "PIONEER") : "ADJUDICATOR"} // {formatTime(msg.createdAt)}
@@ -95,7 +106,7 @@ export default function EldersChatSector() {
             </div>
           ))}
 
-          {/* 🛡️ LAYER 1 REJECTION TRAP */}
+          {/* 🛡️ REJECTION TRAP */}
           {error && (
             <div className="flex flex-col items-center">
               <div className="bg-red-950/80 border border-red-800 rounded px-4 py-3 my-2 w-full shadow-[0_0_15px_rgba(153,27,27,0.4)]">
@@ -103,12 +114,11 @@ export default function EldersChatSector() {
                   [ MESH PROTOCOL VIOLATION ]
                 </span>
                 <p className="text-xs font-mono text-red-300 leading-tight">
-                  {error.message.includes('{') ? JSON.parse(error.message).error : error.message}
+                  {parseErrorMessage(error)}
                 </p>
               </div>
             </div>
           )}
-
           <div ref={messagesEndRef} />
         </div>
 
@@ -138,7 +148,6 @@ export default function EldersChatSector() {
             </button>
           </form>
         </div>
-
       </div>
     </div>
   );

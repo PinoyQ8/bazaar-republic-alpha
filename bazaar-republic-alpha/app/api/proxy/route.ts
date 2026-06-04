@@ -1,20 +1,23 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '../../../prisma/client';
+import { NextResponse } from "next/server";
+import { prisma } from "@/lib/mesh-prisma";
 
-// 🛡️ BAZAAR SECURITY ADJUDICATOR CONSTANTS
-const ALLOWED_SECTORS = ['treasury', 'adjudicator', 'governance', 'vault', 'economy_core'];
-const PI_API_URL = "https://api.minepi.com/v2";
+// 🛡️ NEO PROTOCOL: Hard-lock to dynamic execution
+export const dynamic = 'force-dynamic';
 
-export async function POST(req: NextRequest) {
+// 🛡️ MESH CONFIGURATION: Define missing constants
+const ALLOWED_SECTORS = ['treasury', 'vault', 'adjudicator', 'governance', 'economy_core'];
+const PI_API_URL = process.env.PI_API_URL || "https://api.minepi.com/v2";
+
+export async function POST(request: Request) {
   try {
-    const authHeader = req.headers.get('Authorization');
-    const targetSector = req.headers.get('x-target-sector');
+    // 🛡️ MESH FIX: Map 'req' to 'request'
+    const authHeader = request.headers.get('Authorization');
+    const targetSector = request.headers.get('x-target-sector');
     
     // MESH FIX: Fallback string prevents 'null' from breaking terminal logs
     const sectorLogName = targetSector || 'UNKNOWN_SECTOR';
 
-    // 1. IDENTITY VERIFICATION (Segregated Client Token Gate)
-    // Cryptographic fallback string protects against accidental blank env configurations
+    // 1. IDENTITY VERIFICATION
     const internalClientToken = process.env.NEXT_PUBLIC_MESH_APP_CLIENT_TOKEN || "UNCONFIGURED_SECURE_VAULT_TOKEN_FALLBACK_STRING"; 
     const expectedAuth = `Bearer ${internalClientToken}`;
 
@@ -23,13 +26,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'MESH-SCAN: Unauthorized. App Client Token mismatch.' }, { status: 403 });
     }
 
-    // 2. SECTOR VALIDATION (Domain Isolation)
+    // 2. SECTOR VALIDATION
     if (!targetSector || !ALLOWED_SECTORS.includes(targetSector)) {
       console.warn(`[SECURITY ALERT] Invalid Sector Routing attempted: ${sectorLogName}`);
       return NextResponse.json({ error: `MESH-SCAN: Invalid Sector - ${sectorLogName}` }, { status: 400 });
     }
 
-    // Verify out-bound Pi backend credentials exist before letting the pipeline execute
     if (!process.env.PI_API_KEY) {
       console.error("[MESH FRACTURE] PI_API_KEY is missing from server env vault.");
       return NextResponse.json({ error: 'Internal Core Configuration Error' }, { status: 500 });
@@ -38,7 +40,7 @@ export async function POST(req: NextRequest) {
     // 3. PAYLOAD SAFEQUARD PROCESSING
     let body;
     try {
-      body = await req.json();
+      body = await request.json(); // 🛡️ MESH FIX: Use 'request'
     } catch (parseError) {
       return NextResponse.json({ error: 'Malformed payload: Failed to digest JSON stream.' }, { status: 400 });
     }
@@ -52,21 +54,15 @@ export async function POST(req: NextRequest) {
     console.log(`[MESH-SYNC] Authorized access granted to sector: ${targetSector}`);
 
     // -------------------------------------------------------------------------
-    // SECTOR PIPELINE A: TREASURY (Payment Server Approval)
+    // SECTOR PIPELINE A: TREASURY
     // -------------------------------------------------------------------------
     if (targetSector === 'treasury' || step === 'approve') {
-      console.log(`[TREASURY] Dispatching Pi blockchain approval for payload ID: ${paymentId}`);
-
       const piResponse = await fetch(`${PI_API_URL}/payments/${paymentId}/approve`, {
         method: 'POST',
-        headers: {
-          Authorization: `Key ${process.env.PI_API_KEY}`,
-        },
+        headers: { Authorization: `Key ${process.env.PI_API_KEY}` },
       });
 
       if (!piResponse.ok) {
-        const errorMsg = await piResponse.text();
-        console.error(`[TREASURY FRACTURE] Pi Server rejected validation: ${errorMsg}`);
         return NextResponse.json({ error: 'Pi Network node rejected approval handshake.' }, { status: 502 });
       }
 
@@ -79,14 +75,12 @@ export async function POST(req: NextRequest) {
     }
 
     // -------------------------------------------------------------------------
-    // SECTOR PIPELINE B: VAULT (Payment Completion & Prisma MongoDB Sync)
+    // SECTOR PIPELINE B: VAULT
     // -------------------------------------------------------------------------
     if (targetSector === 'vault' || step === 'complete') {
       if (!txid) {
         return NextResponse.json({ error: 'Missing transaction cryptographic block ID (txid).' }, { status: 400 });
       }
-
-      console.log(`[VAULT] Dispatching final settlement notice to Pi ledger for ID: ${paymentId}`);
 
       const piResponse = await fetch(`${PI_API_URL}/payments/${paymentId}/complete`, {
         method: 'POST',
@@ -98,12 +92,9 @@ export async function POST(req: NextRequest) {
       });
 
       if (!piResponse.ok) {
-        const errorMsg = await piResponse.text();
-        console.error(`[VAULT FRACTURE] Pi Server rejected final lock: ${errorMsg}`);
         return NextResponse.json({ error: 'Pi Blockchain failed to commit completion frame.' }, { status: 502 });
       }
 
-      // Securely grab transaction details directly from the Pi network to confirm metadata content integrity
       const metaResponse = await fetch(`${PI_API_URL}/payments/${paymentId}`, {
         headers: { Authorization: `Key ${process.env.PI_API_KEY}` },
       });
@@ -120,8 +111,6 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Transaction lacks valid context metadata mapping.' }, { status: 422 });
       }
 
-      // 🔄 HARD-CODED MONGO LEDGER MERGE
-      console.log(`[DATABASE SYNC] Adjusting balances for verified node id: ${targetNodeId}`);
       const baseUpdate = await prisma.pioneerNode.update({
         where: { id: targetNodeId },
         data: {
@@ -141,7 +130,6 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Fallback block for remaining system placeholders (adjudicator, governance, economy_core)
     return NextResponse.json({ 
       status: 'MESH_SYNC_OK', 
       sector: targetSector,

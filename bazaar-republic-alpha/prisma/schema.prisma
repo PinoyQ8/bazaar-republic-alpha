@@ -6,15 +6,47 @@ generator client {
 
 datasource db {
   provider = "mongodb"
+  }
+
+model PioneerNode {
+  id                    String   @id @default(auto()) @map("_id") @db.ObjectId
+  username              String   @unique
+  walletAddress         String   @unique
+  role                  String
+  status                String
+  createdAt     DateTime @default(now()) // Ensure this is exactly 'createdAt'
+  trustScore            Int      @default(100)
+  lastActivityTimestamp DateTime @default(now())
+  stakedPi              Float    @default(0) // 🛡️ NEW: E-Network Asset Stake
 }
 
-// ... your PioneerNode model below
+// 🛰️ ADD THE MISSING ACADEMY LOG MODEL FOR TS VALIDATION
+model AcademyLog {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  pioneerUid   String
+  moduleLocked String
+  createdAt    DateTime @default(now())
+}
 
-// Ensure your models follow below
-model PioneerNode {
-  id           String @id @default(auto()) @map("_id") @db.ObjectId
-  username     String @unique
-  walletAddress String @unique
-  role         String
-  status       String
+model Payment {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  paymentId   String   @unique 
+  txid        String   @unique // 🛡️ NEW: On-Chain Transaction Hash
+  payerUid    String
+  merchantUid String
+  amount      Float
+  status      String   @default("COMPLETED")
+  createdAt   DateTime @default(now())
+}
+
+model InternalProposal {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  title       String
+  description String
+  authorUid   String   // 🛡️ The Pioneer Node who submitted the proposal
+  status      String   @default("PENDING") // e.g., PENDING, ACTIVE, PASSED, REJECTED
+  votesFor    Int      @default(0)
+  votesAgainst Int     @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }

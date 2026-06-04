@@ -1,13 +1,21 @@
 import { NextResponse } from 'next/server';
-import { db } from '@/app/db';
-import { securityCircleNodes } from '@/app/db/schema';
+import { prisma } from "@/lib/mesh-prisma"; // 🛡️ Ensure use of path alias
 
-const PI_API_KEY = process.env.PI_API_KEY!;
+// 🛡️ NEO PROTOCOL: Hard-lock to dynamic execution
+// This prevents Next.js from attempting to pre-render this route at build time.
+export const dynamic = 'force-dynamic';
+
 const PI_API_URL = 'https://api.minepi.com/v2/payments';
 
-export async function POST(req: Request) {
+export async function POST(request: Request) {
+  // 🛡️ GATE 0: Configuration Check
+  if (!process.env.PI_API_KEY) {
+    console.error("[MESH-SCAN] Critical Failure: PI_API_KEY missing.");
+    return NextResponse.json({ error: "Configuration Fracture" }, { status: 500 });
+  }
+
   try {
-    const body = await req.json();
+    const body = await request.json();
     const { action, paymentId, txid, username } = body;
 
     // -------------------------------------------------------------
@@ -16,43 +24,60 @@ export async function POST(req: Request) {
     if (action === 'approve') {
       const response = await fetch(`${PI_API_URL}/${paymentId}/approve`, {
         method: 'POST',
-        headers: { 'Authorization': `Key ${PI_API_KEY}` }
+        headers: { 'Authorization': `Key ${process.env.PI_API_KEY}` }
       });
-      if (!response.ok) throw new Error('Failed to approve handshake.');
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`[TREASURY FRACTURE] Approval failed: ${errorText}`);
+        return NextResponse.json({ error: 'Failed to approve handshake.' }, { status: 502 });
+      }
+      
       return NextResponse.json({ status: 'approved' });
     }
 
     // -------------------------------------------------------------
-    // ACTION 2: COMPLETE PAYMENT & LOCK THE NODE
+    // ACTION 2: COMPLETE PAYMENT & FORGE NODE
     // -------------------------------------------------------------
     if (action === 'complete') {
-      // 1. Tell Pi Servers we received the transaction
+      // 1. Handshake with Pi Blockchain
       const piResponse = await fetch(`${PI_API_URL}/${paymentId}/complete`, {
         method: 'POST',
         headers: {
-          'Authorization': `Key ${PI_API_KEY}`,
+          'Authorization': `Key ${process.env.PI_API_KEY}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({ txid })
       });
       
+      if (!piResponse.ok) {
+        throw new Error('Pi Network rejected completion handshake.');
+      }
+
       const paymentData = await piResponse.json();
-      
-      // 2. Extract the wallet address natively from the receipt
-      const extractedWallet = paymentData.user_uid || paymentData.sender_address; 
-      
-      // 3. Forge it into the Neon Hard Drive
-      await db.insert(securityCircleNodes).values({
-        username: username,
-        walletAddress: extractedWallet,
+      const extractedWallet = paymentData.user_uid || paymentData.sender_address;
+
+      // 2. Forge into Neon Hard Drive
+      const pioneer = await prisma.pioneerNode.create({
+        data: {
+          username: username,
+          walletAddress: extractedWallet,
+          status: "ACTIVE",
+          role: "PIONEER",
+        },
       });
 
-      return NextResponse.json({ status: 'locked', wallet: extractedWallet });
+      return NextResponse.json({ 
+        status: 'locked', 
+        wallet: extractedWallet,
+        citizenId: pioneer.username 
+      });
     }
 
-    return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
+    return NextResponse.json({ error: 'Invalid action sector' }, { status: 400 });
 
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error('[PAYMENT GATEWAY FRACTURE]', error?.message || error);
+    return NextResponse.json({ error: 'Ledger synchronization failure.' }, { status: 500 });
   }
 }

@@ -1,10 +1,14 @@
 import { NextResponse } from "next/server";
-import { prisma } from "../../../../prisma/client"; // 🛡️ Linked directly to your unified MongoDB ledger
+import { prisma } from "@/lib/mesh-prisma"; // 🛡️ MESH ALIGNED: Unified path
+
+// 🛡️ NEO PROTOCOL: Prevent build-time pre-rendering
+// This ensures the code ONLY runs on the server at request time.
+export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
-  // 🛡️ GATE 0: RUNTIME CONDUIT CHECK (Bypasses Next.js Build Workers)
-  if (!process.env.MONGODB_URI) {
-    console.error("[MESH-SCAN] Critical Failure: MONGODB_URI environment vault token missing.");
+  // 🛡️ MESH CONDUIT CHECK: Standardized to DATABASE_URL
+  if (!process.env.DATABASE_URL) {
+    console.error("[MESH-SCAN] Critical Failure: DATABASE_URL missing from environment.");
     return NextResponse.json(
       { status: "ERROR", message: "Conduit Disconnected" }, 
       { status: 500 }
@@ -24,10 +28,9 @@ export async function GET(request: Request) {
     }
 
     // 2. 🛡️ REALIGNED INTEGRATION LAYER
-    // Targets the unified pioneerNode collection where the CITIZEN identity data is compiled
     const passport = await prisma.pioneerNode.findUnique({
       where: { 
-        username: uid // Matches your schema's strict @unique username identifier
+        username: uid 
       },
     });
 
@@ -35,7 +38,7 @@ export async function GET(request: Request) {
     if (!passport) {
       return NextResponse.json(
         { status: "NOT_FOUND", message: "Pioneer Passport identity frame not initialized." }, 
-        { status: 404 } // ⚡ MESH LAW: Standard REST code for missing node blocks
+        { status: 404 } 
       );
     }
 

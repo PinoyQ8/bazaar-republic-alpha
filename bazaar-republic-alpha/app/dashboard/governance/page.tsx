@@ -1,25 +1,28 @@
-// 🛡️ THE MESH LAW: Route through the Prisma 7 Adapter
-   import { neonClient } from "@/lib/neo-client";
+import { NextResponse } from 'next/server';
+// 🛡️ MESH ALIGNED: Must use the gateway to trigger the Build-Time Mute
+import { prisma } from "@/lib/mesh-prisma"; 
 import ProposalCard from "./ProposalCard";
 
-// Force Next.js to bypass static caching so new proposals appear instantly
+// 🛡️ NEO PROTOCOL: Hard-lock to dynamic execution
+// This prevents Next.js from pre-rendering this page and triggering the constructor.
+export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 async function fetchInternalProposals() {
   try {
-    const proposals = await neonClient.internalProposal.findMany({
+    // 🛡️ MESH QUERY: Relational pull through the proxy
+    return await prisma.internalProposal.findMany({
       orderBy: {
         createdAt: "desc",
       },
       include: {
         _count: {
-          select: { votes: true }, // Pulls total vote count efficiently
+          select: { votes: true },
         },
       },
     });
-    return proposals;
   } catch (error) {
-    console.error("[MESH FAULT] Failed to fetch governance data:", error);
+    console.error("[VAULT FRACTURE] Failed to sync governance data:", error);
     return [];
   }
 }
@@ -31,8 +34,8 @@ export default async function GovernanceDashboard() {
     <div className="p-6 bg-black min-h-screen text-white font-mono">
       {/* Sector Header */}
       <div className="border-b border-gray-800 pb-4 mb-8">
-        <h1 className="text-2xl font-bold tracking-widest text-white uppercase">
-          // LAYER 01: INTERNAL DAO GOVERNANCE
+        <h1 className="text-2xl font-bold tracking-widest text-green-500 uppercase">
+          // LAYER 01: MESH DAO GOVERNANCE
         </h1>
         <p className="text-gray-400 text-sm mt-1">
           Staked Core voting module. Active proposals require threshold weight resolution.
@@ -41,21 +44,22 @@ export default async function GovernanceDashboard() {
 
       {/* Grid Blueprint */}
       {proposals.length === 0 ? (
-        <div className="border border-dashed border-gray-800 p-8 text-center text-gray-500 rounded">
-          NO PROPOSALS FOUND IN THE NEON CLUSTER. BUILD SECTOR IS EMPTY.
+        <div className="border border-dashed border-green-900 p-8 text-center text-green-700 rounded-md bg-black shadow-[0_0_10px_rgba(0,255,0,0.1)]">
+          [ ⚠️ ] NO PROPOSALS FOUND IN THE MESH CLUSTER. BUILD SECTOR IS EMPTY.
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {proposals.map((proposal) => (
+          {proposals.map((proposal: any) => (
             <ProposalCard 
               key={proposal.id} 
               proposal={{
                 id: proposal.id,
                 title: proposal.title,
                 description: proposal.description,
-                requiredWeight: proposal.requiredWeight,
+                requiredWeight: 1000,
                 status: proposal.status,
-                voteCount: proposal._count.votes
+                // 🛡️ COMPILER SHIELD: Safe access to relational count
+                voteCount: proposal._count?.votes || 0 
               }} 
             />
           ))}

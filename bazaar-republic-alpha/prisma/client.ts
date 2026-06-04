@@ -1,13 +1,9 @@
-// prisma/client.ts
 import { PrismaClient } from '@prisma/client';
 
-const globalForPrisma = global as unknown as { prisma: PrismaClient };
+// 🛡️ THE MESH LAW: Unified MongoDB Atlas Connection
+const globalForPrisma = globalThis as unknown as { prisma: PrismaClient | undefined };
 
-// 🛡️ NEO PROTOCOL: Pure Initialization. No adapter hacks.
-export const prisma = globalForPrisma.prisma || new PrismaClient({
-  log: ['error', 'warn'],
-});
+// 🛡️ MESH SYNC: The legacy '{ adapter }' object has been permanently stripped
+export const prisma = globalForPrisma.prisma || new PrismaClient(); 
 
-if (process.env.NODE_ENV !== 'production') {
-  globalForPrisma.prisma = prisma;
-}
+if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
