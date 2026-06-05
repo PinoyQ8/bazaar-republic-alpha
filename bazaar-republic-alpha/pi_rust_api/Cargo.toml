@@ -15,6 +15,7 @@ thiserror = "1.0"
 url = "2.0"
 chrono = { version = "0.4", features = ["serde"] }
 uuid = { version = "1.0", features = ["v4", "serde"] }
+pi_rust_api = { workspace = true }
 
 [dev-dependencies]
 wiremock = "0.5"

@@ -1,6 +1,5 @@
 use reqwest::{Client, RequestBuilder, Response};
 use std::time::Duration;
-use url::Url;
 use crate::{config::ClientConfig, errors::PiError, Result};
 
 #[derive(Debug, Clone)]
@@ -10,13 +9,13 @@ pub struct PiNetworkClient {
 }
 
 impl PiNetworkClient {
-    /// Initialize a new client with an API key
+    /// 🛡️ MESH INITIALIZATION: With API Key
     pub fn new(api_key: String) -> Result<Self> {
-        let config = ClientConfig::new(api_key)?;
+        let config = ClientConfig::new(&api_key)?;
         Self::with_config(config)
     }
 
-    /// Initialize with a custom configuration
+    /// 🛡️ MESH INITIALIZATION: With Custom Config
     pub fn with_config(config: ClientConfig) -> Result<Self> {
         let http_client = Client::builder()
             .timeout(config.timeout)
@@ -30,20 +29,39 @@ impl PiNetworkClient {
         })
     }
 
-    // --- Internal Helpers ---
+    // --- 📡 CORE DAO ENDPOINTS ---
+
+    /// 🔍 MESH USER LOOKUP
+    pub async fn get_user_info(&self, token: &str) -> Result<serde_json::Value> {
+        let req = self.get("me");
+        let request = self.with_bearer_auth(req, token);
+        
+        self.execute_request(request).await
+    }
+
+    /// 🚀 MESH PAYMENT APPROVAL
+    pub async fn approve_payment(&self, payment_id: &str) -> Result<crate::models::payment::PaymentDto> {
+        let path = format!("payments/{}/approve", payment_id);
+        let request = self.post(&path);
+        
+        self.execute_request(request).await
+    }
+
+    // --- 🛠️ INTERNAL ROUTING LOGIC ---
 
     pub(crate) fn get(&self, path: &str) -> RequestBuilder {
-        let url = self.config.base_url.join(path).unwrap();
+        let url = self.config.base_url.join(path).expect("MESH_ERR: Invalid URL path construction");
         self.http_client.get(url).header("Accept", "application/json")
     }
 
     pub(crate) fn post(&self, path: &str) -> RequestBuilder {
-        let url = self.config.base_url.join(path).unwrap();
+        let url = self.config.base_url.join(path).expect("MESH_ERR: Invalid URL path construction");
         self.http_client.post(url)
             .header("Accept", "application/json")
             .header("Content-Type", "application/json")
     }
 
+    #[allow(dead_code)]
     pub(crate) fn with_api_key_auth(&self, request: RequestBuilder) -> RequestBuilder {
         request.header("Authorization", format!("Key {}", self.config.api_key))
     }
@@ -60,7 +78,8 @@ impl PiNetworkClient {
         self.handle_response(response).await
     }
 
-    async fn execute_with_retry(&self, mut request: RequestBuilder) -> Result<Response> {
+    // ADJUDICATOR FIX: Removed unused `mut` from request parameter
+    async fn execute_with_retry(&self, request: RequestBuilder) -> Result<Response> {
         let mut attempts = 0;
         let max_attempts = self.config.retry_config.max_retries + 1;
 
@@ -88,7 +107,7 @@ impl PiNetworkClient {
             response.json().await.map_err(PiError::Json)
         } else {
             let text = response.text().await.map_err(PiError::Http)?;
-            // Attempt to parse Pi-specific error JSON
+            // Parse Pi-specific error JSON
             if let Ok(pi_err) = serde_json::from_str::<crate::models::PiNetworkError>(&text) {
                 Err(PiError::PiNetwork {
                     error_name: pi_err.error,
@@ -100,4 +119,4 @@ impl PiNetworkClient {
             }
         }
     }
-} // <--- This was the missing R_CURLY closing the impl block
+}

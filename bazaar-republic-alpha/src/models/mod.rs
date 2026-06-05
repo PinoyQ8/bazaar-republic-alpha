@@ -2,6 +2,7 @@
 
 pub mod auth;
 pub mod payment;
+pub mod constants;
 pub mod stellar;
 pub mod common;
 

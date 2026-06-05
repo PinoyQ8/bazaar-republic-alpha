@@ -1,4 +1,5 @@
-use pi_rust::{PiNetworkClient, ClientConfig};
+// Access the fused logic through the Alpha node's root namespace
+use bazaar_republic_alpha::{PiNetworkClient, ClientConfig};
 use wiremock::MockServer;
 
 pub struct TestContext {
@@ -6,27 +7,25 @@ pub struct TestContext {
     pub client: PiNetworkClient,
 }
 
+// ... top of file (imports and struct definition) ...
+
 impl TestContext {
     pub async fn new() -> Self {
-        // Start a fresh mock server for every test
-        let mock_server = MockServer::start().await;
-        
-        // Point the SDK to our mock server instead of the real Pi API
-        // tests\common\mod.rs
+        let mock_server = wiremock::MockServer::start().await;
 
-// 🛡️ 1. Create the config directly
-// tests\common\mod.rs
+        // 1. Forge the config first (its fields are public)
+        let mut config = ClientConfig::new("test-api-key")
+            .expect("MESH_ERR: Failed to create ClientConfig");
 
-// 🛡️ 1. Create the config
-let mut config = ClientConfig::new("test-api-key".to_string());
+        // 2. Override the base_url to point to the mock wiremock server
+        config.base_url = url::Url::parse(&mock_server.uri())
+            .expect("MESH_ERR: Failed to parse mock server URL");
 
-// 🛡️ 2. Align with the mock server
-config.horizon_url = mock_server.uri();
+        // 3. Inject the forged config into the client
+        let client = PiNetworkClient::with_config(config)
+            .expect("MESH_ERR: Failed to initialize PiNetworkClient");
 
-// 🛡️ 3. Initialize the client ONCE
-// Use 'with_config' if the test expects a Result, or 'new' for direct access.
-// Since the test uses .unwrap() later, let's use the stable bridge:
-let client = PiNetworkClient::new(config);
+        // 4. Construct and return your TestContext
         Self {
             mock_server,
             client,
