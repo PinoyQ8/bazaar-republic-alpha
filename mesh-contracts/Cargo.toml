@@ -1,0 +1,28 @@
+# 🛡️ NEO PROTOCOL: Soroban Smart Contract Architecture
+[package]
+name = "mesh-contracts"
+version = "0.1.0"
+edition = "2021"
+description = "Project Bazaar MESH Consensus Engine"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+testutils = ["soroban-sdk/testutils"]
+
+[dependencies]
+soroban-sdk = "20.0.0"
+
+[profile.release]
+opt-level = "z"
+overflow-checks = true
+debug = 0
+strip = "debuginfo"
+panic = "abort"
+codegen-units = 1
+lto = true
+
+# 🛡️ THE FIREWALL
+[workspace]
