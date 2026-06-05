@@ -1,6 +1,8 @@
-"use client"; // 🛡️ CRITICAL MESH-FIX: Required for Client Components and Context Providers in App Router
+"use client";
 
 import { createContext, useContext, useState, ReactNode } from "react";
+import { signTransaction } from "@stellar/freighter-api";
+import * as StellarSdk from "@stellar/stellar-sdk";
 
 // 1. Interfaces
 export interface PioneerState {
@@ -37,54 +39,77 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     isHydrated: false,
   });
 
-  const executeStakePayment = async (amount: number) => { 
-    // 🛡️ Logic payload pending... 
+  const executeStakePayment = async (amount: number): Promise<void> => {
+    try {
+      const contractId = process.env.NEXT_PUBLIC_MESH_CONTRACT_ID;
+      if (!contractId || !pioneer.uid) throw new Error("Missing requirements.");
+
+      const server = new StellarSdk.rpc.Server("https://soroban-testnet.stellar.org");
+      const networkPassphrase = StellarSdk.Networks.TESTNET;
+      const account = await server.getAccount(pioneer.uid);
+      const contract = new StellarSdk.Contract(contractId);
+      
+      const invokeOperation = contract.call("stake", StellarSdk.nativeToScVal(pioneer.uid, { type: "address" }));
+      const tx = new StellarSdk.TransactionBuilder(account, { fee: "20000000", networkPassphrase })
+        .addOperation(invokeOperation)
+        .setTimeout(30)
+        .build();
+
+      const simulatedTx = await server.simulateTransaction(tx);
+      if (StellarSdk.rpc.Api.isSimulationError(simulatedTx)) throw new Error("Simulation failed.");
+
+      const assembly = StellarSdk.rpc.assembleTransaction(tx, simulatedTx);
+      const finalTx = assembly as unknown as StellarSdk.Transaction;
+
+      const signResponse = await signTransaction(finalTx.toXDR(), { networkPassphrase });
+      if (signResponse.error) throw new Error("Signature rejected.");
+
+      const signedTx = StellarSdk.TransactionBuilder.fromXDR(signResponse.signedTxXdr, networkPassphrase);
+      const response = await server.sendTransaction(signedTx);
+
+      if ((response.status as string) === "SUCCESS") {
+        setPioneer((prev) => ({ ...prev, tier: "TIER-5-ACTIVE", role: "PIONEER", trustScore: 100 }));
+      } else {
+        throw new Error("Transaction failed.");
+      }
+    } catch (error) {
+      console.error(error);
+      throw error;
+    }
   };
 
-  const logout = () => setPioneer({
-    username: undefined,
-    uid: undefined,
-    tier: undefined,
-    role: "CITIZEN",
-    trustScore: 0,
-    isAuthenticated: false,
-    isHydrated: true,
-  });
+  const login = (data: PioneerState) => setPioneer(data);
 
-  // 🛡️ DEFINE VALUE HERE TO SATISFY "VALUE NOT FOUND" ERROR
+  const logout = (): void => {
+    setPioneer({
+      username: undefined,
+      uid: undefined,
+      tier: undefined,
+      role: "CITIZEN",
+      trustScore: 0,
+      isAuthenticated: false,
+      isHydrated: true,
+    });
+  };
+
   const value: AuthContextType = {
     pioneer,
     setPioneer,
-    login: (data: PioneerState) => setPioneer(data),
+    login,
     logout,
     executeStakePayment,
     isHydrated: pioneer.isHydrated,
   };
 
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
 // 4. Defensive Hook Execution
 export const useAuth = (): AuthContextType => {
   const context = useContext(AuthContext);
-  
   if (!context) {
-    // 🛡️ BUILD-WORKER SHIELD: Bypasses the SSR prerender crash.
-    // Returns a neutralized mock state instead of throwing an Error.
     return {
-      pioneer: {
-        username: undefined,
-        uid: undefined,
-        tier: undefined,
-        role: "CITIZEN",
-        trustScore: 0,
-        isAuthenticated: false,
-        isHydrated: false,
-      },
+      pioneer: { username: undefined, uid: undefined, tier: undefined, role: "CITIZEN", trustScore: 0, isAuthenticated: false, isHydrated: false },
       setPioneer: () => {},
       login: () => {},
       logout: () => {},
@@ -92,6 +117,5 @@ export const useAuth = (): AuthContextType => {
       isHydrated: false,
     };
   }
-  
   return context;
 };
