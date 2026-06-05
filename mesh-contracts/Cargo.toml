@@ -13,16 +13,4 @@ crate-type = ["cdylib", "rlib"]
 testutils = ["soroban-sdk/testutils"]
 
 [dependencies]
-soroban-sdk = "20.0.0"
-
-[profile.release]
-opt-level = "z"
-overflow-checks = true
-debug = 0
-strip = "debuginfo"
-panic = "abort"
-codegen-units = 1
-lto = true
-
-# 🛡️ THE FIREWALL
-[workspace]
+soroban-sdk = "26.0.1"

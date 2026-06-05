@@ -1,6 +1,12 @@
 [workspace]
-resolver = "2"
 members = [
-    "pioneer_auth",
-    "bazaar-republic-alpha"
+    "contracts/pi_rust_api",
+    "contracts/bazaar_contracts",
+    "mesh-contracts"
 ]
+resolver = "2"
+
+[workspace.dependencies]
+pi_rust_api = { path = "contracts/pi_rust_api" }
+bazaar_contracts = { path = "contracts/bazaar_contracts" }
+mesh-contracts = { path = "mesh-contracts" }

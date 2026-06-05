@@ -7,7 +7,7 @@ use crate::errors::Result;
 use crate::models::{User, Payment, PaymentStatus};
 
 // In client.rs
-pub struct PiNetworkClient { ... } // Must have 'pub'
+pub struct PiNetworkClient { // Must have 'pub'
     pub config: ClientConfig,
     pub stellar: StellarClient,
     pub auth: AuthGateway,

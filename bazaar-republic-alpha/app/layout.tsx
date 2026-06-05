@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Script from 'next/script';
 import { MeshInitializer } from '@/app/components/MeshInitializer'; // 🛡️ Import the Wrapper
+import PioneerNav from '@/app/components/Navigation';
 import './globals.css'; 
 
 export const metadata: Metadata = {
@@ -23,10 +24,19 @@ export default function RootLayout({
         />
       </head>
       
-      <body className="bg-neutral-950 text-amber-500 font-mono antialiased overflow-x-hidden min-h-screen">
+      {/* Added flex and flex-col to manage the vertical stacking of Nav and Content */}
+      <body className="bg-neutral-950 text-amber-500 font-mono antialiased overflow-x-hidden min-h-screen flex flex-col">
         {/* 🛡️ MESH INITIALIZATION GATE */}
         <MeshInitializer>
-          {children}
+          
+          {/* 🗺️ GLOBAL NAVIGATION ANCHOR */}
+          <PioneerNav />
+          
+          {/* ⚡ DYNAMIC SECTOR RENDERING */}
+          <main className="grow">
+            {children}
+          </main>
+
         </MeshInitializer>
       </body>
     </html>

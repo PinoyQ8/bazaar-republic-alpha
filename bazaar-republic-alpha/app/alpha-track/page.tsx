@@ -171,7 +171,7 @@ export default function AlphaTrackDashboard() {
   zIndex: 99999, 
   background: '#ff00ff', 
   color: '#ffffff', 
-  padding: '15px', 
+  padding: '7px', 
   border: '2px solid white', 
   fontWeight: 'bold',
   borderRadius: '8px',
