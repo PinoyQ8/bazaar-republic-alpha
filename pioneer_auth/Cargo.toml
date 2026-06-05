@@ -3,8 +3,10 @@ name = "pioneer_auth"
 version = "0.1.0"
 edition = "2021"
 
+# CRITICAL: Define both a library and a cdylib (for WASM)
 [lib]
-crate-type = ["cdylib"]
+crate-type = ["rlib", "cdylib"]
+path = "src/lib.rs"
 
 [dependencies]
-soroban-sdk = "26.0.0"
+soroban-sdk = "25.0.0"
