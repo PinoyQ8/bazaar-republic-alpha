@@ -1,8 +1,8 @@
-import { NextResponse } from 'next/server';
-import { ServiceProvider } from '@/lib/models/ServiceProvider';
+import { NextResponse } from "next/server";
 
-export const GET = async (request: Request) => {
-  // Fetch ALL providers regardless of status
-  const allNodes = await ServiceProvider.find({}).lean();
-  return NextResponse.json({ allNodes });
-};
+export async function GET() {
+  return NextResponse.json({ 
+    status: "MESH_ALIVE",
+    message: "Route is reachable. Database logic is bypassed." 
+  });
+}
