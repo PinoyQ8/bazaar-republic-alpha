@@ -7,7 +7,7 @@ generator client {
 // 🛡️ NEO PROTOCOL: Hard-coded MongoDB routing
 datasource db {
   provider = "mongodb"
-  url      = env("DATABASE_URL")
+  url      = env("MONGODB_URI") // 🛡️ BAZAAR TECH BYPASS: MONGODB_URI ANCHOR
 }
 
 // 🛡️ MESH HIERARCHY: Strict Access Control Engine
