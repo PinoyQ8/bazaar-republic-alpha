@@ -1,24 +1,17 @@
 import { NextResponse } from 'next/server';
-import { connectToLedger } from '@/lib/mongodb';
-import BurnEvent from '@/models/BurnEvent';
+import { prisma } from "@/lib/prisma";
+
+// 🛡️ BAZAAR TECH: Permanently disable Vercel API caching for this route
+export const dynamic = 'force-dynamic'; 
 
 export async function GET() {
   try {
-    await connectToLedger();
-
-    // 🛡️ AGGREGATION LOGIC: Extract unique interactions for the Registry
-    const registryDirectory = await BurnEvent.aggregate([
-      {
-        $group: {
-          _id: "$pioneerUid",
-          totalInteractions: { $sum: 1 },
-          firstInteraction: { $min: "$timestamp" },
-          lastInteraction: { $max: "$timestamp" },
-          totalStaked: { $sum: "$amount" }
-        }
-      },
-      { $sort: { totalInteractions: -1 } }
-    ]);
+    // 🛡️ PRISMA LOGIC: Extract verified nodes directly from the Ledger
+    const registryDirectory = await prisma.pioneerNode.findMany({
+      orderBy: {
+        lastActivityTimestamp: 'desc' // Renders newest active nodes first
+      }
+    });
 
     return NextResponse.json({
       status: "REGISTRY_SYNC_SUCCESS",
@@ -27,6 +20,7 @@ export async function GET() {
     });
 
   } catch (error) {
+    console.error("[ADJUDICATOR] Read-Path Fracture:", error);
     return NextResponse.json({ status: "FRACTURE", message: "Registry sync failed." }, { status: 500 });
   }
 }
