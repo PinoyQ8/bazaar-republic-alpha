@@ -1,38 +1,52 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-// 🛡️ BAZAAR TECH: Import the Tier Enum from your generated client
-import { Tier } from "@prisma/client"; 
+import { Tier } from "@prisma/client";
+
+// 🛡️ BAZAAR TECH: Force-Dynamic to prevent Vercel caching on registration
+export const dynamic = 'force-dynamic';
 
 export async function POST(req: Request) {
   try {
     const body = await req.json();
     const { piUsername, piUid, roles } = body;
+    const signature = req.headers.get('x-pi-signature');
 
+    // 1. Identity Validation
     if (!piUsername || !piUid) {
       return NextResponse.json({ error: "Identity parameters missing." }, { status: 400 });
     }
 
-    // 🛡️ BAZAAR TECH: Using the Enum member instead of the string literal
-    // 🛡️ BAZAAR TECH: Using valid Schema Enum members
-// Mapping "elder" to BAZAAR_FOUNDER (or MESH_GUARDIAN based on your governance hierarchy)
-const assignedTier = roles?.includes("elder") ? Tier.BAZAAR_FOUNDER : Tier.CITIZEN;
+    // 🛡️ GATEKEEPER: Placeholder for Signature Validation
+    // This will eventually interface with the Pi SDK /verify-signature
+    if (!signature) {
+      console.warn(`[GATEKEEPER] Unauthorized attempt from: ${piUid}`);
+      // Uncomment the return below when ready to enforce signature locking
+      // return NextResponse.json({ error: "Unauthorized: Signature required." }, { status: 401 });
+    }
 
-await prisma.pioneerNode.upsert({
-  where: { username: piUsername },
-  update: {
-    tier: assignedTier,
-    lastActivityTimestamp: new Date(),
-  },
-  create: {
-    username: piUsername,
-    uid: piUid,
-    tier: assignedTier, // Now strictly matches Enum
-    lastActivityTimestamp: new Date(),
-    status: "ACTIVE",
-  },
-});
+    // 2. Tier Hierarchy Mapping
+    const assignedTier = roles?.includes("elder") ? Tier.BAZAAR_FOUNDER : Tier.CITIZEN;
 
-    return NextResponse.json({ success: true });
+    // 3. Ledger Upsert
+    // Note: 'uid' is the primary unique identifier in our schema
+    const node = await prisma.pioneerNode.upsert({
+      where: { uid: piUid }, 
+      update: {
+        username: piUsername, // Allows updating username if changed
+        tier: assignedTier,
+        lastActivityTimestamp: new Date(),
+        status: "ACTIVE",
+      },
+      create: {
+        uid: piUid,
+        username: piUsername,
+        tier: assignedTier,
+        lastActivityTimestamp: new Date(),
+        status: "ACTIVE",
+      },
+    });
+
+    return NextResponse.json({ success: true, node });
 
   } catch (error) {
     console.error("[ADJUDICATOR] Registration Fracture:", error);

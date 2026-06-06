@@ -1,100 +1,62 @@
 import { NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { NodeStatus } from "@prisma/client";
 
-// 🛡️ MESH RATE LIMITER (In-Memory for Alpha-Track)
-const rateLimitMap = new Map<string, { count: number; startTime: number }>();
-const MAX_REQUESTS_PER_MINUTE = 10;
+// 🛑 ARCHITECTURAL NOTE: Real production apps must use Redis (Upstash) 
+// for rate limiting. This logic remains Alpha-Track only.
 
-function applyRateLimit(ip: string): boolean {
-  const currentTime = Date.now();
-  const windowData = rateLimitMap.get(ip);
-
-  if (!windowData || currentTime - windowData.startTime > 60000) {
-    rateLimitMap.set(ip, { count: 1, startTime: currentTime });
-    return true;
-  }
-  if (windowData.count >= MAX_REQUESTS_PER_MINUTE) return false;
-  
-  windowData.count++;
-  return true;
-}
-
-// 🛡️ THE ADJUDICATOR: HTTP Verification Bridge
 export async function POST(req: Request) {
-  const serverTimestamp = Date.now();
-
   try {
-    // 0. 🛑 ORIGIN & RATE LIMIT SHIELD
-    const origin = req.headers.get("origin") || req.headers.get("referer") || "";
-    const isLocalhost = origin.includes("localhost") || origin.includes("127.0.0.1");
-    const isVercel = origin.includes("mesh-academy-alpha.vercel.app") || origin.includes("bazaar-republic-alpha");
+    // 0. PERIMETER SHIELD
+    const origin = req.headers.get("origin") || "";
+    const isVercel = origin.includes("mesh-academy-alpha.vercel.app");
     
-    if (!isLocalhost && !isVercel && origin !== "") {
-      console.warn(`[MESH-BLOCK] Unauthorized origin attempted breach: ${origin}`);
-      return NextResponse.json({ success: false, message: "MESH-REJECT: ORIGIN UNKNOWN." }, { status: 403 });
+    if (!isVercel && process.env.NODE_ENV === "production") {
+      return NextResponse.json({ success: false, message: "UNAUTHORIZED_ORIGIN" }, { status: 403 });
     }
 
-    const ip = req.headers.get('x-forwarded-for') || '127.0.0.1';
-    if (!applyRateLimit(ip)) {
-      return NextResponse.json({ success: false, message: "MESH-REJECT: NODE RATE LIMIT EXCEEDED." }, { status: 429 });
+    // 1. PAYLOAD EXTRACTION
+    const { accessToken } = await req.json();
+    if (!accessToken) return NextResponse.json({ success: false, message: "MISSING_TOKEN" }, { status: 400 });
+
+    // 2. PI NETWORK HANDSHAKE (Server-to-Server Verification)
+    const piResponse = await fetch("https://api.minepi.com/v2/me", {
+      headers: { "Authorization": `Bearer ${accessToken}` },
+    });
+
+    if (!piResponse.ok) {
+      return NextResponse.json({ success: false, message: "INVALID_PI_TOKEN" }, { status: 401 });
     }
 
-    // 1. EXTRACT PAYLOAD FROM MESH
-    const body = await req.json();
-    const { username, accessToken, uid } = body;
+    const { uid, username } = await piResponse.json();
 
-    // 2. 🛑 ZERO-TRUST PERIMETER: Payload Integrity Check
-    if (!username || (!accessToken && !uid)) {
-      console.warn(`[MESH-SCAN] ⚠️ Verification rejected: Malformed or missing node credentials.`);
-      return NextResponse.json(
-        { success: false, message: "ADJUDICATOR: MISSING CREDENTIALS. HANDSHAKE FAILED.", timestamp: serverTimestamp }, 
-        { status: 400 } 
-      );
+    // 3. LEDGER INTEGRITY CHECK (The Governance Gate)
+    const node = await prisma.pioneerNode.findUnique({ where: { uid } });
+
+    if (!node) {
+      // Auto-register if new
+      await prisma.pioneerNode.create({
+        data: { uid, username, status: NodeStatus.ACTIVE }
+      });
+    } else {
+      // 🛡️ THE FREEZE GATE: Deny access if sanctioned
+      if (node.isFrozen) {
+        return NextResponse.json(
+          { success: false, message: `ACCESS_DENIED: NODE_FROZEN. Reason: ${node.freezeReason || "Violation of Protocol"}` }, 
+          { status: 403 }
+        );
+      }
     }
 
-    // 3. 🔐 VAULT KEY CHECK
-    const PI_API_KEY = process.env.PI_API_KEY;
-    if (!PI_API_KEY) {
-      console.error(`[MESH-SCAN] 🚨 FATAL: PI_API_KEY is missing from the environment vault.`);
-      return NextResponse.json(
-        { success: false, message: "FATAL: BRIDGE CONNECTION FRACTURED. CHECK VAULT KEYS.", timestamp: serverTimestamp }, 
-        { status: 500 } 
-      );
-    }
-
-    console.log(`[MESH-BRIDGE] 🟢 Initializing Pi Network Handshake for Node: ${username}`);
-
-    // 4. 🌐 PI NETWORK API CALL (The External Bridge)
-    // Simulated Network Verification for the Alpha-Track Forge
-    await new Promise((resolve) => setTimeout(resolve, 600));
-
-    // 5. 🛡️ ADJUDICATOR APPROVAL
-    console.log(`[MESH-BRIDGE] ✅ Node ${username} verified. Access granted to Republic.`);
-    
-    return NextResponse.json(
-      {
-        success: true,
-        tier: "PIONEER",
-        anchor: "GENESIS ALPHA",
-        username: username, 
-        message: "NODE VERIFIED. UPTIME SHIELD ACTIVE.",
-        timestamp: serverTimestamp
-      },
-      { status: 200 }
-    );
+    // 4. HANDSHAKE SUCCESS
+    return NextResponse.json({
+      success: true,
+      message: "GATEKEEPER_SUCCESS",
+      node: { uid, username, status: "ACTIVE" }
+    });
 
   } catch (error) {
-    console.error(`[MESH-SCAN] 🚨 CRITICAL API FAILURE:`, error);
-    return NextResponse.json(
-      { success: false, message: "FATAL: PAYLOAD FRACTURED DURING TRANSIT.", timestamp: serverTimestamp }, 
-      { status: 500 }
-    );
+    console.error("[GATEKEEPER] Critical Fracture:", error);
+    return NextResponse.json({ success: false, message: "INTERNAL_FRACTURE" }, { status: 500 });
   }
-}
-
-// 🛑 LOCK DOWN UNAUTHORIZED METHODS
-export async function GET() {
-  return NextResponse.json(
-    { success: false, message: "ADJUDICATOR: GET METHOD RESTRICTED. USE POST." },
-    { status: 405 }
-  );
 }

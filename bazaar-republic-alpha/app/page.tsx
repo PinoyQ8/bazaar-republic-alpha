@@ -2,14 +2,15 @@
 
 import { useMeshStatus } from "@/app/components/MeshInitializer";
 import { Loader2, Terminal, ShieldCheck } from "lucide-react";
+import BazaarGate from "@/components/auth/BazaarGate";
 
 export default function HomePage() {
-  const { isPiReady } = useMeshStatus();
+  // 🛡️ ADJUDICATOR: Ensure useMeshStatus provides isPiReady and isAuthenticated
+  const { isPiReady, isAuthenticated } = useMeshStatus();
 
-  // 🛡️ BOOT GRAPHICS GATE
+  // 1. BOOT SEQUENCE (Loading)
   if (!isPiReady) {
     return (
-      // Changed to flex-1/h-[80vh] to center perfectly within the RootLayout's main viewport
       <div className="flex flex-col items-center justify-center h-[80vh] w-full">
         <div className="border border-amber-500/30 bg-neutral-900/50 p-8 rounded flex flex-col items-center max-w-sm w-full text-center space-y-4 shadow-[0_0_15px_rgba(245,158,11,0.05)]">
           <Loader2 className="w-8 h-8 animate-spin text-amber-500" />
@@ -25,12 +26,20 @@ export default function HomePage() {
     );
   }
 
-  // 🚀 LIVE COMMAND LAYER (Swaps automatically when true)
+  // 2. SECURITY GATE (Auth Check)
+  // If not authenticated, we force the Pioneer through the BazaarGate.
+  if (!isAuthenticated) {
+    return (
+      <div className="flex flex-col items-center justify-center h-[80vh] w-full">
+        <BazaarGate />
+      </div>
+    );
+  }
+
+  // 3. COMMAND NODE (Authenticated Dashboard)
   return (
-    // Replaced <main> with <div>. Removed max-w-[384px]. Added fade-in animation.
     <div className="space-y-6 font-mono animate-in fade-in duration-500">
       
-      {/* COMMAND CENTER HEADER */}
       <header className="border-b border-neutral-800 pb-4 flex justify-between items-end">
         <div>
           <div className="flex items-center space-x-2 mb-2">
@@ -44,21 +53,17 @@ export default function HomePage() {
           </p>
         </div>
         
-        {/* SYNC BADGE */}
         <div className="hidden md:flex items-center space-x-2 bg-emerald-950/30 border border-emerald-900/50 px-3 py-1 rounded">
           <ShieldCheck className="w-4 h-4 text-emerald-500" />
           <span className="text-[10px] text-emerald-500 uppercase tracking-widest font-bold">Mesh Synced</span>
         </div>
       </header>
 
-      {/* DASHBOARD WIDGETS ANCHOR */}
       <div className="bg-neutral-900 border border-neutral-800 p-6 rounded text-center">
         <p className="text-neutral-500 text-sm tracking-widest uppercase">
           Awaiting Pioneer Directives...
         </p>
-        {/* Inject your ProviderList or Security Circle preview here */}
       </div>
-
     </div>
   );
 }

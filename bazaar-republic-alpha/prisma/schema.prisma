@@ -1,16 +1,14 @@
-// 🛡️ NEO PROTOCOL SCHEMA
+// 🛡️ NEO PROTOCOL: SCHEMA VERSION 2.0 (Governance Hardened)
 generator client {
-  provider   = "prisma-client-js"
-  engineType = "library" // 🛡️ STRICT NODE.JS BINARY LOCK
+  provider = "prisma-client-js"
 }
 
-// 🛡️ NEO PROTOCOL: Hard-coded MongoDB routing
 datasource db {
   provider = "mongodb"
   url      = env("MONGODB_URI") // 🛡️ BAZAAR TECH BYPASS: MONGODB_URI ANCHOR
 }
 
-// 🛡️ MESH HIERARCHY: Strict Access Control Engine
+// 🛡️ MESH HIERARCHY: Strict Access Control
 enum Tier {
   CITIZEN
   NOVICE
@@ -19,50 +17,60 @@ enum Tier {
   BAZAAR_FOUNDER
 }
 
-// 🛡️ MESH LEDGER: Expanded PioneerNode Model
-model PioneerNode {
-  id                  String   @id @default(auto()) @map("_id") @db.ObjectId
-  
-  // 🛡️ THE HARDWARE BINDING (Required for Telemetry targeting)
-  // BAZAAR TECH FIX: Removed static default to prevent fatal duplicate key crashes on registration.
-  uid                 String   @unique
-
-  // Existing Identity Fields
-  username            String?  @unique
-  walletAddress       String?  @unique
-  
-  // 🛡️ REPLACED 'role' WITH 'tier' ENUM TO FIX THE 500 ROUTING ERROR
-  tier                Tier     @default(CITIZEN) 
-  
-  status              String   @default("SYNCING")
-  trustScore          Int      @default(0)
-  stakedPi            Float    @default(0)
-  lastActivityTimestamp DateTime @default(now())
-  createdAt           DateTime @default(now())
-
-  // 🛰️ HARD-CODED TELEMETRY FIELDS
-  ledgerHeight        Int      @default(0)
-  syncState           String   @default("Unknown")
-  activePeers         Int      @default(0)
-  protocol            String   @default("24")
-  lastHeartbeat       DateTime @default(now())
-  
-  // 🛡️ ADDED FOR REMOTE ADMIN PROTOCOL
-  isUnderRemoteRescue Boolean  @default(false)
+// 🛡️ GOVERNANCE STATUS: Enforced Consistency
+enum NodeStatus {
+  SYNCING
+  ACTIVE
+  FROZEN
+  SUSPENDED
 }
 
-// 🛰️ ACADEMY LOG MODEL FOR TS VALIDATION
+// 🛡️ MESH LEDGER: PioneerNode Model
+model PioneerNode {
+  id                    String     @id @default(auto()) @map("_id") @db.ObjectId
+  uid                   String     @unique
+  username              String?    @unique
+  walletAddress         String?    @unique
+  
+  tier                  Tier       @default(CITIZEN) 
+  status                NodeStatus @default(SYNCING)
+  
+  // 🛡️ GOVERNANCE LOCKS
+  isFrozen              Boolean    @default(false)
+  freezeReason          String?
+  
+  // 🛡️ IDENTITY & PERFORMANCE
+  trustScore            Int        @default(0)
+  stakedPi              Float      @default(0)
+  signature             String?    
+  
+  // 🛰️ HARDWARE & TELEMETRY
+  ledgerHeight          Int        @default(0)
+  syncState             String     @default("Unknown")
+  activePeers           Int        @default(0)
+  protocol              String     @default("24")
+  isUnderRemoteRescue   Boolean    @default(false)
+
+  // 🛡️ TIMEKEEPING
+  lastActivityTimestamp DateTime   @default(now())
+  lastHeartbeat         DateTime   @default(now())
+  createdAt             DateTime   @default(now())
+  updatedAt             DateTime   @updatedAt // 🛡️ Automatically tracks modifications
+}
+
+// 🛰️ ACADEMY LOG MODEL
 model AcademyLog {
   id           String   @id @default(auto()) @map("_id") @db.ObjectId
-  pioneerUid   String
+  pioneerUid   String   // Logical link to PioneerNode.uid
   moduleLocked String
   createdAt    DateTime @default(now())
 }
 
+// 🛡️ PAYMENTS & PROPOSALS
 model Payment {
   id          String   @id @default(auto()) @map("_id") @db.ObjectId
   paymentId   String   @unique 
-  txid        String   @unique // 🛡️ On-Chain Transaction Hash
+  txid        String   @unique 
   payerUid    String
   merchantUid String
   amount      Float
@@ -70,14 +78,18 @@ model Payment {
   createdAt   DateTime @default(now())
 }
 
+// 🛡️ GOVERNANCE MODEL UPDATE
 model InternalProposal {
-  id           String   @id @default(auto()) @map("_id") @db.ObjectId
-  title        String
-  description  String
-  authorUid    String   // 🛡️ The Pioneer Node who submitted the proposal
-  status       String   @default("PENDING") // PENDING, ACTIVE, PASSED, REJECTED
-  votesFor     Int      @default(0)
-  votesAgainst Int      @default(0)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  title           String
+  description     String
+  authorUid       String   
+  status          String   @default("ACTIVE") 
+  targetParameter String?  // 🛡️ ADDED: For DEX/System tuning
+  proposedValue   Float?   // 🛡️ ADDED: For quantitative proposals
+  votesFor        Int      @default(0) // 🛡️ ENSURE THESE EXIST
+  votesAgainst    Int      @default(0) // 🛡️ ENSURE THESE EXIST
+  expiresAt       DateTime 
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 }

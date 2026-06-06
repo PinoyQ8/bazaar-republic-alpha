@@ -1,29 +1,30 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
+import { NodeStatus } from "@prisma/client"; // 🛡️ PROTOCOL: Enum Import
 
 export async function syncPioneerNode(uid: string, username: string) {
   try {
     console.log(`[LEDGER SYNC] Authenticating Node: ${uid}`);
 
-    // 🛡️ The UPSERT Protocol: Create if missing, Update if exists.
+    // 🛡️ THE UPSERT PROTOCOL: Using schema-valid Enum
     const node = await prisma.pioneerNode.upsert({
       where: { uid: uid },
       update: {
         username: username,
         lastActivityTimestamp: new Date(),
-        status: "ONLINE",
+        status: NodeStatus.ACTIVE, // 🛡️ CORRECTED: Using ACTIVE instead of ONLINE
       },
       create: {
         uid: uid,
         username: username,
-        tier: "CITIZEN", // 🛡️ Default access tier for new connections
-        status: "ONLINE",
+        tier: "CITIZEN",
+        status: NodeStatus.ACTIVE, // 🛡️ CORRECTED: Using ACTIVE instead of ONLINE
         trustScore: 0,
       }
     });
 
-    console.log(`[LEDGER SYNC] Node ${username} registered with Tier: ${node.tier}`);
+    console.log(`[LEDGER SYNC] Node ${username} registered with Status: ${node.status}`);
     return { success: true, node };
 
   } catch (error) {
