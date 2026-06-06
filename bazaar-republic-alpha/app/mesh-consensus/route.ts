@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
-export async function GET() {
+// 🛡️ BAZAAR TECH: Static Signature (No params allowed)
+export async function GET(req: Request) {
   try {
     // 1. Fetch proposal and nodes in parallel
-    // Fixed: Aggregating by 'tier' (the actual schema field)
     const [proposal, tierCounts] = await Promise.all([
       prisma.internalProposal.findFirst({ orderBy: { createdAt: 'desc' } }),
       prisma.pioneerNode.groupBy({ 
@@ -22,7 +22,6 @@ export async function GET() {
     const votesFor = proposal.votesFor;
 
     const matrix = tiers.map((tier, i) => {
-      // Fixed: Lookup now matches 'tier' property
       const tierData = tierCounts.find(t => t.tier === tier);
       const registered = tierData?._count.tier || 0;
       

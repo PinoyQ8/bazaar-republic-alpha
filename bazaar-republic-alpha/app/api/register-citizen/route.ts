@@ -1,48 +1,41 @@
 import { NextResponse } from "next/server";
-import { Prisma } from "@prisma/client"; // 🛡️ Fix: Namespace import
-import { prisma } from "@/lib/mesh-prisma";
+import { prisma } from "@/lib/prisma";
+// 🛡️ BAZAAR TECH: Import the Tier Enum from your generated client
+import { Tier } from "@prisma/client"; 
 
-// 🛡️ NEO PROTOCOL: Hard-lock to dynamic execution
-export const dynamic = 'force-dynamic';
-
-export async function POST(request: Request) { // Consistent naming
+export async function POST(req: Request) {
   try {
-    // 🛡️ MESH FIX: Corrected 'req' to 'request'
-    const body = await request.json(); 
-    const { piUsername, walletAddress, roles } = body;
+    const body = await req.json();
+    const { piUsername, piUid, roles } = body;
 
-    if (!piUsername || !walletAddress) {
-      return NextResponse.json(
-        { error: "Missing required identity parameters." }, 
-        { status: 400 }
-      );
+    if (!piUsername || !piUid) {
+      return NextResponse.json({ error: "Identity parameters missing." }, { status: 400 });
     }
 
-    // 🛡️ ATOMIC TRANSACTION: Uses imported Prisma namespace
-    const citizen = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-      return await tx.pioneerNode.upsert({
-        where: { username: piUsername },
-        update: {
-          role: roles?.includes("elder") ? "ELDER" : "PIONEER",
-          lastActivityTimestamp: new Date(),
-        },
-        create: {
-          username: piUsername,
-          walletAddress: walletAddress,
-          role: roles?.includes("elder") ? "ELDER" : "PIONEER",
-          status: "ACTIVE",
-        },
-      });
-    });
+    // 🛡️ BAZAAR TECH: Using the Enum member instead of the string literal
+    // 🛡️ BAZAAR TECH: Using valid Schema Enum members
+// Mapping "elder" to BAZAAR_FOUNDER (or MESH_GUARDIAN based on your governance hierarchy)
+const assignedTier = roles?.includes("elder") ? Tier.BAZAAR_FOUNDER : Tier.CITIZEN;
 
-    return NextResponse.json({ status: "SUCCESS", citizen }, { status: 200 });
+await prisma.pioneerNode.upsert({
+  where: { username: piUsername },
+  update: {
+    tier: assignedTier,
+    lastActivityTimestamp: new Date(),
+  },
+  create: {
+    username: piUsername,
+    uid: piUid,
+    tier: assignedTier, // Now strictly matches Enum
+    lastActivityTimestamp: new Date(),
+    status: "ACTIVE",
+  },
+});
 
-  } catch (error: any) {
-    // 🛡️ ERROR LOGGING: Captured within scope
-    console.error("[REGISTRATION FRACTURE]", error?.message || error);
-    return NextResponse.json(
-      { status: "FRACTURE", message: "Atomic registration failed." }, 
-      { status: 500 }
-    );
+    return NextResponse.json({ success: true });
+
+  } catch (error) {
+    console.error("[ADJUDICATOR] Registration Fracture:", error);
+    return NextResponse.json({ error: "Registration Failed" }, { status: 500 });
   }
 }

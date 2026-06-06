@@ -1,27 +1,44 @@
-import { prisma } from "../../prisma/client"; // 🛡️ ROUTED TO UNIFIED MONGO LEDGER
+"use server";
 
-export async function checkGovernanceEligibility(pioneerUid: string) {
+import { prisma } from "@/lib/prisma";
+
+export async function getConsensusData() {
   try {
-    // 1. Interrogate the Pioneer's TrustScore (TS) via unified PioneerNode collection
-    // 🛡️ FIX TS 2339: Targeted prisma.pioneerNode and aligned lookup to the @unique username field
-    const pioneer = await prisma.pioneerNode.findUnique({
-      where: { username: pioneerUid },
-      select: { trustScore: true }
+    // 1. Target specifically the most recent ACTIVE proposal
+    const proposal = await prisma.internalProposal.findFirst({
+      where: { status: 'ACTIVE' }, 
+      orderBy: { createdAt: 'desc' }
     });
 
-    if (!pioneer) {
-      console.warn(`[GOVERNANCE ALERT] Node validation rejected for UID: ${pioneerUid}`);
-      return { eligible: false, error: "Pioneer container not registered in MESH." };
+    // LOGGING: Verify the payload
+    console.log("[LEDGER READ] DEBUG_SYNC_DATA:", proposal?.id || "NULL");
+
+    if (!proposal) {
+      console.warn("[MESH-SCAN] No active Genesis proposals found in Ledger.");
+      return { success: true, proposal: null, tierCounts: [] };
     }
 
-    console.log(`[GOVERNANCE] TrustScore verified for ${pioneerUid}: ${pioneer.trustScore}`);
+    // 2. Aggregate Pioneer data by 'tier' (Corrected from 'role')
+    const tierCounts = await prisma.pioneerNode.groupBy({ 
+      by: ['tier'], 
+      _count: { id: true } 
+    });
     
-    // Execute downstream governance calculation logic...
-    const isEligible = pioneer.trustScore >= 100; 
-    return { eligible: isEligible, trustScore: pioneer.trustScore };
+    return { 
+      success: true, 
+      proposal, 
+      tierCounts 
+    }; 
 
-  } catch (error: any) {
-    console.error("[GOVERNANCE CORE FRACTURE]", error?.message || error);
-    return { eligible: false, error: error?.message || "Internal sector processing error." };
+  } catch (error) {
+    // 3. Fallback state to prevent 500 Server Errors on the client
+    console.error("[MESH FRACTURE] Ledger Read Failed:", error);
+    
+    return { 
+      success: false, 
+      proposal: null, 
+      tierCounts: [],
+      error: "DATABASE_SYNC_ERROR"
+    };
   }
 }

@@ -1,84 +1,108 @@
 "use client";
 
-import React, { useState } from "react";
-import { useAuth } from "@/app/context/AuthContext"; // 🛡️ Master context hook
-import { updateProviderWallet } from "@/app/actions/enetworkActions"; // 🛡️ DIRECT ACTION HOOK INJECTED
+import { useState, useEffect } from "react";
+import { useMeshStatus } from "@/app/components/MeshInitializer";
+// 🛡️ BAZAAR TECH: Dual-Action Import
+import { syncWalletAction, getWalletStatus } from "@/app/actions/wallet";
 
 export default function WalletOnboardingShield() {
-  const [wallet, setWallet] = useState("");
+  const { user, isPiReady } = useMeshStatus();
+  
+  const [walletAddress, setWalletAddress] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // 🛡️ BAZAAR TECH: Hydration State Flags
+  const [isHydrating, setIsHydrating] = useState(true);
+  const [securedWallet, setSecuredWallet] = useState<string | null>(null);
 
-  // 🛡️ Connect to the active authentication channel to fetch the validated user token
-  const { pioneer } = useAuth() as any;
+  // 🛡️ THE HYDRATION LOOP: Check Ledger on Mount
+  useEffect(() => {
+    const verifyLedgerState = async () => {
+      if (user?.uid) {
+        console.log(`[MESH-SCAN] Hydrating UI for Node: ${user.uid}`);
+        const response = await getWalletStatus(user.uid);
+        
+        if (response.success && response.walletAddress) {
+          setSecuredWallet(response.walletAddress);
+        }
+        setIsHydrating(false);
+      }
+    };
 
-  // The cryptographically secure Stellar/Pi regex: Starts with G, 56 chars total
-  const isValid = /^G[A-Z2-7]{55}$/.test(wallet);
+    if (isPiReady && user) {
+      verifyLedgerState();
+    }
+  }, [isPiReady, user]);
 
-  const handleSubmit = async () => {
-    if (!isValid) return;
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     setIsSubmitting(true);
-    
+
+    const identifier = user?.uid;
+    if (!identifier) return;
+
     try {
-      // 1. Extract the secure identifier from the context payload
-      const identifier = pioneer?._id || pioneer?.uid || pioneer?.username;
+      console.log(`[LEDGER WRITE] Initiating Wallet Sync for Node: ${identifier}`);
+      const response = await syncWalletAction(identifier, walletAddress);
       
-      if (!identifier) {
-        console.error("[MESH-SCAN] 🚨 No Pioneer Identity found in active Auth Context.");
-        setIsSubmitting(false);
-        return;
+      if (!response.success) {
+        throw new Error(response.error || "Ledger mutation failed.");
       }
-
-      console.log(`[MESH-BRIDGE] 🛰️ Initiating Wallet Sync for Node: ${identifier}`);
-
-      // 2. 🛡️ SERVER ACTION EXECUTION: Bypass /api/ completely
-      const result = await updateProviderWallet(pioneer.username as string, wallet);
-
-      if (result && result.success) {
-        console.log("[MESH-BRIDGE] 🟢 Wallet mapping verified and written to ledger.");
-        window.location.reload(); // Hard refresh to lift the shield
-      } else {
-        console.error("MESH-SCAN: Wallet Update Failed -", result?.message || "Unknown State");
-        setIsSubmitting(false);
-      }
+      
+      console.log("[MESH ALIGNMENT] Wallet successfully bound to Pioneer.");
+      setSecuredWallet(walletAddress); // Instantly lock UI
+      
     } catch (error) {
-      console.error("MESH-SCAN: Critical Submission Fracture", error);
+      console.error("[MESH FRACTURE] Wallet Sync Failed:", error);
+    } finally {
       setIsSubmitting(false);
     }
   };
 
+  // UI LOCK 1: Booting or Hydrating
+  if (!isPiReady || !user || isHydrating) {
+    return (
+      <div className="p-6 border border-amber-900/50 bg-amber-950/20 text-amber-500 font-mono animate-pulse">
+        [MESH-SCAN] Syncing Ledger State...
+      </div>
+    );
+  }
+
+  // UI LOCK 2: Wallet Already Secured (Locked State)
+  if (securedWallet) {
+    const masked = `${securedWallet.substring(0, 6)}...${securedWallet.substring(securedWallet.length - 4)}`;
+    return (
+      <div className="bg-neutral-900 border border-emerald-900/50 p-6 font-mono">
+        <h2 className="text-emerald-500 mb-2">VAULT LOCKED: NODE SECURED</h2>
+        <div className="bg-neutral-950 p-4 border border-neutral-800 text-neutral-300 flex items-center justify-between">
+          <span className="font-mono text-emerald-400">{masked}</span>
+          <span className="text-emerald-500 text-xs tracking-widest border border-emerald-500/30 px-2 py-1 bg-emerald-950/30">SYNCED</span>
+        </div>
+      </div>
+    );
+  }
+
+  // UI LOCK 3: Default Form
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 px-4 backdrop-blur-md">
-      <div className="w-full max-w-[384px] bg-zinc-950 border border-amber-500 p-6 rounded shadow-[0_0_15px_rgba(245,158,11,0.2)]">
-        <h2 className="text-amber-500 font-bold text-lg mb-2 flex items-center tracking-wider">
-          <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
-          </svg>
-          NODE ISOLATION ACTIVE
-        </h2>
-        <p className="text-zinc-400 text-sm mb-6 leading-relaxed">
-          Your Pi identity is verified, but your routing address is PENDING. Submit your public Pi Wallet Address (56 characters, starting with G) to access the E-Network.
-        </p>
-        
+    <div className="bg-neutral-900 border border-neutral-800 p-6 font-mono">
+      <h2 className="text-amber-500 mb-4">PIONEER WALLET ONBOARDING</h2>
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         <input 
           type="text" 
-          value={wallet}
-          onChange={(e) => setWallet(e.target.value.toUpperCase().trim())}
-          placeholder="G..."
-          className="w-full bg-zinc-900 border border-zinc-700 text-amber-500 font-mono text-xs p-3 focus:outline-none focus:border-amber-500 transition-colors mb-4"
+          placeholder="Enter Pi Wallet Address (Public Key)"
+          value={walletAddress}
+          onChange={(e) => setWalletAddress(e.target.value)}
+          className="bg-neutral-950 border border-neutral-700 p-3 text-neutral-300 focus:border-amber-500 outline-none"
+          required
         />
-
         <button 
-          onClick={handleSubmit}
-          disabled={!isValid || isSubmitting}
-          className={`w-full p-3 font-bold text-sm tracking-widest transition-all ${
-            isValid 
-              ? "bg-amber-500 text-zinc-950 hover:bg-amber-400" 
-              : "bg-zinc-800 text-zinc-600 cursor-not-allowed"
-          }`}
+          type="submit" 
+          disabled={isSubmitting}
+          className="bg-amber-900 text-amber-400 p-3 uppercase tracking-widest hover:bg-amber-800 disabled:opacity-50 transition-all"
         >
-          {isSubmitting ? "SYNCING..." : "VERIFY WALLET"}
+          {isSubmitting ? "Writing to Ledger..." : "Sync Wallet"}
         </button>
-      </div>
+      </form>
     </div>
   );
 }

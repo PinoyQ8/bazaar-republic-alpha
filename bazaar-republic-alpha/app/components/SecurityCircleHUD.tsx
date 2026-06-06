@@ -30,52 +30,36 @@ export default function SecurityCircleHUD({ pioneerId }: { pioneerId: string }) 
   const [formMessage, setFormMessage] = useState<{ text: string; type: "error" | "success" | "system" } | null>(null);
 
   useEffect(() => {
-    let isMounted = true;
-    setLoading(true);
-
-    getSecurityCircleStatus(pioneerId).then((res: any) => { 
-      if (isMounted) {
+    // 🛡️ BAZAAR TECH: Fetching only when PioneerId is anchored
+    if (!pioneerId) return;
+    
+    getSecurityCircleStatus(pioneerId)
+      .then((res: any) => {
         if (res.success && res.data) {
-          setStatus(sanitize(res.data)); 
-        } else {
-          setStatus(null);
+          setStatus(sanitize(res.data));
         }
-        setLoading(false);
-      }
-    }).catch((error) => {
-      console.error("[MESH-SCAN] Ledger Sync Failed", error);
-      if (isMounted) setLoading(false);
-    });
-
-    return () => { isMounted = false; };
+      })
+      .finally(() => setLoading(false));
   }, [pioneerId]);
 
-  // 🛡️ FORM ACTION: Must return Promise<void>
-  async function handleClientSubmit(formData: FormData): Promise<void> {
-    if (isProcessing) return; 
-    
+  async function handleClientSubmit(formData: FormData) {
     setIsProcessing(true);
-    setFormMessage({ text: "ENCRYPTING PAYLOAD...", type: "system" });
-    
     try {
-      const pioneerId = formData.get("pioneerId") as string;
       const publicAddress = formData.get("publicAddress") as string;
       const stakeAmount = parseFloat(formData.get("stakeAmount") as string);
-
-      const payload = { pioneerId, publicAddress, stakeAmount };
-      const response = await registerSecurityCircle(payload);
+      
+      // 🛡️ AUTHENTICATED MUTATION
+      const response = await registerSecurityCircle({ pioneerId, publicAddress, stakeAmount });
       
       if (response.success) {
-         setFormMessage({ text: "TRANSACTION SECURED.", type: "success" });
-         const updated = await getSecurityCircleStatus(pioneerId);
-         if (updated.success && updated.data) {
-            setStatus(sanitize(updated.data));
-         }
+        setFormMessage({ text: "TRANSACTION SECURED.", type: "success" });
+        const updated = await getSecurityCircleStatus(pioneerId);
+        if (updated.success) setStatus(sanitize(updated.data));
       } else {
-         setFormMessage({ text: response.error || "TRANSACTION FAILED.", type: "error" });
+        throw new Error(response.error);
       }
-    } catch (error) {
-      setFormMessage({ text: "FATAL: UPLINK FRACTURED.", type: "error" });
+    } catch (err: any) {
+      setFormMessage({ text: err.message || "UPLINK FRACTURED.", type: "error" });
     } finally {
       setIsProcessing(false);
     }

@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Script from 'next/script';
-import { MeshInitializer } from '@/app/components/MeshInitializer'; // 🛡️ Import the Wrapper
+import { MeshInitializer } from '@/app/components/MeshInitializer';
 import PioneerNav from '@/app/components/Navigation';
 import './globals.css'; 
 
@@ -15,26 +15,27 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className="bg-neutral-950">
+    <html lang="en" className="bg-neutral-950 text-amber-500 font-mono antialiased scroll-smooth">
       <head>
-        {/* 🔌 THE BRIDGE: PI NETWORK SDK INJECTION */}
         <Script 
-          src="https://sdk.minepi.com/pi-sdk.js" 
-          strategy="beforeInteractive" 
-        />
+  src="https://sdk.minepi.com/pi-sdk.js" 
+  strategy="beforeInteractive" 
+/>
       </head>
       
-      {/* Added flex and flex-col to manage the vertical stacking of Nav and Content */}
-      <body className="bg-neutral-950 text-amber-500 font-mono antialiased overflow-x-hidden min-h-screen flex flex-col">
-        {/* 🛡️ MESH INITIALIZATION GATE */}
+      <body className="bg-neutral-950 min-h-screen flex flex-col md:flex-row overflow-hidden">
         <MeshInitializer>
           
-          {/* 🗺️ GLOBAL NAVIGATION ANCHOR */}
-          <PioneerNav />
+          {/* SIDEBAR NAVIGATION */}
+          <aside className="w-full md:w-64 border-b md:border-b-0 md:border-r border-neutral-800 shrink-0 bg-neutral-950 z-20">
+             <PioneerNav />
+          </aside>
           
-          {/* ⚡ DYNAMIC SECTOR RENDERING */}
-          <main className="grow">
-            {children}
+          {/* MAIN VIEWPORT */}
+          <main className="flex-1 overflow-y-auto bg-neutral-950 h-screen">
+            <div className="p-4 md:p-8 max-w-7xl mx-auto min-h-screen">
+              {children}
+            </div>
           </main>
 
         </MeshInitializer>

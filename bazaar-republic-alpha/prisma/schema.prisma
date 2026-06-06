@@ -10,32 +10,48 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// 🛡️ MESH LEDGER: Expanded PioneerNode Model
-model PioneerNode {
-  id                    String   @id @default(auto()) @map("_id") @db.ObjectId
-  
-  // 🛡️ THE HARDWARE BINDING (Required for Telemetry targeting)
-  uid                   String   @unique @default("PinoyQ8-Node-01")
-
-  // Existing Identity Fields
-  username              String?  @unique
-  walletAddress         String?  @unique
-  role                  String   @default("CITIZEN")
-  status                String   @default("SYNCING")
-  trustScore            Int      @default(0)
-  stakedPi              Float    @default(0)
-  lastActivityTimestamp DateTime @default(now())
-  createdAt             DateTime @default(now())
-
-  // 🛰️ NEW: HARD-CODED TELEMETRY FIELDS
-  ledgerHeight          Int      @default(0)
-  syncState             String   @default("Unknown")
-  activePeers           Int      @default(0)
-  protocol              String   @default("24")
-  lastHeartbeat         DateTime @default(now())
+// 🛡️ MESH HIERARCHY: Strict Access Control Engine
+enum Tier {
+  CITIZEN
+  NOVICE
+  ACADEMY_CORE
+  MESH_GUARDIAN
+  BAZAAR_FOUNDER
 }
 
-// 🛰️ ADD THE MISSING ACADEMY LOG MODEL FOR TS VALIDATION
+// 🛡️ MESH LEDGER: Expanded PioneerNode Model
+model PioneerNode {
+  id                  String   @id @default(auto()) @map("_id") @db.ObjectId
+  
+  // 🛡️ THE HARDWARE BINDING (Required for Telemetry targeting)
+  // BAZAAR TECH FIX: Removed static default to prevent fatal duplicate key crashes on registration.
+  uid                 String   @unique
+
+  // Existing Identity Fields
+  username            String?  @unique
+  walletAddress       String?  @unique
+  
+  // 🛡️ REPLACED 'role' WITH 'tier' ENUM TO FIX THE 500 ROUTING ERROR
+  tier                Tier     @default(CITIZEN) 
+  
+  status              String   @default("SYNCING")
+  trustScore          Int      @default(0)
+  stakedPi            Float    @default(0)
+  lastActivityTimestamp DateTime @default(now())
+  createdAt           DateTime @default(now())
+
+  // 🛰️ HARD-CODED TELEMETRY FIELDS
+  ledgerHeight        Int      @default(0)
+  syncState           String   @default("Unknown")
+  activePeers         Int      @default(0)
+  protocol            String   @default("24")
+  lastHeartbeat       DateTime @default(now())
+  
+  // 🛡️ ADDED FOR REMOTE ADMIN PROTOCOL
+  isUnderRemoteRescue Boolean  @default(false)
+}
+
+// 🛰️ ACADEMY LOG MODEL FOR TS VALIDATION
 model AcademyLog {
   id           String   @id @default(auto()) @map("_id") @db.ObjectId
   pioneerUid   String
@@ -46,7 +62,7 @@ model AcademyLog {
 model Payment {
   id          String   @id @default(auto()) @map("_id") @db.ObjectId
   paymentId   String   @unique 
-  txid        String   @unique // 🛡️ NEW: On-Chain Transaction Hash
+  txid        String   @unique // 🛡️ On-Chain Transaction Hash
   payerUid    String
   merchantUid String
   amount      Float
@@ -55,13 +71,13 @@ model Payment {
 }
 
 model InternalProposal {
-  id          String   @id @default(auto()) @map("_id") @db.ObjectId
-  title       String
-  description String
-  authorUid   String   // 🛡️ The Pioneer Node who submitted the proposal
-  status      String   @default("PENDING") // e.g., PENDING, ACTIVE, PASSED, REJECTED
-  votesFor    Int      @default(0)
-  votesAgainst Int     @default(0)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  title        String
+  description  String
+  authorUid    String   // 🛡️ The Pioneer Node who submitted the proposal
+  status       String   @default("PENDING") // PENDING, ACTIVE, PASSED, REJECTED
+  votesFor     Int      @default(0)
+  votesAgainst Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }

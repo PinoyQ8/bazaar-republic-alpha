@@ -1,10 +1,15 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
-export async function GET() {
+export async function GET(
+  req: Request, 
+  { params }: { params: Promise<{ id: string }> } // Dynamic parameter kept
+) {
   try {
+    const { id } = await params;
+
     // 1. Fetch proposal and nodes in parallel
-    // Fixed: Aggregating by 'tier' (the actual schema field)
+    // Fixed: Aggregating by 'tier' instead of 'role'
     const [proposal, tierCounts] = await Promise.all([
       prisma.internalProposal.findFirst({ orderBy: { createdAt: 'desc' } }),
       prisma.pioneerNode.groupBy({ 
@@ -42,7 +47,8 @@ export async function GET() {
 
     return NextResponse.json({
       networkStatus: "SYNCED",
-      matrix
+      matrix,
+      requestedId: id // Echoing dynamic param
     });
 
   } catch (error) {

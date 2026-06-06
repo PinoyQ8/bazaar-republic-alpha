@@ -1,40 +1,33 @@
-"use server"; // 🛡️ CRITICAL: This ensures the logic stays off the client node
+"use server";
 
-import { revalidatePath } from "next/cache";
+import { prisma } from "@/lib/prisma";
 
-export async function verifyPioneerUplink(accessToken: string) {
+export async function syncPioneerNode(uid: string, username: string) {
   try {
-    console.log("[MESH-SCAN] Initiating Auth Bridge for token verification...");
+    console.log(`[LEDGER SYNC] Authenticating Node: ${uid}`);
 
-    // 🛡️ LEVEL-UP LOGIC: 
-    // In a full WASM setup, we would call the Rust binary here.
-    // For now, we are bridging the request to the Pi API using the 
-    // structural logic we forged in our pi-rust crate.
-    
-    const response = await fetch("https://api.minepi.com/v2/me", {
-      method: "GET",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
+    // 🛡️ The UPSERT Protocol: Create if missing, Update if exists.
+    const node = await prisma.pioneerNode.upsert({
+      where: { uid: uid },
+      update: {
+        username: username,
+        lastActivityTimestamp: new Date(),
+        status: "ONLINE",
       },
+      create: {
+        uid: uid,
+        username: username,
+        tier: "CITIZEN", // 🛡️ Default access tier for new connections
+        status: "ONLINE",
+        trustScore: 0,
+      }
     });
 
-    if (!response.ok) {
-      throw new Error(`E-Network Rejected Sync: ${response.status}`);
-    }
-
-    const data = await response.json();
-    
-    // 🛡️ Sync complete: Return the verified Pioneer identity
-    return {
-      success: true,
-      pioneer: {
-        uid: data.uid,
-        username: data.username,
-      },
-    };
+    console.log(`[LEDGER SYNC] Node ${username} registered with Tier: ${node.tier}`);
+    return { success: true, node };
 
   } catch (error) {
-    console.error("[CRITICAL] Bridge Fracture:", error);
-    return { success: false, error: "Authentication Shield Failure" };
+    console.error("[MESH-SCAN] Node Registration Fracture:", error);
+    return { success: false, error: "Failed to write Pioneer to Ledger." };
   }
 }
