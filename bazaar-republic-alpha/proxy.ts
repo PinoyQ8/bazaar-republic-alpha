@@ -1,11 +1,9 @@
-// TARGET FILE PATH: [project-root]/proxy.ts
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 /**
  * 🛡️ THE SECURITY ADJUDICATOR: ZERO-TRUST PERIMETER
- * ---------------------------------------------------------
- * Intercepts network traffic at the edge. 
+ * Next.js 16 Proxy Architecture
  */
 
 const RESTRICTED_SECTORS = ["/academy", "/enetwork", "/governance", "/treasury"];
@@ -17,9 +15,10 @@ export default function proxy(req: NextRequest) {
   // 1. 🛑 BYPASS & ALPHA TRACK EXEMPTIONS
   if (
     path === "/" || 
-    path === "/log-in" ||            // ALPHA SHIELD: Authorize Login Sector
-    path === "/alpha-track" ||       // ALPHA SHIELD: Authorize Alpha Terminal
-    path === "/academy" ||           // ALPHA SHIELD: Temporarily bypass for client-side MASTER_TS test
+    path === "/governance" ||          // AUTHORIZED: Governance Node
+    path === "/log-in" ||             // AUTHORIZED: Login Sector
+    path === "/alpha-track" ||        // AUTHORIZED: Alpha Terminal
+    path === "/academy" ||            // AUTHORIZED: Academy
     path === "/academy/vault" || 
     path.startsWith("/api/auth") ||
     path.startsWith("/governance/security-circle") || 
@@ -28,7 +27,7 @@ export default function proxy(req: NextRequest) {
     return NextResponse.next();
   }
 
-  // 2. 🔐 EXTRACT HANDSHAKE (Synchronized with AuthContext)
+  // 2. 🔐 EXTRACT HANDSHAKE
   const isAuthenticated = req.cookies.has("pioneer_uid");
 
   // 3. 🛡️ ADJUDICATE UI SECTORS
@@ -52,7 +51,6 @@ export default function proxy(req: NextRequest) {
 
 /**
  * ⚙️ THE MESH MATCHER PROTOCOL
- * Prevents the edge router from wasting CPU cycles on static files.
  */
 export const config = {
   matcher: [
