@@ -48,21 +48,26 @@ export default function RegistryPage() {
       </div>
 
       {/* 🛡️ PIONEER DIRECTORY */}
-      <div className="mt-8 space-y-2">
-        <div className="text-[9px] text-blue-500/50 uppercase tracking-widest mb-4">
-          {loading ? "Syncing Directory..." : `Active Directory (${registry.length})`}
-        </div>
-        
-        {!loading && registry.map((pioneer) => (
-          <div key={pioneer._id} className="flex justify-between items-center p-3 border border-slate-800 bg-slate-900/20 rounded-md">
-            <div className="flex flex-col">
-              <span className="text-[10px] font-mono text-slate-200">{pioneer._id}</span>
-              <span className="text-[8px] text-slate-500">Staked: {pioneer.totalStaked} Pi</span>
-            </div>
-            <span className="text-[8px] text-green-500 border border-green-500/20 px-2 py-1 rounded">🛡️ VERIFIED</span>
+        <div className="mt-8 space-y-2">
+          <div className="text-[9px] text-blue-500/50 uppercase tracking-widest mb-4">
+            {loading ? "Syncing Directory..." : `Active Directory (${registry.length})`}
           </div>
-        ))}
-      </div>
+          
+          {/* 🛡️ BAZAAR TECH: Prisma-Aligned Data Mapping */}
+          {!loading && registry.map((node) => (
+            <div key={node.uid} className="flex justify-between items-center p-3 border border-slate-800 bg-slate-900/20 rounded-md">
+              <div className="flex flex-col">
+                <span className="text-[10px] font-mono text-slate-200">{node.username}</span>
+                <span className="text-[8px] text-slate-500 uppercase tracking-wider mt-1">
+                  Tier: {node.tier} | Node UID: {node.uid.split('-')[0]}***
+                </span>
+              </div>
+              <span className="text-[8px] text-emerald-500 border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 rounded tracking-widest uppercase">
+                🛡️ {node.status}
+              </span>
+            </div>
+          ))}
+        </div>
 
       {/* 📊 TELEMETRY FOOTER */}
       <div className="fixed bottom-0 left-0 w-full bg-black/80 backdrop-blur-md border-t border-slate-800 z-50">
