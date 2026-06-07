@@ -1,23 +1,36 @@
+// app/api/ledger/sync/route.ts (or equivalent route path)
 import { NextResponse } from 'next/server';
-import { connectToLedger } from '@/lib/mongodb'; // 🛡️ Ensure this path is correct
+import { connectToLedger } from '@/lib/mongodb';
 import BurnEvent from '@/models/BurnEvent';
+
+// 🛡️ CRITICAL MESH DIRECTIVE: Break the cache-lock.
+// Ensures the E-Network always retrieves the real-time Master TS.
+export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
-    // 🛡️ CRITICAL: You MUST await the connection before querying
-    await connectToLedger(); 
+    // 🛡️ Handshake Protocol
+    await connectToLedger();
     
+    // Retrieve latest node interactions
     const interactions = await BurnEvent.find()
       .sort({ timestamp: -1 })
-      .limit(10);
+      .limit(10)
+      .lean(); // Strip Mongoose overhead to optimize memory buffer
     
     return NextResponse.json({
-      status: 'AUDIT_COMPLETE',
+      status: 'SYNCED', // Aligned with MESH Telemetry
       count: interactions.length,
-      data: interactions
-    });
+      data: interactions,
+      timestamp: new Date().toISOString() // Attach localized Master TS
+    }, { status: 200 });
+
   } catch (error) {
-    console.error("Ledger Connection Failed:", error);
-    return NextResponse.json({ error: 'Database handshake failed' }, { status: 500 });
+    console.error("[ADJUDICATOR] Ledger Connection Failed:", error);
+    
+    return NextResponse.json({ 
+      status: 'LOGIC_BREACH',
+      error: 'Database handshake failed to synchronize.' 
+    }, { status: 500 });
   }
 }

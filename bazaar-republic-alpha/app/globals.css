@@ -1,38 +1,63 @@
 @import "tailwindcss";
 
 :root {
-  /* 🛡️ BAZAAR DARK-CORE PALETTE (Default) */
+  /* 🛡️ BAZAAR DARK-CORE PALETTE (Master State) */
   --background: #020617; /* Slate 950 */
   --foreground: #f8fafc; /* Slate 50 */
   
   /* 🛡️ BAZAAR ACCENT LOGIC */
   --mesh-blue: #2563eb;
   --mesh-green: #22c55e;
+  --mesh-amber: #f59e0b; /* Amber injected for Dashboard consistency */
 }
 
 @theme inline {
+  /* Core Mappings */
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-mesh-blue: var(--mesh-blue);
+  --color-mesh-green: var(--mesh-green);
+  --color-mesh-amber: var(--mesh-amber);
+
+  /* Font Matrix */
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 
-  /* 🛡️ VIEWPORT LOCK: S23 Ultra (384px) */
-  --max-width-bazaar-node: 350px;
+  /* 🛡️ S23 VIEWPORT LOCK MATRIX (384px Master) */
+  --max-width-s23-edge: 384px;      /* True hardware limit */
+  --max-width-bazaar-node: 350px;   /* Padded safe zone */
+  
+  /* 🛡️ CUSTOM SPACING LOGIC */
   --spacing-bazaar-mobile: 350px;
-
-  /* 🛡️ HARD-CODED LOGIC ELEMENT: Maps min-w-55, w-55, and p-55 to 220px natively */
-  --spacing-55: 220px;
-
-  /* 🛡️ BRAND COLORS */
-  --color-mesh-blue: var(--mesh-blue);
-  --color-mesh-green: var(--mesh-green);
+  --spacing-55: 220px; /* Resolves w-55, h-55, p-55 overrides */
 }
 
-/* 🛡️ UNIVERSAL UI OVERRIDE */
+/* 🛡️ UNIVERSAL UI OVERRIDE & SCROLL LOCK */
+html {
+  scroll-behavior: smooth;
+}
+
 body {
   background: var(--background);
   color: var(--foreground);
-  /* 🛡️ Enforcing Mono for the Neo Protocol aesthetic */
+  /* 🛡️ Enforcing Mono for the Neo Protocol terminal aesthetic */
   font-family: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden; /* Absolute lockout of horizontal drift */
+}
+
+/* 🛡️ MESH PROTOCOL CUSTOM SCROLLBAR */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--background);
+}
+::-webkit-scrollbar-thumb {
+  background: #064e3b; /* Emerald 900 for passive integration */
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--mesh-green); /* Active sync highlight */
 }
