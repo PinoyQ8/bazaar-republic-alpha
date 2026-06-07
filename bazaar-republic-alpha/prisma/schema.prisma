@@ -1,6 +1,7 @@
-// 🛡️ NEO PROTOCOL: SCHEMA VERSION 2.0 (Governance Hardened)
+// 🛡️ NEO PROTOCOL: SCHEMA VERSION 2.1 (Governance Hardened & Mapped)
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "windows"] // 🛡️ BAZAAR TECH: Force platform compatibility
 }
 
 datasource db {
@@ -17,7 +18,7 @@ enum Tier {
   BAZAAR_FOUNDER
 }
 
-// 🛡️ GOVERNANCE STATUS: Enforced Consistency
+// 🛡️ NODE STATUS: Enforced Consistency
 enum NodeStatus {
   SYNCING
   ACTIVE
@@ -25,37 +26,55 @@ enum NodeStatus {
   SUSPENDED
 }
 
+// 🛡️ PROPOSAL STATE: Hardened Flow
+enum ProposalStatus {
+  ACTIVE
+  PASSED
+  REJECTED
+  EXPIRED
+}
+
+// 🛡️ VOTING STATE: Anti-Injection Lock
+enum VoteDecision {
+  YES
+  NO
+  ABSTAIN
+}
+
 // 🛡️ MESH LEDGER: PioneerNode Model
 model PioneerNode {
-  id                    String     @id @default(auto()) @map("_id") @db.ObjectId
-  uid                   String     @unique
-  username              String?    @unique
-  walletAddress         String?    @unique
+  id                  String     @id @default(auto()) @map("_id") @db.ObjectId
+  uid                 String     @unique
+  username            String?    @unique
+  walletAddress       String?    @unique
   
-  tier                  Tier       @default(CITIZEN) 
-  status                NodeStatus @default(SYNCING)
+  tier                Tier       @default(CITIZEN) 
+  status              NodeStatus @default(SYNCING)
   
   // 🛡️ GOVERNANCE LOCKS
-  isFrozen              Boolean    @default(false)
-  freezeReason          String?
+  isFrozen            Boolean    @default(false)
+  freezeReason        String?
   
   // 🛡️ IDENTITY & PERFORMANCE
-  trustScore            Int        @default(0)
-  stakedPi              Float      @default(0)
-  signature             String?    
+  trustScore          Int        @default(0)
+  stakedPi            Float      @default(0)
+  signature           String?    
   
   // 🛰️ HARDWARE & TELEMETRY
-  ledgerHeight          Int        @default(0)
-  syncState             String     @default("Unknown")
-  activePeers           Int        @default(0)
-  protocol              String     @default("24")
-  isUnderRemoteRescue   Boolean    @default(false)
+  ledgerHeight        Int        @default(0)
+  syncState           String     @default("Unknown")
+  activePeers         Int        @default(0)
+  protocol            String     @default("24")
+  isUnderRemoteRescue Boolean    @default(false)
 
   // 🛡️ TIMEKEEPING
   lastActivityTimestamp DateTime   @default(now())
   lastHeartbeat         DateTime   @default(now())
   createdAt             DateTime   @default(now())
-  updatedAt             DateTime   @updatedAt // 🛡️ Automatically tracks modifications
+  updatedAt             DateTime   @updatedAt
+
+  // 🛡️ DATABASE ANCHOR: Forces Prisma to read the Mongoose collection
+  @@map("pioneerledgers")
 }
 
 // 🛰️ ACADEMY LOG MODEL
@@ -66,7 +85,7 @@ model AcademyLog {
   createdAt    DateTime @default(now())
 }
 
-// 🛡️ PAYMENTS & PROPOSALS
+// 🛡️ PAYMENTS ENGINE
 model Payment {
   id          String   @id @default(auto()) @map("_id") @db.ObjectId
   paymentId   String   @unique 
@@ -78,35 +97,36 @@ model Payment {
   createdAt   DateTime @default(now())
 }
 
-// 🛡️ GOVERNANCE MODEL UPDATE
+// 🛡️ GOVERNANCE: Proposal Matrix
 model InternalProposal {
-  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  id              String         @id @default(auto()) @map("_id") @db.ObjectId
   title           String
   description     String
   authorUid       String   
-  status          String   @default("ACTIVE") 
-  targetParameter String?  // 🛡️ ADDED: For DEX/System tuning
-  proposedValue   Float?   // 🛡️ ADDED: For quantitative proposals
-  votesFor        Int      @default(0) // 🛡️ ENSURE THESE EXIST
-  votesAgainst    Int      @default(0) // 🛡️ ENSURE THESE EXIST
-  expiresAt       DateTime?   // 🛡️ BAZAAR TECH: Optional modifier added
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  status          ProposalStatus @default(ACTIVE) // 🛡️ UPGRADED to Enum
+  targetParameter String?        // For DEX/System tuning
+  proposedValue   Float?         // For quantitative proposals
+  votesFor        Int            @default(0) 
+  votesAgainst    Int            @default(0) 
+  expiresAt       DateTime?      // 🛡️ Time-Lock Modifier
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
 
   // 🛡️ MESH RELATION: Two-way binding established
   votes           VoteRecord[] 
 }
 
-// 🛡️ GOVERNANCE RECORD MATRIX
+// 🛡️ GOVERNANCE: Vote Ledger
 model VoteRecord {
-  id          String   @id @default(auto()) @map("_id") @db.ObjectId
-  proposalId  String   @db.ObjectId
+  id          String       @id @default(auto()) @map("_id") @db.ObjectId
+  proposalId  String       @db.ObjectId
   voterId     String
-  decision    String   // "YES" | "NO" | "ABSTAIN"
-  castAt      DateTime @default(now())
+  decision    VoteDecision // 🛡️ UPGRADED to Enum (Prevents arbitrary string injection)
+  castAt      DateTime     @default(now())
 
   // 🛡️ MESH RELATION: Binds the vote directly to the internal proposal cluster
   proposal    InternalProposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
 
-  @@unique([proposalId, voterId]) // 🛡️ FRONT-RUNNING SHIELD: One vote per Pioneer per proposal
+  // 🛡️ FRONT-RUNNING SHIELD: One vote per Pioneer per proposal
+  @@unique([proposalId, voterId]) 
 }

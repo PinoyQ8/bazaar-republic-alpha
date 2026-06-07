@@ -2,17 +2,21 @@ import mongoose from 'mongoose';
 
 const MONGODB_URI = process.env.MONGODB_URI!;
 
-let cached = (global as any).mongoose || { conn: null, promise: null };
+// 🛡️ BAZAAR TECH: Prevent connection leak with a global cache
+let cached = (global as any).mongoose;
+
+if (!cached) {
+  cached = (global as any).mongoose = { conn: null, promise: null };
+}
 
 export async function connectToLedger() {
   if (cached.conn) return cached.conn;
 
   if (!cached.promise) {
-    cached.promise = mongoose.connect(MONGODB_URI).then((mongoose) => {
-      return mongoose;
-    });
+    const opts = { bufferCommands: false };
+    cached.promise = mongoose.connect(MONGODB_URI, opts).then((mongoose) => mongoose);
   }
+  
   cached.conn = await cached.promise;
-  (global as any).mongoose = cached;
   return cached.conn;
 }
