@@ -11,7 +11,7 @@ interface PioneerIdentity {
 
 interface MeshContextType {
   isPiReady: boolean;
-  isAuthenticated: boolean; // 🛡️ CRITICAL: Access flag
+  isAuthenticated: boolean; 
   user: PioneerIdentity | null;
   accessToken: string | null;
 }
@@ -28,13 +28,25 @@ export function MeshInitializer({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<PioneerIdentity | null>(null);
   const [accessToken, setAccessToken] = useState<string | null>(null);
 
-  // 🛡️ BAZAAR TECH: Computed Auth State
-  // This eliminates the risk of state drift. If user exists, MESH is open.
+  // 🛡️ BAZAAR TECH: Computed Auth State (Eliminates state drift)
   const isAuthenticated = useMemo(() => !!user && !!accessToken, [user, accessToken]);
 
   useEffect(() => {
     const initializeMesh = async () => {
-      // 🛡️ GATE 1: Environment Check
+      // 🛡️ SHADOW AUDIT: The Dev-Node Identity Guardrail
+      const isLocalWorkstation = process.env.NODE_ENV === 'development';
+
+      // 🛠️ Isolated Dev Boot Sequence
+      const bootDevNode = async () => {
+        console.warn("[MESH-OVERRIDE] Local X570 Dev Environment Detected. Injecting Alpha Identity.");
+        const devUser = { uid: "DEV_NODE_X570_ALPHA", username: "PinoyQ8" };
+        setUser(devUser);
+        setAccessToken("LOCAL_DEV_TOKEN_X570");
+        setIsPiReady(true);
+        await syncPioneerNode(devUser.uid, devUser.username);
+      };
+
+      // 🛡️ GATE 1: Check for Pi Browser Environment
       if (typeof window !== "undefined" && window.Pi) {
         try {
           window.Pi.init({ version: "2.0", sandbox: true });
@@ -52,17 +64,22 @@ export function MeshInitializer({ children }: { children: React.ReactNode }) {
           console.log(`[IDENTITY ANCHOR] Synced: @${authResult.user.username}`);
 
         } catch (error) {
-          // 🛡️ THE BAZAAR BYPASS: Local Dev Overrides
-          console.warn("[MESH-OVERRIDE] SDK Fracture. Injecting Local Dev Identity.");
-          const devUser = { uid: "DEV_NODE_X570_ALPHA", username: "PinoyQ8" };
-          setUser(devUser);
-          setAccessToken("LOCAL_DEV_TOKEN");
-          setIsPiReady(true);
-          await syncPioneerNode(devUser.uid, devUser.username);
+          if (isLocalWorkstation) {
+            await bootDevNode(); // Safe to bypass on X570
+          } else {
+            // 🚨 Mainnet Security Lock: Drop unauthorized ghosts silently
+            console.error("[ADJUDICATOR] Pi SDK Handshake Failed on Mainnet. Access Denied.");
+            setIsPiReady(true); // Ready, but strictly unauthenticated.
+          }
         }
       } else {
-        console.warn("[MESH-SCAN] No Pi Browser detected. Accessor Restricted.");
-        setIsPiReady(true); // Allow UI to render the "Connect" Gate
+        // No Pi Browser Detected (e.g., standard Chrome)
+        if (isLocalWorkstation) {
+          await bootDevNode(); // Safe to bypass on X570
+        } else {
+          console.warn("[MESH-SCAN] No Pi Browser detected. Mainnet Accessor Restricted.");
+          setIsPiReady(true); // Ready, but strictly unauthenticated.
+        }
       }
     };
 
