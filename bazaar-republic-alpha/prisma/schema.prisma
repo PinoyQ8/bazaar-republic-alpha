@@ -89,7 +89,7 @@ model InternalProposal {
   proposedValue   Float?   // 🛡️ ADDED: For quantitative proposals
   votesFor        Int      @default(0) // 🛡️ ENSURE THESE EXIST
   votesAgainst    Int      @default(0) // 🛡️ ENSURE THESE EXIST
-  expiresAt       DateTime 
+  expiresAt       DateTime?   // 🛡️ BAZAAR TECH: Optional modifier added
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 }
