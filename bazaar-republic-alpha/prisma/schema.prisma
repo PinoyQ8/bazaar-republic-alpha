@@ -92,4 +92,21 @@ model InternalProposal {
   expiresAt       DateTime?   // 🛡️ BAZAAR TECH: Optional modifier added
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+
+  // 🛡️ MESH RELATION: Two-way binding established
+  votes           VoteRecord[] 
+}
+
+// 🛡️ GOVERNANCE RECORD MATRIX
+model VoteRecord {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  proposalId  String   @db.ObjectId
+  voterId     String
+  decision    String   // "YES" | "NO" | "ABSTAIN"
+  castAt      DateTime @default(now())
+
+  // 🛡️ MESH RELATION: Binds the vote directly to the internal proposal cluster
+  proposal    InternalProposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+
+  @@unique([proposalId, voterId]) // 🛡️ FRONT-RUNNING SHIELD: One vote per Pioneer per proposal
 }

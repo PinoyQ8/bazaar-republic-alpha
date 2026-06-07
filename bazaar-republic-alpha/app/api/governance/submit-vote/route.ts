@@ -1,31 +1,70 @@
-// TARGET FILE PATH: [project-root]/app/api/governance/submit-vote/route.ts
+// app/api/governance/submit-vote/route.ts
 import { NextResponse } from 'next/server';
-import { GovernanceRegistry } from '@/services/GovernanceRegistry';
+import { PrismaClient } from '@prisma/client';
+import PioneerLedger from '@/models/PioneerLedger'; // The RBAC matrix we just built
+
+const prisma = new PrismaClient();
 
 export async function POST(req: Request) {
   try {
-    const { uid, proposalId, voteChoice } = await req.json();
-
-    // 🛡️ MESH-SCAN: Verify Influence Quorum
-    const influence = GovernanceRegistry.getInfluence(uid);
+    const payload = await req.json();
+    const { pioneer_id, proposal_id, vote_decision } = payload;
     
-    if (influence === null || influence < 10) {
-      return NextResponse.json(
-        { success: false, message: "ADJUDICATOR: Insufficient Influence to participate in Governance." },
-        { status: 403 }
-      );
+    // Notice: We completely ignore payload.timestamp if it exists. 
+    // The E-Network does not trust client clocks.
+
+    if (!pioneer_id || !proposal_id || !vote_decision) {
+      return NextResponse.json({ status: 'LOGIC_BREACH', error: 'Malformed vote payload.' }, { status: 400 });
     }
 
-    // 🛡️ RECORD VOTE (Logic for persistent storage goes here)
-    console.log(`[MESH-SYNC] Node ${uid} cast vote on ${proposalId}: ${voteChoice} (Weight: ${influence})`);
+    // 🛡️ RBAC Check (Ghost Admin Defense applies here too)
+    const pioneer = await PioneerLedger.findOne({ uid: pioneer_id });
+    if (!pioneer) {
+      return NextResponse.json({ status: 'UNAUTHORIZED', error: 'Ghost Node detected.' }, { status: 403 });
+    }
 
-    return NextResponse.json({ 
-      success: true, 
-      weightApplied: influence,
-      status: "VOTE_RECORDED" 
+    // 🛡️ VECTOR DELTA: The Chrono-Lock
+    // We establish the absolute time of execution on the secure server.
+    const absoluteNow = new Date();
+
+    const proposal = await prisma.internalProposal.findUnique({
+      where: { id: proposal_id }
     });
 
-  } catch (error) {
-    return NextResponse.json({ success: false, message: "Governance Bridge Fault." }, { status: 500 });
+    if (!proposal) {
+      return NextResponse.json({ status: 'NOT_FOUND', error: 'Proposal does not exist.' }, { status: 404 });
+    }
+
+    // If the proposal has an expiration date, enforce the Chrono-Lock
+    if (proposal.expiresAt && absoluteNow > proposal.expiresAt) {
+      console.warn(`[ADJUDICATOR] Chrono-Breach Intercepted. Node ${pioneer_id} attempted to backdate a vote.`);
+      return NextResponse.json({ 
+        status: 'TIME_LOCK_ENFORCED', 
+        error: 'The governance window for this proposal has permanently closed.' 
+      }, { status: 422 });
+    }
+
+    // 🛡️ THE EFFECTS (State Finality)
+    // Register the vote in the ledger
+    await prisma.voteRecord.create({
+      data: {
+        proposalId: proposal_id,
+        voterId: pioneer_id,
+        decision: vote_decision,
+        // The ledger records the absolute server time, never the client time
+        castAt: absoluteNow 
+      }
+    });
+
+    return NextResponse.json({ 
+      status: 'SYNCED', 
+      message: 'Vote cryptographically sealed in the current block.' 
+    }, { status: 200 });
+
+  } catch (error: any) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown consensus failure';
+    return NextResponse.json({ status: 'FORGE_FAILED', error: errorMessage }, { status: 500 });
+  } finally {
+    await prisma.$disconnect();
   }
 }
