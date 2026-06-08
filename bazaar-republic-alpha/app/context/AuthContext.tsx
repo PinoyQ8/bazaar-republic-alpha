@@ -1,10 +1,10 @@
 "use client";
 
-import { createContext, useContext, useState, ReactNode } from "react";
+import { createContext, useContext, useState, ReactNode, useMemo } from "react";
 import { signTransaction } from "@stellar/freighter-api";
 import * as StellarSdk from "@stellar/stellar-sdk";
 
-// 1. Interfaces
+// 🛡️ MESH INTERFACE: Hardened Contract
 export interface PioneerState {
   username: string | undefined;
   uid: string | undefined;
@@ -13,6 +13,7 @@ export interface PioneerState {
   trustScore: number;
   isAuthenticated: boolean;
   isHydrated: boolean;
+  accessToken: string | null;
 }
 
 export interface AuthContextType {
@@ -22,12 +23,25 @@ export interface AuthContextType {
   logout: () => void;
   executeStakePayment: (amount: number) => Promise<void>;
   isHydrated: boolean;
+  accessToken: string | null;
 }
 
-// 2. Context Initialization
+// 🛡️ STATIC FALLBACK: Prevents memory churn on hook initialization
+const FALLBACK_AUTH: AuthContextType = {
+  pioneer: { 
+    username: undefined, uid: undefined, tier: undefined, role: "CITIZEN", 
+    trustScore: 0, isAuthenticated: false, isHydrated: false, accessToken: null 
+  },
+  setPioneer: () => {},
+  login: () => {},
+  logout: () => {},
+  executeStakePayment: async () => {},
+  isHydrated: false,
+  accessToken: null,
+};
+
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// 3. Provider Component
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [pioneer, setPioneer] = useState<PioneerState>({
     username: undefined,
@@ -37,6 +51,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     trustScore: 0,
     isAuthenticated: false,
     isHydrated: false,
+    accessToken: null,
   });
 
   const executeStakePayment = async (amount: number): Promise<void> => {
@@ -44,8 +59,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const contractId = process.env.NEXT_PUBLIC_MESH_CONTRACT_ID;
       if (!contractId || !pioneer.uid) throw new Error("Missing requirements.");
 
-      const server = new StellarSdk.rpc.Server("https://soroban-testnet.stellar.org");
-      const networkPassphrase = StellarSdk.Networks.TESTNET;
+      const rpcUrl = process.env.NEXT_PUBLIC_SOROBAN_RPC_URL || "https://soroban-testnet.stellar.org";
+      const server = new StellarSdk.rpc.Server(rpcUrl);
+      const networkPassphrase = process.env.NEXT_PUBLIC_STELLAR_NETWORK || StellarSdk.Networks.TESTNET;
+      
       const account = await server.getAccount(pioneer.uid);
       const contract = new StellarSdk.Contract(contractId);
       
@@ -73,7 +90,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         throw new Error("Transaction failed.");
       }
     } catch (error) {
-      console.error(error);
+      console.error("[MESH-SCAN] Execution Fracture:", error);
       throw error;
     }
   };
@@ -89,33 +106,26 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       trustScore: 0,
       isAuthenticated: false,
       isHydrated: true,
+      accessToken: null,
     });
   };
 
-  const value: AuthContextType = {
+  // 🛡️ MEMOIZED CONTEXT VALUE: Prevents unnecessary Provider re-renders
+  const contextValue = useMemo(() => ({
     pioneer,
     setPioneer,
     login,
     logout,
     executeStakePayment,
     isHydrated: pioneer.isHydrated,
-  };
+    accessToken: pioneer.accessToken
+  }), [pioneer]);
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={contextValue}>
+      {children}
+    </AuthContext.Provider>
+  );
 };
 
-// 4. Defensive Hook Execution
-export const useAuth = (): AuthContextType => {
-  const context = useContext(AuthContext);
-  if (!context) {
-    return {
-      pioneer: { username: undefined, uid: undefined, tier: undefined, role: "CITIZEN", trustScore: 0, isAuthenticated: false, isHydrated: false },
-      setPioneer: () => {},
-      login: () => {},
-      logout: () => {},
-      executeStakePayment: async () => {},
-      isHydrated: false,
-    };
-  }
-  return context;
-};
+export const useAuth = (): AuthContextType => useContext(AuthContext) ?? FALLBACK_AUTH;

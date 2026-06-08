@@ -1,34 +1,40 @@
-"use server";
+"use server"; 
 
 import { prisma } from "@/lib/prisma";
-import { NodeStatus } from "@prisma/client"; // 🛡️ PROTOCOL: Enum Import
 
 export async function syncPioneerNode(uid: string, username: string) {
   try {
-    console.log(`[LEDGER SYNC] Authenticating Node: ${uid}`);
-
-    // 🛡️ THE UPSERT PROTOCOL: Using schema-valid Enum
-    const node = await prisma.pioneerNode.upsert({
+    // 🛡️ BAZAAR TECH: Atomic Database Transaction
+    // We execute the database operation directly. No network hop required.
+    const pioneer = await prisma.pioneerNode.upsert({
       where: { uid: uid },
-      update: {
+      update: { 
         username: username,
-        lastActivityTimestamp: new Date(),
-        status: NodeStatus.ACTIVE, // 🛡️ CORRECTED: Using ACTIVE instead of ONLINE
+        lastActivityTimestamp: new Date()
       },
       create: {
         uid: uid,
         username: username,
-        tier: "CITIZEN",
-        status: NodeStatus.ACTIVE, // 🛡️ CORRECTED: Using ACTIVE instead of ONLINE
-        trustScore: 0,
+        status: 'SYNCING',
+        tier: 'CITIZEN',
+        walletAddress: `GBZ_${uid.slice(0, 8)}_${Date.now()}`
       }
     });
 
-    console.log(`[LEDGER SYNC] Node ${username} registered with Status: ${node.status}`);
-    return { success: true, node };
+    console.log(`[LEDGER SYNC] Identity successfully anchored for @${username}`);
+    
+    // Return a serializable object to the client
+    return { 
+      success: true, 
+      node: {
+        uid: pioneer.uid,
+        username: pioneer.username,
+        status: pioneer.status
+      }
+    };
 
   } catch (error) {
-    console.error("[MESH-SCAN] Node Registration Fracture:", error);
-    return { success: false, error: "Failed to write Pioneer to Ledger." };
+    console.error("[MESH-SCAN] Sync Fracture:", error);
+    throw new Error("Identity Sync Failed at the Database Layer.");
   }
 }

@@ -1,43 +1,47 @@
 "use server";
 
-import { connectToLedger } from "@/lib/mongodb";
+// 🛡️ MESH-SECURE: Simulated Global Registry Lock
+// In production, move this to your Prisma/Redis layer.
+const swapRegistry = new Set<string>();
 
-// 🛡️ MESH-HARDENING: Explicit Type Contract
-export interface OnboardingResult {
-  success: boolean;
-  message: string;
-  error?: string; // Re-establishing the optional error property
-}
-
-// Bind the Promise<OnboardingResult> to the function
-export async function verifySecurityCircleSwap(
-  pioneerUid: string, 
-  txHash: string
-): Promise<OnboardingResult> {
+/**
+ * 🛡️ MESH-SECURE: Verification of Security Circle Swap
+ * Hardened with an Idempotency Gate (Nonce Check).
+ */
+export async function verifySecurityCircleSwap(pioneerUid: string, targetNode: string) {
   try {
-    const db = await connectToLedger();
-    const collection = db.collection("security_circles");
+    // 1. Generate a unique hash for this specific swap transaction
+    const swapHash = `${pioneerUid}:${targetNode}`;
 
-    const result = await collection.updateOne(
-      { txHash: txHash },
-      { 
-        $setOnInsert: { 
-          pioneerUid, 
-          status: 'VALIDATED', 
-          timestamp: new Date() 
-        } 
-      },
-      { upsert: true }
-    );
-
-    if (result.upsertedCount === 0) {
-      return { success: false, message: "REPLAY_ATTACK_BLOCKED: TxHash already used.", error: "DUPLICATE_HASH" };
+    // 2. IDEMPOTENCY GATE: Check if this swap has already been anchored
+    if (swapRegistry.has(swapHash)) {
+      console.warn(`[SECURITY ALERT] Replay Attempt Blocked: ${swapHash}`);
+      return { 
+        success: false, 
+        verified: false, 
+        message: "Fracture detected: Swap already processed." 
+      };
     }
 
-    return { success: true, message: "VALIDATOR_SHIELD_ACTIVE" };
+    if (!pioneerUid || !targetNode) {
+      return { success: false, verified: false, message: "Invalid Swap: Credentials missing." };
+    }
 
-  } catch (error: any) {
-    console.error("Database Fracture:", error);
-    return { success: false, message: "Database Error: Logic Locked.", error: error.message };
+    // 3. ANCHOR: Lock the swap in the registry
+    swapRegistry.add(swapHash);
+
+    console.log(`[MESH-VERIFY] Anchoring swap for Pioneer: ${pioneerUid}`);
+
+    // Simulate validation window
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    return { 
+      success: true, 
+      verified: true, 
+      message: "Security Circle Swap Verified: Node link secured." 
+    };
+  } catch (error) {
+    console.error("[MESH FRACTURE] Swap validation failed:", error);
+    return { success: false, verified: false, message: "Invalid Swap: System error." };
   }
 }

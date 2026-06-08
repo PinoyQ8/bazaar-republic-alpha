@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from "next/link";
-import SecurityCircle from "../components/SecurityCircle";
+import { SecurityCircle } from "../components/SecurityCircle";
 import AttritionLog from "../components/AttritionLog";
 import NodeMonitor from "@/app/components/mesh/node-monitor";
 

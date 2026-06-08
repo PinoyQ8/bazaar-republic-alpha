@@ -1,4 +1,5 @@
 // test-stress.ts
+// Use clean pathing:
 import { verifySecurityCircleSwap } from "./app/actions/onboardingActions";
 
 async function runStressTest() {

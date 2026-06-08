@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from 'react';
-import { verifySecurityCircleSwap } from '../actions/onboardingActions';
+// 🛡️ ADJUDICATOR: Rerouted to the centralized security logic
+import { verifySecurityCircleSwap } from '@/app/actions/security';
 
 export default function SecurityCirclePortal() {
   const [txHash, setTxHash] = useState('');
@@ -22,7 +23,9 @@ export default function SecurityCirclePortal() {
       setMessage(result.message);
     } else {
       setStatus('ERROR');
-      setMessage("Fracture detected: " + (result.error || "Invalid Swap"));
+     // 🛡️ ADJUDICATOR: Mapping error output to the defined 'message' schema
+setStatus('ERROR');
+setMessage("Fracture detected: " + (result.message || "Invalid Swap"));
     }
   };
 

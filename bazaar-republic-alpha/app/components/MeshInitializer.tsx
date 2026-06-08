@@ -1,94 +1,95 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState, useMemo } from "react";
-// 🛡️ BAZAAR TECH: Ledger Sync Action
-import { syncPioneerNode } from "@/app/actions/auth"; 
+import { createContext, useContext, useEffect, useState, useMemo, useRef } from "react";
+import { syncPioneerNode } from "@/app/actions/auth";
 
-interface PioneerIdentity {
-  uid: string;
-  username: string;
+interface PioneerIdentity { 
+  uid: string; 
+  username: string; 
 }
 
 interface MeshContextType {
   isPiReady: boolean;
-  isAuthenticated: boolean; 
+  isAuthenticated: boolean;
+  accessToken: string | null; 
   user: PioneerIdentity | null;
-  accessToken: string | null;
 }
 
+// 🛡️ ADJUDICATOR: Hardened Context Default Value
 const MeshContext = createContext<MeshContextType>({ 
   isPiReady: false,
-  isAuthenticated: false, // Default: Zero Trust
-  user: null,
+  isAuthenticated: false,
   accessToken: null,
+  user: null,
 });
 
 export function MeshInitializer({ children }: { children: React.ReactNode }) {
-  const [isPiReady, setIsPiReady] = useState(false);
   const [user, setUser] = useState<PioneerIdentity | null>(null);
+  const [isPiReady, setIsPiReady] = useState(false);
   const [accessToken, setAccessToken] = useState<string | null>(null);
-
-  // 🛡️ BAZAAR TECH: Computed Auth State (Eliminates state drift)
-  const isAuthenticated = useMemo(() => !!user && !!accessToken, [user, accessToken]);
+  
+  const hasSynced = useRef(false);
+  const isAuthenticated = useMemo(() => !!user, [user]);
 
   useEffect(() => {
-    const initializeMesh = async () => {
-      // 🛡️ SHADOW AUDIT: The Dev-Node Identity Guardrail
-      const isLocalWorkstation = process.env.NODE_ENV === 'development';
+    if (hasSynced.current) return;
 
-      // 🛠️ Isolated Dev Boot Sequence
-      const bootDevNode = async () => {
-        console.warn("[MESH-OVERRIDE] Local X570 Dev Environment Detected. Injecting Alpha Identity.");
-        const devUser = { uid: "DEV_NODE_X570_ALPHA", username: "PinoyQ8" };
-        setUser(devUser);
-        setAccessToken("LOCAL_DEV_TOKEN_X570");
-        setIsPiReady(true);
-        await syncPioneerNode(devUser.uid, devUser.username);
-      };
+    const isDev = process.env.NODE_ENV === 'development';
 
-      // 🛡️ GATE 1: Check for Pi Browser Environment
-      if (typeof window !== "undefined" && window.Pi) {
-        try {
-          window.Pi.init({ version: "2.0", sandbox: true });
-          
-          const scopes = ['username', 'payments'];
-          const authResult = await window.Pi.authenticate(scopes, 
-             (payment: any) => console.log("[MESH-SCAN] Incomplete payment found:", payment)
-          );
-          
-          setUser(authResult.user);
-          setAccessToken(authResult.accessToken);
-          setIsPiReady(true);
+    const performSync = async (node: PioneerIdentity) => {
+      try {
+        await syncPioneerNode(node.uid, node.username);
+        hasSynced.current = true;
+        setUser(node);
+        // 🛡️ BAZAAR TECH: Placeholder for token acquisition logic
+        setAccessToken("MESH_ALPHA_TOKEN_SECURE"); 
+        console.log(`[IDENTITY ANCHOR] Successfully Synced: @${node.username}`);
+      } catch (e) {
+        console.error("[ADJUDICATOR] Critical Sync Failure:", e);
+      }
+    };
 
-          await syncPioneerNode(authResult.user.uid, authResult.user.username);
-          console.log(`[IDENTITY ANCHOR] Synced: @${authResult.user.username}`);
-
-        } catch (error) {
-          if (isLocalWorkstation) {
-            await bootDevNode(); // Safe to bypass on X570
-          } else {
-            // 🚨 Mainnet Security Lock: Drop unauthorized ghosts silently
-            console.error("[ADJUDICATOR] Pi SDK Handshake Failed on Mainnet. Access Denied.");
-            setIsPiReady(true); // Ready, but strictly unauthenticated.
-          }
-        }
-      } else {
-        // No Pi Browser Detected (e.g., standard Chrome)
-        if (isLocalWorkstation) {
-          await bootDevNode(); // Safe to bypass on X570
+    const attemptHandshake = async () => {
+      try {
+        window.Pi.init({ version: "2.0", sandbox: true });
+        const auth = await window.Pi.authenticate(['username']);
+        await performSync(auth.user);
+      } catch (e) {
+        if (isDev) {
+          console.warn("[MESH-OVERRIDE] SDK Auth failed, injecting Alpha Dev Node.");
+          await performSync({ uid: "DEV_NODE_X570_ALPHA", username: "PinoyQ8" });
         } else {
-          console.warn("[MESH-SCAN] No Pi Browser detected. Mainnet Accessor Restricted.");
-          setIsPiReady(true); // Ready, but strictly unauthenticated.
+          console.error("[MESH FRACTURE] Native Authentication failed.", e);
         }
       }
     };
 
-    const bootTimer = setTimeout(initializeMesh, 100);
-    return () => clearTimeout(bootTimer);
+    const initializeMesh = () => {
+      if (typeof window !== "undefined" && window.Pi) {
+        attemptHandshake().finally(() => setIsPiReady(true));
+      } else if (isDev) {
+        performSync({ uid: "DEV_NODE_X570_ALPHA", username: "PinoyQ8" })
+          .finally(() => setIsPiReady(true));
+      } else {
+        console.error("[MESH FRACTURE] Pi SDK not detected.");
+        setIsPiReady(true);
+      }
+    };
+
+    const bufferTimer = setTimeout(initializeMesh, 500);
+    return () => clearTimeout(bufferTimer);
   }, []);
 
+  // 🛡️ HARDENED PROVIDER VALUE: Contract Compliance
+  const contextValue = useMemo(() => ({
+    isPiReady,
+    isAuthenticated,
+    accessToken,
+    user
+  }), [isPiReady, isAuthenticated, accessToken, user]);
+
   return (
-    <MeshContext.Provider value={{ isPiReady, isAuthenticated, user, accessToken }}>
+    <MeshContext.Provider value={contextValue}>
       <div data-mesh-status={isPiReady ? "ONLINE" : "BOOTING"} className="contents">
         {children}
       </div>

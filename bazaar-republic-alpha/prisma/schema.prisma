@@ -130,3 +130,14 @@ model VoteRecord {
   // 🛡️ FRONT-RUNNING SHIELD: One vote per Pioneer per proposal
   @@unique([proposalId, voterId]) 
 }
+
+// 🛡️ MESH PROTOCOL: Trust Graph Ledger
+model SecurityCircle {
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  pioneerId      String
+  linkedUsername String
+  createdAt      DateTime @default(now())
+
+  // 🛡️ FRONT-RUNNING SHIELD: Prevents duplicate anchoring
+  @@unique([pioneerId, linkedUsername]) 
+}
