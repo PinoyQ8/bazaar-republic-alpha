@@ -10,7 +10,11 @@ export function RegisterForm({ pioneerId }: { pioneerId: string }) {
 
   async function handleSubmit(formData: FormData) {
     setIsPending(true);
-    const result = await registerServiceProvider(formData);
+    const result = await registerServiceProvider({
+  uid: formData.get("uid") as string || `node_${Date.now()}`,
+  username: formData.get("username") as string,
+  walletAddress: formData.get("walletAddress") as string,
+});
     
     if (result.success) {
       router.push("/enetwork/dashboard");

@@ -1,20 +1,24 @@
 import { PrismaClient } from "@prisma/client";
-import "dotenv/config";
 
-// 🛡️ MESH HARDENING: Explicitly check for build phase
+// 🛡️ MESH CONDUIT: Detect environment state
 const isBuildTime = process.env.NEXT_PHASE === 'phase-production-build';
 
-// 🛡️ DEAD-HAND PROXY: Returns a no-op function for any method access
-const buildTimeMock = new Proxy({} as any, {
-  get: () => () => Promise.resolve(null), 
-});
+// 🛡️ TYPE-SAFE MOCK
+const createMockClient = () => {
+  return new Proxy({} as any, {
+    get: () => () => Promise.resolve(null),
+  }) as PrismaClient;
+};
 
+// 🛡️ SINGLETON PATTERN
 const globalForPrisma = globalThis as unknown as { prisma: PrismaClient };
 
-// 🛡️ MESH CONDUIT: Initialize real client only if NOT build time
+// 🛡️ EXPLICIT EXPORT DECLARATION
 export const prisma = isBuildTime
-  ? buildTimeMock
-  : (globalForPrisma.prisma || new PrismaClient());
+  ? createMockClient()
+  : (globalForPrisma.prisma || new PrismaClient({
+      log: ["error"],
+    }));
 
 if (process.env.NODE_ENV !== "production" && !isBuildTime) {
   globalForPrisma.prisma = prisma;

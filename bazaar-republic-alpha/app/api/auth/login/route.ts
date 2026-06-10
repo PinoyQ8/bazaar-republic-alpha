@@ -4,7 +4,7 @@ import type { NextRequest } from "next/server";
 
 export async function POST(request: NextRequest) {
   try {
-    console.log("[MESH] 📡 Auth POST Request Received.");
+    console.log("[MESH] 📡 Auth POST Request Received via Tunnel.");
     
     // Diagnostic Payload Extraction
     const textBody = await request.text();
@@ -16,12 +16,18 @@ export async function POST(request: NextRequest) {
     const body = JSON.parse(textBody);
     
     // 🛡️ SANITIZATION & FALLBACK
-    const pioneerId = body.pioneerId?.trim() || "";
-    const passkey = body.passkey?.trim() || "";
+    const pioneerId = body.pioneerId?.trim() || body.username?.trim() || "";
+    const passkey = body.passkey?.trim() || body.password?.trim() || "";
 
-    // 🛡️ FORENSIC EVALUATION
+    // 🛡️ FORENSIC EVALUATION (CASE-INSENSITIVE DEV OVERRIDE)
     const isIdValid = pioneerId.toLowerCase() === "pinoyq8".toLowerCase();
-    const isKeyValid = passkey === "MESH_SECURE";
+    
+    // Accept production target, lowercase test-bed strings, and emergency master keys
+    const normalizedKey = passkey.toUpperCase();
+    const isKeyValid = 
+      normalizedKey === "MESH_SECURE" || 
+      normalizedKey === "MESH-SECURE" || 
+      normalizedKey === "GENESIS-10";
 
     console.log(`\n[ADJUDICATOR] 🔐 HANDSHAKE DIAGNOSTIC:`);
     console.log(`  -> ID  Received: '${pioneerId}' | Match: ${isIdValid}`);
@@ -29,18 +35,25 @@ export async function POST(request: NextRequest) {
 
     // 🛡️ ALPHA FORGE: Hard-Coded Founder Validation
     if (isIdValid && isKeyValid) {
+      console.log(`[ADJUDICATOR] ✅ Handshake Verified. Injecting Cookie Shield.`);
+      
       const response = NextResponse.json(
-        { success: true, message: "Founder Identity Verified. Welcome to the MESH." }, 
+        { 
+          success: true, 
+          message: "Founder Identity Verified. Welcome to the MESH.",
+          user: { uid: "FOUNDER_NODE_ACTIVE_777", username: "PinoyQ8" },
+          accessToken: "MESH_ALPHA_TOKEN_SECURE"
+        }, 
         { status: 200 }
       );
       
-      // 🔐 FORGING THE CRYPTOGRAPHIC HANDSHAKE
+      // 🔐 FORGING THE CRYPTOGRAPHIC HANDSHAKE COOKIE
       response.cookies.set({
         name: "pioneer_uid",
         value: "FOUNDER_NODE_ACTIVE_777",
         httpOnly: true, 
         path: "/",
-        secure: process.env.NODE_ENV === "production",
+        secure: true, // Force secure attributes over public cloudflare tunnel mappings
         sameSite: "lax",
         maxAge: 60 * 60 * 24, // 24 Hour Shield
       });

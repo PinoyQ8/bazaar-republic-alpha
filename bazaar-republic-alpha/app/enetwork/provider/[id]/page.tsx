@@ -16,7 +16,7 @@ export default async function ProviderProfileSector({ params }: { params: Promis
       <div className="flex items-center justify-between pb-4 border-b border-zinc-800">
         <div>
           <h1 className="text-2xl font-bold text-emerald-400 font-mono">
-            NODE_ID: {node.username.toUpperCase()}
+           NODE_ID: {node.username!.toUpperCase()}
           </h1>
           {/* Removed non-existent node.tier */}
           <p className="text-zinc-400 text-sm mt-1">Status: Active | Uptime Shield: 99.9%</p>
@@ -38,7 +38,7 @@ export default async function ProviderProfileSector({ params }: { params: Promis
       <ProfileActionPanel 
         node={{ 
           id: node.id, 
-          username: node.username, 
+          username: node.username!,
           rate: 0 // Placeholder until the schema is expanded
         }} 
       />

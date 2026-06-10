@@ -1,13 +1,14 @@
-"use client";
+"use server"; // 🛡️ CRITICAL PATCH: This must execute securely on the Node.js runtime
 
-import { prisma } from "../../prisma/client"; 
+import { prisma } from "@/lib/mesh-prisma"; // 🛡️ Standardized MESH import
 
 export async function lockAcademyModule(pioneerUid: string, moduleId: string) {
   try {
-    // 🛡️ The local client must recognize 'academyLog' immediately after the TS server restart
+    // 🛡️ MESH ANCHOR: Atomic ledger execution
     const progressStamp = await prisma.academyLog.create({
       data: {
         pioneerUid: pioneerUid,     
+        action: "MODULE_UNLOCKED", // 🛡️ MESH PATCH: Satisfies the mandatory 'action' requirement
         moduleLocked: moduleId,
       },
     });

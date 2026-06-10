@@ -38,12 +38,12 @@ export async function POST(request: Request) {
 // 🛡️ MESH ALIGNED: Payload now satisfies all required schema constraints
 const newNode = await prisma.pioneerNode.create({
   data: {
-    username,
-    walletAddress,
-    status: "ACTIVE",
-    createdAt: new Date(),
-    role: "PIONEER", // 🛡️ MESH REQUIREMENT: Added missing required field
-  }
+  uid: `node_${Date.now()}`, // 🛡️ MESH PATCH: Mandatory UID satisfied
+  username: username,
+  walletAddress: walletAddress,
+  status: "ACTIVE",
+  createdAt: new Date(),
+}
 });
 
     console.log(`[MESH-SYNC] New Pioneer locked. Total nodes: ${activeNodesCount + 1}/10`);

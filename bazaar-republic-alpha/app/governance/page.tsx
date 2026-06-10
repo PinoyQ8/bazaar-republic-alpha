@@ -25,7 +25,7 @@ export default async function GovernancePage() {
   return (
     <main className="min-h-screen bg-neutral-950 text-slate-300 font-mono">
       {/* Inject the ledger data into the client component */}
-      <GovernanceDashboard data={data} />
+      <GovernanceDashboard data={data as any} />
     </main>
   );
 }

@@ -115,7 +115,7 @@ export async function POST(request: Request) {
         where: { id: targetNodeId },
         data: {
           stakedPi: { increment: parseFloat(transactionAmount) },
-          status: "VERIFIED",
+          status: "ACTIVE",
           trustScore: { increment: 5 },
           lastActivityTimestamp: new Date(),
         }

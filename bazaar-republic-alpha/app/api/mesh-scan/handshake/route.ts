@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { prisma } from "@/lib/mesh-prisma"; // 🛡️ Ensure use of path alias
+import { prisma } from "@/lib/mesh-prisma"; // 🛡️ MESH ALIGNED
 
 // 🛡️ NEO PROTOCOL: Hard-lock to dynamic execution
 // This prevents Next.js from attempting to pre-render this route at build time.
@@ -16,7 +16,7 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json();
-    const { action, paymentId, txid, username } = body;
+    const { action, paymentId, txid, username, uid } = body; // 🛡️ MESH PATCH: Extracted uid
 
     // -------------------------------------------------------------
     // ACTION 1: APPROVE THE PAYMENT
@@ -57,14 +57,22 @@ export async function POST(request: Request) {
       const paymentData = await piResponse.json();
       const extractedWallet = paymentData.user_uid || paymentData.sender_address;
 
-      // 2. Forge into Neon Hard Drive
-      const pioneer = await prisma.pioneerNode.create({
-        data: {
-          username: username,
+      // 🛡️ MESH ANCHOR: Resilient UID generation if the frontend omits it
+      const forgeUid = uid || `handshake_${Date.now()}`;
+
+      // 2. Forge into Neon Hard Drive (Upgraded to atomic Upsert)
+      const pioneer = await prisma.pioneerNode.upsert({
+        where: { uid: forgeUid },
+        update: {
           walletAddress: extractedWallet,
-          status: "ACTIVE",
-          role: "PIONEER",
+          status: "ACTIVE"
         },
+        create: {
+          uid: forgeUid, // 🛡️ MESH PATCH: Mandatory field satisfied
+          username: username || "GHOST_NODE",
+          walletAddress: extractedWallet,
+          status: "ACTIVE", // 🛡️ MESH PATCH: Enum-compliant
+         },
       });
 
       return NextResponse.json({ 

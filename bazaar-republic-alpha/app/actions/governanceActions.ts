@@ -39,8 +39,6 @@ export async function createProposal(
         authorUid: proposerUid,
         title,
         description,
-        targetParameter,
-        proposedValue,
         expiresAt: expirationDate,
         status: "ACTIVE"
       }

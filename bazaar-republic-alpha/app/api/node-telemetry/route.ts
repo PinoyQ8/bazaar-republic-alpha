@@ -80,7 +80,7 @@ export async function POST(request: NextRequest) {
         activePeers: Number(peers),
         protocol: protocolVersion?.toString() || "24",
         lastHeartbeat: new Date(),
-        status: state === "Synced" || state === "Joining SCP" ? "ONLINE" : "SYNCING"
+        status: state === "Synced" || state === "Joining SCP" ? "ACTIVE" : "SYNCING"
       },
       create: {
         uid: PIONEER_ID,
@@ -89,7 +89,7 @@ export async function POST(request: NextRequest) {
         activePeers: Number(peers),
         protocol: protocolVersion?.toString() || "24",
         lastHeartbeat: new Date(),
-        status: "ONLINE"
+        status: "ACTIVE"
       }
     });
 

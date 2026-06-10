@@ -1,15 +1,18 @@
-// 🛡️ NEO PROTOCOL: SCHEMA VERSION 2.1 (Governance Hardened & Mapped)
+// 🛡️ NEO PROTOCOL: SCHEMA VERSION 2.2 (Unified & Hardened)
 generator client {
   provider      = "prisma-client-js"
-  binaryTargets = ["native", "windows"] // 🛡️ BAZAAR TECH: Force platform compatibility
+  binaryTargets = ["native", "windows"]
+  // 🛡️ MESH ANCHOR: No custom output. Strictly bound to @prisma/client
 }
 
 datasource db {
   provider = "mongodb"
-  url      = env("MONGODB_URI") // 🛡️ BAZAAR TECH BYPASS: MONGODB_URI ANCHOR
+  url      = env("MONGODB_URI")
 }
 
-// 🛡️ MESH HIERARCHY: Strict Access Control
+// ----------------------------------------------------------------------
+// 🛡️ ENUMERATIONS: Enforcing Data Consistency
+// ----------------------------------------------------------------------
 enum Tier {
   CITIZEN
   NOVICE
@@ -18,7 +21,6 @@ enum Tier {
   BAZAAR_FOUNDER
 }
 
-// 🛡️ NODE STATUS: Enforced Consistency
 enum NodeStatus {
   SYNCING
   ACTIVE
@@ -26,7 +28,6 @@ enum NodeStatus {
   SUSPENDED
 }
 
-// 🛡️ PROPOSAL STATE: Hardened Flow
 enum ProposalStatus {
   ACTIVE
   PASSED
@@ -34,110 +35,109 @@ enum ProposalStatus {
   EXPIRED
 }
 
-// 🛡️ VOTING STATE: Anti-Injection Lock
 enum VoteDecision {
   YES
   NO
   ABSTAIN
 }
 
-// 🛡️ MESH LEDGER: PioneerNode Model
-model PioneerNode {
-  id                  String     @id @default(auto()) @map("_id") @db.ObjectId
-  uid                 String     @unique
-  username            String?    @unique
-  walletAddress       String?    @unique
-  
-  tier                Tier       @default(CITIZEN) 
-  status              NodeStatus @default(SYNCING)
-  
-  // 🛡️ GOVERNANCE LOCKS
-  isFrozen            Boolean    @default(false)
-  freezeReason        String?
-  
-  // 🛡️ IDENTITY & PERFORMANCE
-  trustScore          Int        @default(0)
-  stakedPi            Float      @default(0)
-  signature           String?    
-  
-  // 🛰️ HARDWARE & TELEMETRY
-  ledgerHeight        Int        @default(0)
-  syncState           String     @default("Unknown")
-  activePeers         Int        @default(0)
-  protocol            String     @default("24")
-  isUnderRemoteRescue Boolean    @default(false)
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+}
 
-  // 🛡️ TIMEKEEPING
+// ----------------------------------------------------------------------
+// 🛡️ MESH LEDGER: Identity & State
+// ----------------------------------------------------------------------
+model PioneerNode {
+  id                    String     @id @default(auto()) @map("_id") @db.ObjectId
+  uid                   String     @unique
+  username              String?    @unique
+  walletAddress         String?    @unique
+  tier                  Tier       @default(CITIZEN)
+  status                NodeStatus @default(SYNCING)
+  isFrozen              Boolean    @default(false)
+  freezeReason          String?
+  trustScore            Int        @default(0)
+  stakedPi              Float      @default(0)
+  signature             String?
+  ledgerHeight          Int        @default(0)
+  syncState             String     @default("Unknown")
+  activePeers           Int        @default(0)
+  protocol              String     @default("24")
+  isUnderRemoteRescue   Boolean    @default(false)
   lastActivityTimestamp DateTime   @default(now())
   lastHeartbeat         DateTime   @default(now())
   createdAt             DateTime   @default(now())
   updatedAt             DateTime   @updatedAt
 
-  // 🛡️ DATABASE ANCHOR: Forces Prisma to read the Mongoose collection
-  @@map("pioneerledgers")
+  // RELATIONS
+  paymentsMade Payment[] @relation("PaymentsMade")
 }
 
-// 🛰️ ACADEMY LOG MODEL
-model AcademyLog {
-  id           String   @id @default(auto()) @map("_id") @db.ObjectId
-  pioneerUid   String   // Logical link to PioneerNode.uid
-  moduleLocked String
-  createdAt    DateTime @default(now())
-}
-
-// 🛡️ PAYMENTS ENGINE
+// ----------------------------------------------------------------------
+// 🛡️ COMMERCE ENGINE: Settlement Records
+// ----------------------------------------------------------------------
 model Payment {
-  id          String   @id @default(auto()) @map("_id") @db.ObjectId
-  paymentId   String   @unique 
-  txid        String   @unique 
+  id          String        @id @default(auto()) @map("_id") @db.ObjectId
+  paymentId   String        @unique
+  txid        String        @unique
   payerUid    String
   merchantUid String
   amount      Float
-  status      String   @default("COMPLETED")
-  createdAt   DateTime @default(now())
+  status      PaymentStatus @default(COMPLETED)
+  createdAt   DateTime      @default(now())
+
+  // RELATION ANCHOR
+  payer       PioneerNode   @relation("PaymentsMade", fields: [payerUid], references: [uid])
 }
 
-// 🛡️ GOVERNANCE: Proposal Matrix
+// ----------------------------------------------------------------------
+// 🛡️ GOVERNANCE ENGINE: DAO Consensus (v2.3)
+// ----------------------------------------------------------------------
 model InternalProposal {
-  id              String         @id @default(auto()) @map("_id") @db.ObjectId
-  title           String
-  description     String
-  authorUid       String   
-  status          ProposalStatus @default(ACTIVE) // 🛡️ UPGRADED to Enum
-  targetParameter String?        // For DEX/System tuning
-  proposedValue   Float?         // For quantitative proposals
-  votesFor        Int            @default(0) 
-  votesAgainst    Int            @default(0) 
-  expiresAt       DateTime?      // 🛡️ Time-Lock Modifier
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
-
-  // 🛡️ MESH RELATION: Two-way binding established
-  votes           VoteRecord[] 
+  id           String         @id @default(auto()) @map("_id") @db.ObjectId
+  title        String
+  description  String
+  status       ProposalStatus @default(ACTIVE)
+  authorUid    String?        // 🛡️ MESH PATCH: Restored
+  votesFor     Int            @default(0) // 🛡️ MESH PATCH: Restored
+  votesAgainst Int            @default(0) // 🛡️ MESH PATCH: Restored
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt  // 🛡️ MESH PATCH: Restored
+  expiresAt    DateTime?      // 🛡️ MESH PATCH: Restored
+  
+  votes        VoteRecord[]
 }
 
-// 🛡️ GOVERNANCE: Vote Ledger
 model VoteRecord {
-  id          String       @id @default(auto()) @map("_id") @db.ObjectId
-  proposalId  String       @db.ObjectId
-  voterId     String
-  decision    VoteDecision // 🛡️ UPGRADED to Enum (Prevents arbitrary string injection)
-  castAt      DateTime     @default(now())
-
-  // 🛡️ MESH RELATION: Binds the vote directly to the internal proposal cluster
-  proposal    InternalProposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
-
-  // 🛡️ FRONT-RUNNING SHIELD: One vote per Pioneer per proposal
-  @@unique([proposalId, voterId]) 
+  id          String           @id @default(auto()) @map("_id") @db.ObjectId
+  decision    VoteDecision
+  proposalId  String           @db.ObjectId
+  voterId     String           // 🛡️ MESH PATCH: Aligned to TS expectation
+  voterUid    String?          
+  createdAt   DateTime         @default(now())
+  
+  proposal    InternalProposal @relation(fields: [proposalId], references: [id])
 }
 
-// 🛡️ MESH PROTOCOL: Trust Graph Ledger
+// ----------------------------------------------------------------------
+// 🛡️ SECURITY & ACADEMY MODULES (v2.3)
+// ----------------------------------------------------------------------
 model SecurityCircle {
   id             String   @id @default(auto()) @map("_id") @db.ObjectId
-  pioneerId      String
-  linkedUsername String
+  ownerUid       String   @unique
+  pioneerId      String?  @unique // 🛡️ MESH PATCH: Restored
+  linkedUsername String?          // 🛡️ MESH PATCH: Restored
+  nodes          String[] 
   createdAt      DateTime @default(now())
+}
 
-  // 🛡️ FRONT-RUNNING SHIELD: Prevents duplicate anchoring
-  @@unique([pioneerId, linkedUsername]) 
+model AcademyLog {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  pioneerUid   String
+  action       String
+  moduleLocked String?  // 🛡️ MESH PATCH: Restored
+  createdAt    DateTime @default(now())
 }

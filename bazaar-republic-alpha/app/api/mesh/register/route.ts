@@ -19,11 +19,11 @@ export async function POST(request: Request) {
     // 🛡️ BAZAAR REGISTRY: Forge the node record
     const newNode = await prisma.pioneerNode.create({
       data: {
-        username,
-        walletAddress,
-        role: role || "CITIZEN",
-        status: "VERIFIED",
-      },
+  uid: `pioneer_${Date.now()}`, // 🛡️ MESH PATCH: Mandatory UID satisfied
+  username: username,
+  walletAddress: walletAddress,
+  status: "ACTIVE"
+},
     });
 
     console.log(`🚀 [MESH-SYNC] Node registered for Pioneer: ${username}`);

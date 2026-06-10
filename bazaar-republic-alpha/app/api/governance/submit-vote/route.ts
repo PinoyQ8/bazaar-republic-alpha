@@ -58,7 +58,6 @@ export async function POST(req: Request) {
           proposalId: proposal_id,
           voterId: pioneer_id,
           decision: vote_decision,
-          castAt: absoluteNow 
         }
       })
     ]);

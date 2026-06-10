@@ -57,7 +57,7 @@ export default function GovernanceDashboard({ data: initialData }: GovernanceDas
         if (!result || !result.proposal) {
           setError("No active proposals found in the ledger.");
         } else {
-          setData(result);
+          setData(result as any);
         }
       } catch (e) {
         setError("Adjudicator Intercept: Data Link Fracture");

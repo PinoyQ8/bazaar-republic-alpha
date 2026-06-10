@@ -15,17 +15,20 @@ export interface PiAuthResult {
   accessToken: string;
 }
 
+// 🛡️ ADJUDICATOR ALIGNMENT: Relaxed strict properties to match official SDK payloads
 export interface PiPayment {
-  identifier: string;
   amount: number;
   memo: string;
   metadata: Record<string, any>;
+  uid?: string;
+  identifier?: string; // Optional fallback for internal Node tracking
 }
 
+// 🛡️ ADJUDICATOR ALIGNMENT: Synced exactly to the native Pi Browser callbacks
 export interface PiPaymentCallbacks {
   onReadyForServerApproval: (paymentId: string) => void;
-  onReadyForServerConfirmation: (paymentId: string) => void;
-  onCancelled: (paymentId: string) => void;
+  onReadyForServerCompletion: (paymentId: string, txid: string) => void;
+  onCancel: (paymentId: string) => void;
   onError: (error: Error, payment?: any) => void;
 }
 

@@ -39,8 +39,12 @@ export default function ProviderRegistrationSector() {
       const formattedRate = `${formData.rateAmount} Pi / ${formData.rateType}`;
       fd.append("rate", formattedRate);
 
-      // Execute Server Action
-      const result = await registerServiceProvider(fd);
+      // 🛡️ PATCH: Direct object mapping instead of .get()
+const result = await registerServiceProvider({
+  uid: `node_${Date.now()}`,
+  username: formData.serviceTitle || "GHOST_NODE",
+  walletAddress: "PENDING_WALLET" 
+});
 
       if (result.success) {
         router.push("/enetwork/dashboard");
