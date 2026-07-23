@@ -11,6 +11,8 @@ import ENetworkConsole from '@/components/ENetworkConsole';
 
 export default function Dashboard() {
   const [pioneerIdentity, setPioneerIdentity] = useState<string | null>(null);
+  // NEW: State to track if the Pioneer has locked their liquidity
+  const [isStaked, setIsStaked] = useState<boolean>(false); 
   const [mappedProviders, setMappedProviders] = useState<ProviderNode[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
 
@@ -41,7 +43,11 @@ export default function Dashboard() {
     setPioneerIdentity(pioneerId);
   };
 
-  // Prevent sub-component frame jumps by clean memo usage
+  // NEW: Handler for successful staking confirmation
+  const handleStakingConfirmation = () => {
+    setIsStaked(true);
+  };
+
   const operatorHUD = useMemo(() => {
     if (!pioneerIdentity) return null;
     return (
@@ -63,17 +69,20 @@ export default function Dashboard() {
           <div className="w-full my-auto animate-fadeIn">
             <PioneerAuthGate onLinkEstablished={handleIdentityLink} />
           </div>
+        ) : !isStaked ? (
+          /* PHASE 02: IDENTITY VERIFIED, AWAITING LIQUIDITY SHIELD */
+          <div className="w-full my-auto animate-fadeIn space-y-6">
+            {operatorHUD}
+            <div className="text-center text-xs text-red-500 font-bold tracking-widest border border-red-900/50 bg-red-950/20 p-2 rounded">
+              LIQUIDITY LOCK REQUIRED
+            </div>
+            <MeshStaking onStakeSuccess={handleStakingConfirmation} />
+          </div>
         ) : (
-          /* PHASE 02: SYNC VERIFIED - FULL CORE ACCESS UNLOCKED */
+          /* PHASE 03: FULL CORE ACCESS UNLOCKED (Identity + Liquidity Verified) */
           <div className="w-full space-y-6 animate-fadeIn">
             
-            {/* SESSION OVERRIDE SHIELD HUD */}
             {operatorHUD}
-
-            {/* STAGING SECTOR: NATIVE CONTRACT STAKING GATEWAY */}
-            <section className="w-full">
-              <MeshStaking />
-            </section>
 
             {/* SIMULATION MONITOR: MULTI-SECTOR CONTROL CONSOLE */}
             <section className="w-full">
@@ -96,7 +105,6 @@ export default function Dashboard() {
         )}
 
       </main>
-
     </div>
   );
 }

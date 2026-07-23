@@ -1,12 +1,20 @@
 [workspace]
-members = [
-    "contracts/pi_rust_api",
-    "contracts/bazaar_contracts",
-    "mesh-contracts"
+members = ["bazaar-republic-alpha/enetwork-verifier",
+    "mesh-contracts"  # 🛡️ MESH CORE: Explicitly maps the Soroban contract sector
 ]
-resolver = "2"
+resolver = "2"        # Enforces modern feature resolution standards
 
-[workspace.dependencies]
-pi_rust_api = { path = "contracts/pi_rust_api" }
-bazaar_contracts = { path = "contracts/bazaar_contracts" }
-mesh-contracts = { path = "mesh-contracts" }
+# 📡 WORKSPACE RELEASE PROFILE: Inherited by all child folders automatically
+[profile.release]
+overflow-checks = true  # 🛡️ Safe math lock enabled
+opt-level = "z"         # Maximum size compression for low gas cost
+debug = 0
+strip = "debuginfo"
+debug-assertions = false
+panic = "abort"
+codegen-units = 1
+lto = true              # Link-Time Optimization enabled
+
+[profile.release-with-logs]
+inherits = "release"
+debug-assertions = true

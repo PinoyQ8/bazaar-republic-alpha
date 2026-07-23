@@ -2,100 +2,75 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import Script from "next/script";
+import { safePiAuthenticate } from "@/app/utils/safePi";
 
-// 🛡️ BAZAAR TECH: Strict typing for Pi SDK interop
-interface PiUser { uid: string; username: string; }
-interface PiAuthResponse { user: PiUser; }
-
-export default function PioneerOnboarding() {
+export default function OnboardingPage() {
   const router = useRouter();
-  const [isForging, setIsForging] = useState(false);
-  const [telemetry, setTelemetry] = useState("Awaiting Pi SDK Initialization...");
-  const [sdkLoaded, setSdkLoaded] = useState(false);
+  const [telemetry, setTelemetry] = useState<string>("Initializing MESH Node...");
+  const [isSdkReady, setIsSdkReady] = useState<boolean>(false);
 
   useEffect(() => {
-    if (sdkLoaded && typeof window !== "undefined") {
-      const Pi = (window as any).Pi;
-      if (Pi) {
-        Pi.init({ version: "2.0", sandbox: true }); 
-        setTelemetry("Pi SDK Online. Awaiting Real Pioneer Authentication.");
-      }
+    // 🛡️ MESH Localhost Auto-Ready Bypass
+    const isLocalhost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+    
+    if (isLocalhost) {
+      setIsSdkReady(true);
+      setTelemetry("Localhost Node Detected. Pi SDK Mock Active.");
+      return;
     }
-  }, [sdkLoaded]);
 
-  const handlePiAuth = async () => {
-    setIsForging(true);
-    setTelemetry("Initiating Mainnet Handshake...");
+    // Production check for real Pi SDK script
+    const checkPi = setInterval(() => {
+      if ((window as any).Pi) {
+        setIsSdkReady(true);
+        setTelemetry("Pi SDK Online. Awaiting Real Pioneer Authentication.");
+        clearInterval(checkPi);
+      }
+    }, 500);
 
+    return () => clearInterval(checkPi);
+  }, []);
+
+  async function handlePiAuth() {
+    setTelemetry("Forging Block... Authenticating via Pi Network");
     try {
-      const Pi = (window as any).Pi;
+      const auth = await safePiAuthenticate(["username", "payments"]);
       
-      // 1. Trigger Pi Network Auth Gate
-      const scopes = ['username']; // Removed 'payments' as it is not needed for onboarding
+      setTelemetry("[STATUS 200] Identity Forged. Synchronizing Ledger...");
       
-      setTelemetry("Awaiting Pioneer Signature...");
-      const auth = await Pi.authenticate(scopes) as PiAuthResponse;
-      
-      if (!auth?.user?.uid) throw new Error("Handshake Failed: Identity Null.");
-
-      setTelemetry(`[STATUS 200] Pioneer Verified: ${auth.user.username}`);
-
-      // 2. Forge the internal MESH Identity
-      setTelemetry("Syncing Identity to Local Replica Set...");
-      
-      // 🛡️ BAZAAR TECH: Hard-code the registration endpoint
-const res = await fetch('/api/auth/register', { // MUST BE THIS PATH
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({
-    uid: auth.user.uid,
-    username: auth.user.username,
-  })
-});
+      const res = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(auth),
+      });
 
       if (!res.ok) throw new Error("Internal MESH Sync Rejected.");
 
       setTelemetry("[STATUS 200] Identity Forged. Redirecting...");
       setTimeout(() => router.push("/dashboard"), 1000);
-      
-    } catch (error) {
-      console.error("[MESH-ERROR]", error);
-      setTelemetry("[STATUS 403] Authentication Fracture. Retry Initialization.");
-    } finally {
-      setIsForging(false);
+    } catch (err: any) {
+      setTelemetry(`[ERROR] ${err.message}`);
     }
-  };
+  }
 
   return (
-    <div className="min-h-screen bg-black text-green-500 font-mono flex flex-col items-center justify-center p-6">
-      <Script 
-        src="https://sdk.minepi.com/pi-sdk.js" 
-        onLoad={() => setSdkLoaded(true)}
-      />
-
-      <div className="w-full max-w-md border border-green-800 bg-gray-900 p-8 shadow-[0_0_15px_rgba(0,255,0,0.1)]">
-        <h1 className="text-2xl font-bold mb-2 tracking-widest border-b border-green-800 pb-2">
-          NEO PROTOCOL
-        </h1>
-        <p className="text-xs text-green-700 mb-6 uppercase tracking-widest">
-          Stage 1: Identity Handshake
-        </p>
-
-        <div className="space-y-6">
-          <button
-            onClick={handlePiAuth}
-            disabled={!sdkLoaded || isForging}
-            className="w-full border border-green-500 bg-black hover:bg-green-900 hover:text-white text-green-500 font-bold py-4 uppercase tracking-widest transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3"
-          >
-            {isForging ? "Forging Block..." : "Authenticate via Pi Network"}
-          </button>
+    <div className="p-6 max-w-xl mx-auto space-y-6 font-mono text-zinc-100 min-h-screen flex flex-col justify-center">
+      <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-lg space-y-4">
+        <h2 className="text-lg font-bold text-indigo-400">NEO PROTOCOL</h2>
+        <p className="text-xs text-zinc-400">Stage 1: Identity Handshake</p>
+        
+        <div className="p-4 bg-zinc-950 border border-zinc-800 rounded text-xs text-emerald-400">
+          Terminal Telemetry:<br/>
+          <span className="text-zinc-300">{telemetry}</span>
         </div>
 
-        <div className="mt-8 pt-4 border-t border-green-800">
-          <p className="text-xs text-gray-500">Terminal Telemetry:</p>
-          <p className="text-sm mt-1 animate-pulse">{telemetry}</p>
-        </div>
+        <button
+          onClick={handlePiAuth}
+          disabled={!isSdkReady}
+          className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-medium rounded transition-colors text-sm"
+        >
+          Authenticate via Pi Network
+        </button>
       </div>
     </div>
   );

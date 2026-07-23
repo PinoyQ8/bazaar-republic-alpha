@@ -1,93 +1,105 @@
-'use client';
+"use client";
 
-import React, { useState, useEffect } from 'react';
-import { MESH_CONTRACT_ID, mBZR_TOKEN_WRAPPER_ID, checkBlockchainStatus } from '../lib/blockchain';
+import React, { useState } from "react";
 
-export default function MeshStaking() {
-  const [loading, setLoading] = useState<boolean>(true);
-  const [networkStatus, setNetworkStatus] = useState<string>('INIT');
-  const [treasuryBalances, setTreasuryBalances] = useState<any[]>([]);
-  const [stakeAmount, setStakeAmount] = useState<number>(10); // Matches our 10 mBZR core rule
+interface MeshStakingProps {
+  pioneerUid?: string; // 🛡️ Optional fallback to prevent TS2741
+  currentStake?: number; // 🛡️ Optional fallback to prevent TS2741
+  onStakeSuccess?: () => void; // 🛡️ Restored to maintain the Phase 02 lock in page.tsx
+}
 
-  useEffect(() => {
-    async function auditNetwork() {
-      const telemetry = await checkBlockchainStatus();
-      setNetworkStatus(telemetry.status);
-      setTreasuryBalances(telemetry.balances);
-      setLoading(false);
+export default function MeshStaking({ 
+  pioneerUid = "PENDING_NODE", 
+  currentStake = 0, 
+  onStakeSuccess 
+}: MeshStakingProps) {
+  const [amount, setAmount] = useState<string>("");
+  const [status, setStatus] = useState<string | null>(null);
+  const [isLocking, setIsLocking] = useState<boolean>(false);
+
+  const executeLock = async () => {
+    if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) {
+      setStatus("FRACTURE: Invalid numeric stake value.");
+      return;
     }
-    auditNetwork();
-  }, []);
 
-  const handleStakingSubmission = async (e: React.FormEvent) => {
-    e.preventDefault();
-    console.log(`📡 Initializing Staking Vector: ${stakeAmount} mBZR targeting Contract: ${MESH_CONTRACT_ID}`);
-    // This will house our Pi Wallet Bridge invocation in the next phase
-    alert(`Handshake Simulated! Staking 10 mBZR to Contract Core.`);
+    setIsLocking(true);
+    setStatus("SYNCING LOCK CONTRACT...");
+
+    try {
+      // 🚀 THE BRIDGE: This will connect to a new Server Action we forge next
+      // const response = await lockPioneerStake(pioneerUid, parseFloat(amount));
+      
+      // Temporary simulated delay until Server Action is forged
+      await new Promise(resolve => setTimeout(resolve, 1200)); 
+      
+      setStatus(`🟢 SHIELD ACTIVE: ${amount} mBZR Locked.`);
+      setAmount("");
+
+      // 🛡️ THE BRIDGE: Signal the master dashboard to unlock Phase 03
+      if (onStakeSuccess) {
+        // Small timeout so the Pioneer sees the success message before the UI shifts
+        setTimeout(() => {
+          onStakeSuccess();
+        }, 1000);
+      }
+
+    } catch (error) {
+      setStatus("❌ FRACTURE: Ledger sync failed.");
+    } finally {
+      setIsLocking(false);
+    }
   };
 
-  if (loading) {
-    return (
-      <div className="bg-slate-900 text-cyan-400 p-6 rounded-lg border border-cyan-800 animate-pulse font-mono max-w-90 mx-auto">
-        [MESH-SCAN] Syncing ledger telemetries...
-      </div>
-    );
-  }
-
   return (
-    <div className="bg-slate-950 text-white p-4 rounded-xl border border-slate-800 font-mono max-w-90 mx-auto shadow-2xl">
-      {/* HEADER SECTION */}
-      <div className="flex justify-between items-center border-b border-slate-800 pb-2 mb-4">
-        <h2 className="text-xs font-bold tracking-wider text-slate-400 uppercase">MESH CONSENSUS ENGINE</h2>
-        <span className={`h-2 w-2 rounded-full ${networkStatus === 'SECURE' ? 'bg-emerald-400 shadow-[0_0_8px_#34d399]' : 'bg-rose-500'}`} />
+    <div className="p-6 bg-neutral-950 border border-cyan-900/50 rounded-xl shadow-xl text-neutral-200 w-full font-mono text-xs relative overflow-hidden">
+      
+      {/* Visual Tech Accent - Updated Syntax */}
+<div className="absolute top-0 left-0 w-full h-1 bg-linear-to-r from-transparent via-cyan-500 to-transparent opacity-50" />
+
+      <h2 className="text-sm font-black text-cyan-400 mb-4 border-b border-neutral-900 pb-2 uppercase tracking-widest flex justify-between">
+        <span>MESH Liquidity Lock</span>
+        <span className="text-neutral-600">[{pioneerUid.slice(0,8)}...]</span>
+      </h2>
+      
+      <div className="mb-6 bg-neutral-900/40 p-4 rounded border border-neutral-800/50 flex justify-between items-center">
+        <span className="text-neutral-500 uppercase tracking-wider">Current Shield</span>
+        <span className="text-cyan-400 font-bold text-lg">{currentStake} mBZR</span>
       </div>
 
-      {/* BLOCKCHAIN METADATA */}
-      <div className="space-y-2 text-[11px] bg-slate-900 p-2 rounded border border-slate-800/50 mb-4">
-        <div><span className="text-slate-500">NET:</span> <span className="text-amber-400">Pi Testnet</span></div>
-        <div><span className="text-slate-500">CORE:</span> <span className="text-cyan-400 truncate block">{MESH_CONTRACT_ID.substring(0, 12)}...{MESH_CONTRACT_ID.substring(44)}</span></div>
-        <div><span className="text-slate-500">TOKEN:</span> <span className="text-purple-400 truncate block">mBZR ({mBZR_TOKEN_WRAPPER_ID.substring(0, 6)}...)</span></div>
-      </div>
-
-      {/* TREASURY STATUS DISPLAY */}
       <div className="mb-4">
-        <label className="text-[10px] text-slate-500 uppercase tracking-widest block mb-1">Ecosystem Vault Balances</label>
-        <div className="bg-slate-900/50 border border-slate-800 rounded p-2 max-h-20 overflow-y-auto space-y-1">
-          {treasuryBalances.length === 0 ? (
-            <div className="text-[10px] text-slate-400 italic">[MOCK STATE ACTIVE] 0.00 Native Assets</div>
-          ) : (
-            treasuryBalances.map((bal, idx) => (
-              <div key={idx} className="flex justify-between text-[11px]">
-                <span className="text-slate-400">{bal.asset_type === 'native' ? 'Pi' : bal.asset_code}:</span>
-                <span className="text-emerald-400 font-bold">{parseFloat(bal.balance).toFixed(2)}</span>
-              </div>
-            ))
-          )}
-        </div>
+        <label className="block text-[10px] text-neutral-500 uppercase font-bold mb-2">Stake Allocation</label>
+        <input 
+          type="number" 
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+          placeholder="Enter mBZR to lock..."
+          className="w-full bg-neutral-900 border border-neutral-800 rounded px-3 py-3 text-cyan-400 focus:border-cyan-500 focus:outline-none transition-colors"
+          disabled={isLocking}
+        />
       </div>
 
-      {/* STAKING FORM EXECUTION */}
-      <form onSubmit={handleStakingSubmission} className="space-y-3">
-        <div>
-          <label className="text-[10px] text-slate-500 uppercase tracking-widest block mb-1">Required Node Stake</label>
-          <div className="relative">
-            <input 
-              type="number" 
-              readOnly 
-              value={stakeAmount}
-              className="w-full bg-slate-900 border border-slate-800 rounded px-3 py-2 text-sm text-slate-300 font-bold focus:outline-none"
-            />
-            <span className="absolute right-3 top-2 text-xs text-purple-400 font-bold">mBZR</span>
-          </div>
-        </div>
+      <button 
+        onClick={executeLock}
+        disabled={isLocking || !amount}
+        className={`w-full py-3 font-black rounded uppercase tracking-widest transition-all text-[11px] ${
+          isLocking 
+            ? "bg-neutral-800 text-neutral-600 cursor-not-allowed border border-neutral-700" 
+            : "bg-cyan-700 hover:bg-cyan-600 text-white shadow-[0_0_15px_rgba(0,255,255,0.2)]"
+        }`}
+      >
+        {isLocking ? "[ Engaging Smart Contract... ]" : "[ Lock Liquidity ]"}
+      </button>
 
-        <button 
-          type="submit"
-          className="w-full bg-linear-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-bold text-xs py-2.5 px-4 rounded transition-all duration-200 uppercase tracking-widest shadow-lg shadow-cyan-900/20 active:scale-[0.98]"
-        >
-          Activate Validation Node
-        </button>
-      </form>
+      {status && (
+        <div className={`mt-4 p-3 rounded border text-[10px] tracking-wide text-center uppercase font-bold ${
+          status.includes('SHIELD ACTIVE') ? 'bg-emerald-950/30 border-emerald-900 text-emerald-400' : 
+          status.includes('SYNCING') ? 'bg-cyan-950/30 border-cyan-900 text-cyan-400 animate-pulse' : 
+          'bg-rose-950/30 border-rose-900 text-rose-400'
+        }`}>
+          {status}
+        </div>
+      )}
     </div>
   );
 }

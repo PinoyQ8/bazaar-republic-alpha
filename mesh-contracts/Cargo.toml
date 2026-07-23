@@ -1,16 +1,10 @@
-# 🛡️ NEO PROTOCOL: Soroban Smart Contract Architecture
 [package]
 name = "mesh-contracts"
 version = "0.1.0"
 edition = "2021"
-description = "Project Bazaar MESH Consensus Engine"
-publish = false
 
 [lib]
-crate-type = ["cdylib", "rlib"]
-
-[features]
-testutils = ["soroban-sdk/testutils"]
+crate-type = ["cdylib"] # 🛡️ CRITICAL: Tells the compiler this is a Soroban WASM contract, not a standard Rust binary.
 
 [dependencies]
-soroban-sdk = "26.0.1"
+soroban-sdk = "20.0.0"  # ⚓ Anchors your specific contract to the Pi/Soroban network logic.
