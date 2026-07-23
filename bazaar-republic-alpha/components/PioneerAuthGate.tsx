@@ -3,7 +3,13 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
-export default function PioneerAuthGate({ children }: { children: React.ReactNode }) {
+// 🛡️ MESH Interface Matrix: Restored requiredTier typing
+interface PioneerAuthGateProps {
+  children: React.ReactNode;
+  requiredTier?: string;
+}
+
+export default function PioneerAuthGate({ children, requiredTier }: PioneerAuthGateProps) {
   const router = useRouter();
   const [isAuthorized, setIsAuthorized] = useState<boolean>(false);
 
@@ -23,12 +29,13 @@ export default function PioneerAuthGate({ children }: { children: React.ReactNod
     const status = localStorage.getItem("MESH_PROVIDER_STATUS");
 
     if (session === "ACTIVE" || status === "VERIFIED_ACTIVE") {
+      // Future logic: Evaluate `requiredTier` against user's actual clearance level here
       setIsAuthorized(true);
     } else {
       console.warn("[SECURITY FRACTURE] Unidentified Node. Redirecting to Handshake.");
       router.push("/onboarding");
     }
-  }, [router]);
+  }, [router, requiredTier]);
 
   if (!isAuthorized) {
     return (
