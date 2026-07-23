@@ -3,13 +3,14 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
-// 🛡️ MESH Interface Matrix: Restored requiredTier typing
+// 🛡️ MESH Interface Matrix: Fully mapped for all E-Network variations
 interface PioneerAuthGateProps {
-  children: React.ReactNode;
+  children?: React.ReactNode;
   requiredTier?: string;
+  onLinkEstablished?: (pioneerId: string) => void;
 }
 
-export default function PioneerAuthGate({ children, requiredTier }: PioneerAuthGateProps) {
+export default function PioneerAuthGate({ children, requiredTier, onLinkEstablished }: PioneerAuthGateProps) {
   const router = useRouter();
   const [isAuthorized, setIsAuthorized] = useState<boolean>(false);
 
@@ -21,21 +22,32 @@ export default function PioneerAuthGate({ children, requiredTier }: PioneerAuthG
 
     if (isLocalhost) {
       setIsAuthorized(true);
+      if (onLinkEstablished) onLinkEstablished("local_x570_node");
       return;
     }
 
     // Production verification logic
     const session = localStorage.getItem("pioneer_session");
     const status = localStorage.getItem("MESH_PROVIDER_STATUS");
+    const authData = localStorage.getItem("pi_auth_user");
+    let pioneerId = "verified_pioneer";
+
+    if (authData) {
+      try {
+        const parsed = JSON.parse(authData);
+        if (parsed.uid) pioneerId = parsed.uid;
+      } catch (e) {}
+    }
 
     if (session === "ACTIVE" || status === "VERIFIED_ACTIVE") {
-      // Future logic: Evaluate `requiredTier` against user's actual clearance level here
       setIsAuthorized(true);
+      // Fire the identity link callback for staging/staking phases
+      if (onLinkEstablished) onLinkEstablished(pioneerId);
     } else {
       console.warn("[SECURITY FRACTURE] Unidentified Node. Redirecting to Handshake.");
       router.push("/onboarding");
     }
-  }, [router, requiredTier]);
+  }, [router, requiredTier, onLinkEstablished]);
 
   if (!isAuthorized) {
     return (
@@ -45,5 +57,6 @@ export default function PioneerAuthGate({ children, requiredTier }: PioneerAuthG
     );
   }
 
+  // Safely render children if they exist, otherwise render nothing (for self-closing usage)
   return <>{children}</>;
 }
