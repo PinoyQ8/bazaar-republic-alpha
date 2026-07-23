@@ -47,7 +47,7 @@ export default function PioneerAuthGate({ children, requiredTier, onLinkEstablis
       console.warn("[SECURITY FRACTURE] Unidentified Node. Redirecting to Handshake.");
       router.push("/onboarding");
     }
-  }, [router, requiredTier, onLinkEstablished]);
+  }, [router, requiredTier]);
 
   if (!isAuthorized) {
     return (
