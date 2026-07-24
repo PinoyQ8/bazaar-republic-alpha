@@ -14,34 +14,38 @@ export default function PioneerAuthGate({
 }: PioneerAuthGateProps) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [mounted, setMounted] = useState(false);
 
+  // 1. Ensure component is safely mounted on client before accessing DOM/Window
   useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // 2. Main Authentication Execution
+  useEffect(() => {
+    if (!mounted) return;
+
     let isMounted = true;
 
-    // 🛡️ IMMEDIATE BYPASS CHECK for testing & mobile data network latency
-    if (typeof window !== "undefined") {
-      const hasBypassQuery = 
-        window.location.search.includes("bypass=true") || 
-        window.location.search.includes("FORCE_SYNC");
+    // 🛡️ Synchronous query bypass check once mounted
+    const searchParams = new URLSearchParams(window.location.search);
+    const hasBypass = searchParams.get("bypass") === "true" || window.location.search.includes("FORCE_SYNC");
 
-      if (hasBypassQuery) {
-        console.warn("[MESH] Force bypass query detected in AuthGate. Unlocking workspace.");
-        setIsAuthenticated(true);
-        setLoading(false);
-        if (onLinkEstablished) {
-          onLinkEstablished("local_x570_node");
-        }
-        return;
-      }
+    if (hasBypass) {
+      console.warn("[MESH] Force bypass query detected. Authorizing workspace.");
+      setIsAuthenticated(true);
+      setLoading(false);
+      if (onLinkEstablished) onLinkEstablished("local_x570_node");
+      return;
     }
 
-    // Fallback guard: Force release spinner if SDK hangs for > 5s
+    // 🛡️ 3-second maximum safeguard timer against SDK hanging
     const authTimeout = setTimeout(() => {
-      if (isMounted) {
-        console.warn("[MESH-ALERT] Auth response timed out. Releasing lock.");
+      if (isMounted && loading) {
+        console.warn("[MESH-ALERT] Auth timeout reached. Releasing lock.");
         setLoading(false);
       }
-    }, 5000);
+    }, 3000);
 
     const runAuth = async () => {
       try {
@@ -70,13 +74,14 @@ export default function PioneerAuthGate({
       isMounted = false;
       clearTimeout(authTimeout);
     };
-  }, [onLinkEstablished]);
+  }, [mounted, onLinkEstablished]);
 
-  if (loading) {
+  // Render minimal fallback while waiting for initial React mounting
+  if (!mounted || loading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[50vh] space-y-4">
-        <div className="w-12 h-12 border-4 border-amber-500 border-t-transparent rounded-full animate-spin"></div>
-        <p className="text-amber-500 font-mono text-sm tracking-wider animate-pulse">
+        <div className="w-10 h-10 border-4 border-amber-500 border-t-transparent rounded-full animate-spin"></div>
+        <p className="text-amber-500 font-mono text-xs tracking-wider animate-pulse">
           AUTHENTICATING PIONEER IDENTITY...
         </p>
       </div>
