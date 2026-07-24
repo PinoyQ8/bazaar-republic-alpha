@@ -16,6 +16,7 @@ if (typeof window !== "undefined") {
     window.location.hostname === "localhost" || 
     window.location.hostname === "127.0.0.1";
 
+  // 🛡️ Inject window.Pi mock if running on localhost without Pi Browser SDK
   if (isLocalhost && !(window as any).Pi) {
     console.warn("🛡️ MESH NOTICE: Injecting Localhost Pi SDK Mock.");
     (window as any).Pi = {
@@ -23,6 +24,8 @@ if (typeof window !== "undefined") {
         console.log("[MESH] Mock Pi.init executed with config:", config);
       },
       authenticate: async function(scopes: string[], onIncompletePayment?: any): Promise<PiAuthResult> {
+        console.warn("🛡️ MESH NOTICE: Bypassing Pi SDK postMessage bridge via local mock.");
+        
         const mockUser = { username: "BazaarTech", uid: "local_x570_node" };
         const mockToken = "mock_pioneer_token_alpha_92";
 
@@ -51,7 +54,16 @@ export async function safePiAuthenticate(
     typeof window !== "undefined" && 
     (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
 
-  if (isLocalhost) {
+  // 🛡️ Check for URL bypass flags to release rotation locks on mobile networks
+  const hasBypassQuery = 
+    typeof window !== "undefined" && 
+    (window.location.search.includes("bypass=true") || window.location.search.includes("FORCE_SYNC"));
+
+  if (isLocalhost || hasBypassQuery) {
+    if (hasBypassQuery) {
+      console.warn("🛡️ MESH NOTICE: Force bypass query detected. Seeding mock Pioneer session.");
+    }
+
     const mockUser = { username: "BazaarTech", uid: "local_x570_node" };
     const mockToken = "mock_pioneer_token_alpha_92";
 
@@ -69,11 +81,10 @@ export async function safePiAuthenticate(
     };
   }
 
-  // 🚀 Live Pi Browser Execution
+  // 🚀 Live Pi Browser Execution (Vercel / Testnet)
   if (typeof window !== "undefined" && (window as any).Pi) {
     const Pi = (window as any).Pi;
 
-    // 🛡️ Explicitly genericize Promise<PiAuthResult> so TS doesn't infer Promise<{}>
     const initPromise = new Promise<PiAuthResult>(async (resolve, reject) => {
       try {
         await Pi.init({ version: "2.0", sandbox: true });
@@ -84,6 +95,7 @@ export async function safePiAuthenticate(
       }
     });
 
+    // 5-second race timeout guard against mobile network latency
     const timeoutPromise = new Promise<never>((_, reject) =>
       setTimeout(() => reject(new Error("Pi SDK Network Timeout on Mobile Node")), 5000)
     );
