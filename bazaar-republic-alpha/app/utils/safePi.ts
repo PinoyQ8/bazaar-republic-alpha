@@ -5,26 +5,30 @@ if (typeof window !== "undefined") {
     window.location.hostname === "localhost" || 
     window.location.hostname === "127.0.0.1";
 
+  // 🛡️ Inject window.Pi mock if running on localhost without Pi Browser SDK
   if (isLocalhost && !(window as any).Pi) {
     console.warn("🛡️ MESH NOTICE: Injecting Localhost Pi SDK Mock.");
     (window as any).Pi = {
       init: function(config: any) {
-        console.log("Mock Pi.init executed with config:", config);
+        console.log("[MESH] Mock Pi.init executed with config:", config);
       },
       authenticate: async function(scopes: string[], onIncompletePayment?: any) {
         console.warn("🛡️ MESH NOTICE: Bypassing Pi SDK postMessage bridge via local mock.");
         
+        const mockUser = { username: "BazaarTech", uid: "local_x570_node" };
+        const mockToken = "mock_pioneer_token_alpha_92";
+
         localStorage.setItem("MESH_PIONEER_SIGNATURE", "verified_mock_sig_alpha");
         localStorage.setItem("MESH_PROVIDER_STATUS", "VERIFIED_ACTIVE");
+        localStorage.setItem("pioneer_session", "ACTIVE");
         localStorage.setItem("pi_auth_user", JSON.stringify({
-          username: "BazaarTech",
-          uid: "local_x570_node",
-          accessToken: "mock_pioneer_token_alpha_92"
+          ...mockUser,
+          accessToken: mockToken
         }));
 
         return {
-          user: { username: "BazaarTech", uid: "local_x570_node" },
-          accessToken: "mock_pioneer_token_alpha_92"
+          user: mockUser,
+          accessToken: mockToken
         };
       }
     };
@@ -39,19 +43,21 @@ export async function safePiAuthenticate(scopes: string[], onIncompletePayment?:
   if (isLocalhost) {
     console.warn("🛡️ MESH NOTICE: Localhost environment detected. Seeding all MESH session keys.");
     
-    // Seed all keys required by PioneerAuthGate and downstream security checks
+    const mockUser = { username: "BazaarTech", uid: "local_x570_node" };
+    const mockToken = "mock_pioneer_token_alpha_92";
+
+    // Seed all keys required by downstream security checks
     localStorage.setItem("MESH_PIONEER_SIGNATURE", "verified_mock_sig_alpha");
     localStorage.setItem("MESH_PROVIDER_STATUS", "VERIFIED_ACTIVE");
     localStorage.setItem("pioneer_session", "ACTIVE");
     localStorage.setItem("pi_auth_user", JSON.stringify({
-      username: "BazaarTech",
-      uid: "local_x570_node",
-      accessToken: "mock_pioneer_token_alpha_92"
+      ...mockUser,
+      accessToken: mockToken
     }));
 
     return {
-      user: { username: "BazaarTech", uid: "local_x570_node" },
-      accessToken: "mock_pioneer_token_alpha_92"
+      user: mockUser,
+      accessToken: mockToken
     };
   }
 
@@ -60,5 +66,5 @@ export async function safePiAuthenticate(scopes: string[], onIncompletePayment?:
     return await (window as any).Pi.authenticate(scopes, onIncompletePayment);
   }
 
-  throw new Error("Pi SDK not initialized.");
+  throw new Error("Pi SDK not initialized in window scope.");
 }

@@ -4,28 +4,36 @@ import "./globals.css"; // 🛡️ Activates the Tailwind matrix
 import Script from "next/script";
 import { MeshInitializer } from "./components/MeshInitializer"; 
 import PioneerNav from "./components/Navigation";
+import type { Metadata, Viewport } from "next";
+
+// 🛡️ Mobile Node Viewport Lock (S23 Ultra Optimization)
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  themeColor: "#0a0a0a",
+};
 
 // 🛡️ E-Network Registry Metadata
-export const metadata = {
+export const metadata: Metadata = {
   title: "Project Bazaar | MESH-Academy",
   description: "Decentralized Security and E-Network Onboarding",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className="bg-neutral-950 text-amber-500 font-mono antialiased scroll-smooth" data-scroll-behavior="smooth">
-      
-      {/* 🛡️ Root Injection Layer */}
-      <head>
-        {/* Pi SDK Bridge: Locked in <head> for absolute beforeInteractive priority */}
+    <html 
+      lang="en" 
+      className="bg-neutral-950 text-amber-500 font-mono antialiased scroll-smooth"
+    >
+      <body className="bg-neutral-950 min-h-screen flex flex-col md:flex-row overflow-x-hidden overflow-y-auto">
+        
+        {/* 🛡️ Pi SDK Bridge: Automatically hoisted to <head> by Next.js */}
         <Script 
           src="https://sdk.minepi.com/pi-sdk.js" 
           strategy="beforeInteractive" 
         />
-      </head>
 
-      <body className="bg-neutral-950 min-h-screen flex flex-col md:flex-row overflow-x-hidden overflow-y-auto">
-        
         {/* 🛡️ Hydration Buffer & State Manager */}
         <MeshInitializer>
           
