@@ -1,5 +1,16 @@
 // app/utils/safePi.ts
 
+export interface PioneerUser {
+  username: string;
+  uid: string;
+  accessToken?: string;
+}
+
+export interface PiAuthResult {
+  user: PioneerUser;
+  accessToken: string;
+}
+
 if (typeof window !== "undefined") {
   const isLocalhost = 
     window.location.hostname === "localhost" || 
@@ -11,7 +22,7 @@ if (typeof window !== "undefined") {
       init: function(config: any) {
         console.log("[MESH] Mock Pi.init executed with config:", config);
       },
-      authenticate: async function(scopes: string[], onIncompletePayment?: any) {
+      authenticate: async function(scopes: string[], onIncompletePayment?: any): Promise<PiAuthResult> {
         const mockUser = { username: "BazaarTech", uid: "local_x570_node" };
         const mockToken = "mock_pioneer_token_alpha_92";
 
@@ -32,7 +43,10 @@ if (typeof window !== "undefined") {
   }
 }
 
-export async function safePiAuthenticate(scopes: string[], onIncompletePayment?: (payment: any) => void) {
+export async function safePiAuthenticate(
+  scopes: string[], 
+  onIncompletePayment?: (payment: any) => void
+): Promise<PiAuthResult> {
   const isLocalhost = 
     typeof window !== "undefined" && 
     (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
@@ -55,22 +69,22 @@ export async function safePiAuthenticate(scopes: string[], onIncompletePayment?:
     };
   }
 
-  // 🚀 Live Pi Browser Execution with Mobile Data Safeguard
+  // 🚀 Live Pi Browser Execution
   if (typeof window !== "undefined" && (window as any).Pi) {
     const Pi = (window as any).Pi;
 
-    // Wrap initialization with a 5-second race timeout for mobile data stability
-    const initPromise = new Promise(async (resolve, reject) => {
+    // 🛡️ Explicitly genericize Promise<PiAuthResult> so TS doesn't infer Promise<{}>
+    const initPromise = new Promise<PiAuthResult>(async (resolve, reject) => {
       try {
         await Pi.init({ version: "2.0", sandbox: true });
         const auth = await Pi.authenticate(scopes, onIncompletePayment);
-        resolve(auth);
+        resolve(auth as PiAuthResult);
       } catch (err) {
         reject(err);
       }
     });
 
-    const timeoutPromise = new Promise((_, reject) =>
+    const timeoutPromise = new Promise<never>((_, reject) =>
       setTimeout(() => reject(new Error("Pi SDK Network Timeout on Mobile Node")), 5000)
     );
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, ReactNode } from "react";
-import { safePiAuthenticate } from "@/app/utils/safePi";
+import { safePiAuthenticate, type PiAuthResult } from "@/app/utils/safePi";
 
 interface PioneerAuthGateProps {
   children: ReactNode;
@@ -16,41 +16,44 @@ export default function PioneerAuthGate({
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-  let isMounted = true;
+    let isMounted = true;
 
-  // 🛡️ Fallback guard: Force clear loading state if SDK hangs for > 8s
-  const authTimeout = setTimeout(() => {
-    if (isMounted) {
-      console.warn("[MESH-ALERT] Auth response timed out. Releasing lock.");
-      setLoading(false);
-    }
-  }, 8000);
-
-  const runAuth = async () => {
-    try {
-      const authResult = await safePiAuthenticate(["username", "payments"]);
-      
-      if (isMounted && authResult?.user?.uid) {
-        setIsAuthenticated(true);
-      }
-    } catch (error) {
-      console.error("[MESH-ALERT] Authentication failed:", error);
-      if (isMounted) setIsAuthenticated(false);
-    } finally {
+    const authTimeout = setTimeout(() => {
       if (isMounted) {
-        clearTimeout(authTimeout);
+        console.warn("[MESH-ALERT] Auth response timed out. Releasing lock.");
         setLoading(false);
       }
-    }
-  };
+    }, 8000);
 
-  runAuth();
+    const runAuth = async () => {
+      try {
+        // 🛡️ Explicit type assignment resolves the line 33 build error
+        const authResult: PiAuthResult = await safePiAuthenticate(["username", "payments"]);
+        
+        if (isMounted && authResult?.user?.uid) {
+          setIsAuthenticated(true);
+          if (onLinkEstablished) {
+            onLinkEstablished(authResult.user.uid);
+          }
+        }
+      } catch (error) {
+        console.error("[MESH-ALERT] Authentication failed:", error);
+        if (isMounted) setIsAuthenticated(false);
+      } finally {
+        if (isMounted) {
+          clearTimeout(authTimeout);
+          setLoading(false);
+        }
+      }
+    };
 
-  return () => {
-    isMounted = false;
-    clearTimeout(authTimeout);
-  };
-}, [onLinkEstablished]);
+    runAuth();
+
+    return () => {
+      isMounted = false;
+      clearTimeout(authTimeout);
+    };
+  }, [onLinkEstablished]);
 
   if (loading) {
     return (
