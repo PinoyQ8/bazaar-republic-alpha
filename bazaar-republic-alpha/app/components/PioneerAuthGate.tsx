@@ -16,26 +16,41 @@ export default function PioneerAuthGate({
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const runAuth = async () => {
-      try {
-        const authResult = await safePiAuthenticate(["username", "payments"]);
-        
-        if (authResult?.user?.uid) {
-          setIsAuthenticated(true);
-          if (onLinkEstablished) {
-            onLinkEstablished(authResult.user.uid);
-          }
-        }
-      } catch (error) {
-        console.error("[MESH-ALERT] Authentication failed:", error);
-        setIsAuthenticated(false);
-      } finally {
+  let isMounted = true;
+
+  // 🛡️ Fallback guard: Force clear loading state if SDK hangs for > 8s
+  const authTimeout = setTimeout(() => {
+    if (isMounted) {
+      console.warn("[MESH-ALERT] Auth response timed out. Releasing lock.");
+      setLoading(false);
+    }
+  }, 8000);
+
+  const runAuth = async () => {
+    try {
+      const authResult = await safePiAuthenticate(["username", "payments"]);
+      
+      if (isMounted && authResult?.user?.uid) {
+        setIsAuthenticated(true);
+      }
+    } catch (error) {
+      console.error("[MESH-ALERT] Authentication failed:", error);
+      if (isMounted) setIsAuthenticated(false);
+    } finally {
+      if (isMounted) {
+        clearTimeout(authTimeout);
         setLoading(false);
       }
-    };
+    }
+  };
 
-    runAuth();
-  }, [onLinkEstablished]);
+  runAuth();
+
+  return () => {
+    isMounted = false;
+    clearTimeout(authTimeout);
+  };
+}, [onLinkEstablished]);
 
   if (loading) {
     return (

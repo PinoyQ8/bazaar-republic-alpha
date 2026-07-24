@@ -46,7 +46,6 @@ export async function safePiAuthenticate(scopes: string[], onIncompletePayment?:
     const mockUser = { username: "BazaarTech", uid: "local_x570_node" };
     const mockToken = "mock_pioneer_token_alpha_92";
 
-    // Seed all keys required by downstream security checks
     localStorage.setItem("MESH_PIONEER_SIGNATURE", "verified_mock_sig_alpha");
     localStorage.setItem("MESH_PROVIDER_STATUS", "VERIFIED_ACTIVE");
     localStorage.setItem("pioneer_session", "ACTIVE");
@@ -61,9 +60,18 @@ export async function safePiAuthenticate(scopes: string[], onIncompletePayment?:
     };
   }
 
-  // Production Execution for Vercel / Live Pi Browser
+  // 🚀 Live Pi Browser Execution (Vercel / Testnet)
   if (typeof window !== "undefined" && (window as any).Pi) {
-    return await (window as any).Pi.authenticate(scopes, onIncompletePayment);
+    const Pi = (window as any).Pi;
+
+    // 🛡️ CRITICAL FIX: Ensure SDK initialization is executed first
+    try {
+      await Pi.init({ version: "2.0", sandbox: true });
+    } catch (initErr) {
+      console.warn("[MESH] Pi.init notice:", initErr);
+    }
+
+    return await Pi.authenticate(scopes, onIncompletePayment);
   }
 
   throw new Error("Pi SDK not initialized in window scope.");
