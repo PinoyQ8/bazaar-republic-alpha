@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
-
-// 🛡️ THE PEG: Immutable Protocol Constant
+import { prisma } from '@/lib/prisma'; // 🛡️ Database Bridge
+// 🛡️ THE PEG: Immutable Protocol Constants
 const PI_TO_MBZR_RATIO = 1000; // 1 Pi = 1 Gram (1,000 mg) Synthetic Gold
+const MAX_MINT_CAP = 1000;     // 🛡️ ALPHA SAFETY VALVE
 
 export async function POST(request: Request) {
   try {
@@ -9,33 +10,29 @@ export async function POST(request: Request) {
     const { senderWallet, lockedPiAmount, l1TxSignature } = payload;
 
     // 1. INBOUND PAYLOAD VALIDATION
-const MAX_MINT_CAP = 1000; // 🛡️ ALPHA SAFETY VALVE
+    if (!senderWallet || typeof lockedPiAmount !== 'number' || !l1TxSignature) {
+      return NextResponse.json(
+        { success: false, error: 'MALFORMED_PAYLOAD: Missing required Genesis vectors.' },
+        { status: 400 }
+      );
+    }
 
-if (!senderWallet || typeof lockedPiAmount !== 'number' || !l1TxSignature) {
-  return NextResponse.json(
-    { success: false, error: 'MALFORMED_PAYLOAD: Missing required Genesis vectors.' },
-    { status: 400 }
-  );
-}
+    if (lockedPiAmount <= 0) {
+      return NextResponse.json(
+        { success: false, error: 'INVALID_AMOUNT: Deposit must be > 0.' },
+        { status: 422 }
+      );
+    }
 
-if (lockedPiAmount <= 0) {
-  return NextResponse.json(
-    { success: false, error: 'INVALID_AMOUNT: Deposit must be > 0.' },
-    { status: 422 }
-  );
-}
+    if (lockedPiAmount > MAX_MINT_CAP) {
+      console.warn(`[MESH-REJECT] Node [${senderWallet}] attempted mint overflow: ${lockedPiAmount} Pi`);
+      return NextResponse.json(
+        { success: false, error: `ALPHA-LIMIT: Maximum Genesis Mint is ${MAX_MINT_CAP} Pi.` },
+        { status: 422 }
+      );
+    }
 
-// 🛡️ ALPHA STRESS TEST GUARDRAIL
-if (lockedPiAmount > MAX_MINT_CAP) {
-  console.warn(`[MESH-REJECT] Node [${senderWallet}] attempted mint overflow: ${lockedPiAmount} Pi`);
-  return NextResponse.json(
-    { success: false, error: `ALPHA-LIMIT: Maximum Genesis Mint is ${MAX_MINT_CAP} Pi.` },
-    { status: 422 }
-  );
-}
-
-    // 2. LAYER 1 CRYPTOGRAPHIC VERIFICATION (The Adjudicator Gate)
-    // In production, this pings the Pi Mainnet horizon to verify the transaction hash
+    // 2. LAYER 1 CRYPTOGRAPHIC VERIFICATION
     const isL1SignatureValid = l1TxSignature.startsWith('pi_tx_'); 
     if (!isL1SignatureValid) {
         console.error(`[MESH-REJECT] L1 Signature verification failed for Node [${senderWallet}].`);
@@ -49,11 +46,31 @@ if (lockedPiAmount > MAX_MINT_CAP) {
     const mintedMbzr = lockedPiAmount * PI_TO_MBZR_RATIO;
 
     // --- CRITICAL SECTION: DB STATE TRANSITION ---
-    // [Database execution block: Credit user mBZR balance, increment Total Outstanding Supply]
+    await prisma.$transaction([
+      prisma.pioneerNode.upsert({
+        where: { uid: senderWallet },
+        update: {
+          stakedPi: { increment: lockedPiAmount },
+          mbzrBalance: { increment: mintedMbzr },
+          lastActivityTimestamp: new Date(),
+        },
+        create: {
+          uid: senderWallet,
+          stakedPi: lockedPiAmount,
+          mbzrBalance: mintedMbzr,
+        }
+      }),
+      prisma.meshLedger.create({
+        data: {
+          walletId: senderWallet,
+          txSignature: l1TxSignature,
+          txType: 'GENESIS_MINT',
+          piAmount: lockedPiAmount,
+          mbzrAmount: mintedMbzr,
+        },
+      }),
+    ]);
     // ---------------------------------------------
-
-    // Simulate Network/Database Latency for UI Sync
-    await new Promise((resolve) => setTimeout(resolve, 800));
 
     console.log(`[MESH-SYNC] Genesis Mint Authorized.`);
     console.log(` > Node: ${senderWallet}`);

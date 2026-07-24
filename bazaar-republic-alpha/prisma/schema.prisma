@@ -1,4 +1,4 @@
-// 🛡️ NEO PROTOCOL: SCHEMA VERSION 2.2 (Unified & Hardened)
+// 🛡️ NEO PROTOCOL: SCHEMA VERSION 2.3 (Unified & Hardened)
 generator client {
   provider      = "prisma-client-js"
   binaryTargets = ["native", "windows"]
@@ -47,6 +47,11 @@ enum PaymentStatus {
   FAILED
 }
 
+enum LedgerTxType {
+  GENESIS_MINT
+  EARLY_REDEEM
+}
+
 // ----------------------------------------------------------------------
 // 🛡️ MESH LEDGER: Identity & State
 // ----------------------------------------------------------------------
@@ -61,6 +66,7 @@ model PioneerNode {
   freezeReason          String?
   trustScore            Int        @default(0)
   stakedPi              Float      @default(0)
+  mbzrBalance           Float      @default(0) // 🛡️ MESH PATCH: Synthetic Gold State
   signature             String?
   ledgerHeight          Int        @default(0)
   syncState             String     @default("Unknown")
@@ -94,6 +100,22 @@ model Payment {
 }
 
 // ----------------------------------------------------------------------
+// 🛡️ ECONOMIC ENGINE: Synthetic Asset Ledger (v2.3)
+// ----------------------------------------------------------------------
+model MeshLedger {
+  id              String       @id @default(auto()) @map("_id") @db.ObjectId
+  walletId        String       // Maps to PioneerNode.uid
+  txSignature     String?      @unique // L1 Pi TxHash (Null for redemptions)
+  txType          LedgerTxType
+  piAmount        Float        @default(0) // Pi locked or unlocked
+  mbzrAmount      Float        @default(0) // mBZR minted or redeemed
+  penaltyApplied  Float        @default(0) // % penalty for early redeem
+  meltBurnAmount  Float        @default(0) // mBZR sent to burn address
+  yieldAmount     Float        @default(0) // mBZR redistributed to stakers
+  timestamp       DateTime     @default(now())
+}
+
+// ----------------------------------------------------------------------
 // 🛡️ GOVERNANCE ENGINE: DAO Consensus (v2.3)
 // ----------------------------------------------------------------------
 model InternalProposal {
@@ -112,14 +134,14 @@ model InternalProposal {
 }
 
 model VoteRecord {
-  id          String           @id @default(auto()) @map("_id") @db.ObjectId
-  decision    VoteDecision
-  proposalId  String           @db.ObjectId
-  voterId     String           // 🛡️ MESH PATCH: Aligned to TS expectation
-  voterUid    String?          
-  createdAt   DateTime         @default(now())
+  id         String           @id @default(auto()) @map("_id") @db.ObjectId
+  decision   VoteDecision
+  proposalId String           @db.ObjectId
+  voterId    String           // 🛡️ MESH PATCH: Aligned to TS expectation
+  voterUid   String?          
+  createdAt  DateTime         @default(now())
   
-  proposal    InternalProposal @relation(fields: [proposalId], references: [id])
+  proposal   InternalProposal @relation(fields: [proposalId], references: [id])
 }
 
 // ----------------------------------------------------------------------
