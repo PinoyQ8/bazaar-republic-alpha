@@ -1,9 +1,9 @@
-// TARGET FILE PATH: [project-root]/app/alpha-track/page.tsx
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import PioneerAuthGate from '@/app/components/PioneerAuthGate';
 
-// 1. FIXED ECONOMIC CONSTANTS (Outside Component)
+// 1. FIXED ECONOMIC CONSTANTS (Outside Component Scope)
 const PI_TO_MBZR_RATIO = 1000;
 
 interface MilestoneTier {
@@ -20,7 +20,7 @@ const MILESTONE_TIERS: MilestoneTier[] = [
 ];
 
 export default function AlphaTrackDashboard() {
-  // 2. STATE HOOKS (Must remain inside the component scope)
+  // 2. STATE HOOKS
   const [totalMinted, setTotalMinted] = useState<number>(9190);
   const [stakedReserve, setStakedReserve] = useState<number>(8010);
   const [circulatingPool, setCirculatingPool] = useState<number>(1180);
@@ -40,7 +40,7 @@ export default function AlphaTrackDashboard() {
     setActivePenalty(calculated);
   }, [currentTier, monthsElapsed]);
 
-  // 3. SECURE API ACTIONS (With typed 'prev' parameters)
+  // 3. SECURE API ACTIONS
   const executeMint = async (e: React.FormEvent) => {
     e.preventDefault();
     const piAmount = parseFloat(mintInput);
@@ -101,88 +101,81 @@ export default function AlphaTrackDashboard() {
     }
   };
 
-  // TARGET: [project-root]/app/alpha-track/page.tsx
-// Replace everything from the 'return' statement down.
-
-  // 4. VIEWPORT RENDER (Locked for S23 Ultra)
+  // 4. VIEWPORT RENDER (S23 Ultra 384px Safe)
   return (
-    <main className="max-w-[384px] mx-auto p-4 min-h-screen bg-zinc-950 text-zinc-100 font-mono selection:bg-emerald-500/30">
-      <div className="mb-6 border-b border-zinc-800 pb-4">
-        <h2 className="text-emerald-400 font-bold tracking-widest uppercase text-sm">NEO-SYNC ACTIVE</h2>
-        <p className="text-zinc-500 text-xs mt-1">Over-Mint Shield: <span className="text-emerald-500 font-bold">OPERATIONAL</span></p>
-      </div>
-
-      <div className="mb-6 p-4 bg-zinc-900 border border-zinc-800 rounded-lg text-sm space-y-3">
-        <h3 className="text-xs text-zinc-400 uppercase tracking-widest border-b border-zinc-800 pb-2 mb-2">Proof of Reserve</h3>
-        <div className="flex justify-between">
-          <span className="text-zinc-500">Gold Mass:</span>
-          <span className="font-bold text-amber-400">{totalGoldReservedMg.toFixed(2)} mg</span>
-        </div>
-        <div className="flex justify-between">
-          <span className="text-zinc-500">Vault Pi Collateral:</span>
-          <span className="font-bold text-blue-400">{currentVaultCollateralPi.toFixed(4)} Pi</span>
-        </div>
-        <div className="flex justify-between border-t border-zinc-800 pt-2 mt-2">
-          <span className="text-zinc-500">Circulating Pool:</span>
-          <span className="font-bold text-emerald-300">{circulatingPool.toFixed(2)} mBZR</span>
-        </div>
-        <div className="flex justify-between">
-          <span className="text-zinc-500">Staked Reserve:</span>
-          <span className="font-bold text-purple-400">{stakedReserve.toFixed(2)} mBZR</span>
-        </div>
-      </div>
-
-      {/* 🛡️ GENESIS MINT PROTOCOL */}
-      <div className="mb-6 bg-zinc-900/50 border border-zinc-800 p-4 rounded-lg">
-        <h4 className="text-xs text-zinc-400 uppercase tracking-widest mb-3">Genesis Mint</h4>
-        <form onSubmit={executeMint} className="space-y-3">
-          <input 
-            type="number" 
-            value={mintInput} 
-            onChange={(e) => setMintInput(e.target.value)} 
-            placeholder="Amount Pi"
-            className="w-full bg-zinc-950 border border-zinc-700 p-3 rounded text-emerald-300 focus:outline-none focus:border-emerald-500 transition-colors"
-          />
-          <button type="submit" className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-zinc-950 text-sm font-bold uppercase tracking-wider rounded transition-colors">
-            Execute Mint
+    <PioneerAuthGate>
+      <main className="w-full max-w-[384px] mx-auto p-4 min-h-screen bg-zinc-950 text-zinc-100 font-mono overflow-x-hidden selection:bg-emerald-500/30 space-y-6">
+        
+        {/* TOP BAR / NAVIGATION SHIELD */}
+        <div className="flex items-center justify-between border-b border-zinc-800 pb-3 gap-2">
+          <div>
+            <h2 className="text-emerald-400 font-bold tracking-widest uppercase text-sm">NEO-SYNC ACTIVE</h2>
+            <p className="text-zinc-500 text-[11px] mt-0.5">Over-Mint Shield: <span className="text-emerald-500 font-bold">OPERATIONAL</span></p>
+          </div>
+          <button 
+            onClick={() => window.location.href = '/academy'}
+            className="px-2.5 py-1.5 bg-fuchsia-900/80 hover:bg-fuchsia-800 text-fuchsia-200 border border-fuchsia-500/50 text-[10px] font-bold uppercase rounded tracking-wider transition-colors shrink-0"
+          >
+            ACADEMY
           </button>
-        </form>
-      </div>
+        </div>
 
-      {/* 🛡️ EARLY REDEMPTION PROTOCOL */}
-      <div className="bg-zinc-900/50 border border-zinc-800 p-4 rounded-lg">
-        <h4 className="text-xs text-zinc-400 uppercase tracking-widest mb-3">Early Redemption</h4>
-        <form onSubmit={executeRedeem} className="space-y-3">
-          <input 
-            type="number" 
-            value={redeemInput} 
-            onChange={(e) => setRedeemInput(e.target.value)} 
-            placeholder="Amount mBZR"
-            className="w-full bg-zinc-950 border border-zinc-700 p-3 rounded text-red-300 focus:outline-none focus:border-red-500 transition-colors"
-          />
-          <button type="submit" className="w-full py-3 bg-red-900/80 hover:bg-red-800 text-red-100 border border-red-700/50 text-sm font-bold uppercase tracking-wider rounded transition-colors">
-            Execute Redeem
-          </button>
+        {/* PROOF OF RESERVE TELEMETRY */}
+        <div className="p-4 bg-zinc-900 border border-zinc-800 rounded-lg text-sm space-y-3">
+          <h3 className="text-xs text-zinc-400 uppercase tracking-widest border-b border-zinc-800 pb-2 mb-2">Proof of Reserve</h3>
+          <div className="flex justify-between">
+            <span className="text-zinc-500">Gold Mass:</span>
+            <span className="font-bold text-amber-400">{totalGoldReservedMg.toFixed(2)} mg</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-zinc-500">Vault Pi Collateral:</span>
+            <span className="font-bold text-blue-400">{currentVaultCollateralPi.toFixed(4)} Pi</span>
+          </div>
+          <div className="flex justify-between border-t border-zinc-800 pt-2 mt-2">
+            <span className="text-zinc-500">Circulating Pool:</span>
+            <span className="font-bold text-emerald-300">{circulatingPool.toFixed(2)} mBZR</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-zinc-500">Staked Reserve:</span>
+            <span className="font-bold text-purple-400">{stakedReserve.toFixed(2)} mBZR</span>
+          </div>
+        </div>
 
-       <div style={{ 
-  position: 'fixed', 
-  top: 20, 
-  left: 20, 
-  zIndex: 99999, 
-  background: '#ff00ff', 
-  color: '#ffffff', 
-  padding: '7px', 
-  border: '2px solid white', 
-  fontWeight: 'bold',
-  borderRadius: '8px',
-  boxShadow: '0 0 20px #ff00ff'
-}}>
-  <button onClick={() => window.location.href = '/academy'}>
-    NAVIGATE TO ACADEMY
-  </button>
-</div>
-        </form>
-      </div>
-    </main>
+        {/* 🛡️ GENESIS MINT PROTOCOL */}
+        <div className="bg-zinc-900/50 border border-zinc-800 p-4 rounded-lg">
+          <h4 className="text-xs text-zinc-400 uppercase tracking-widest mb-3">Genesis Mint</h4>
+          <form onSubmit={executeMint} className="space-y-3">
+            <input 
+              type="number" 
+              value={mintInput} 
+              onChange={(e) => setMintInput(e.target.value)} 
+              placeholder="Amount Pi"
+              className="w-full bg-zinc-950 border border-zinc-700 p-3 rounded text-emerald-300 focus:outline-none focus:border-emerald-500 transition-colors text-sm"
+            />
+            <button type="submit" className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-zinc-950 text-sm font-bold uppercase tracking-wider rounded transition-colors">
+              Execute Mint
+            </button>
+          </form>
+        </div>
+
+        {/* 🛡️ EARLY REDEMPTION PROTOCOL */}
+        <div className="bg-zinc-900/50 border border-zinc-800 p-4 rounded-lg">
+          <h4 className="text-xs text-zinc-400 uppercase tracking-widest mb-3">Early Redemption</h4>
+          <form onSubmit={executeRedeem} className="space-y-3">
+            <input 
+              type="number" 
+              value={redeemInput} 
+              onChange={(e) => setRedeemInput(e.target.value)} 
+              placeholder="Amount mBZR"
+              className="w-full bg-zinc-950 border border-zinc-700 p-3 rounded text-red-300 focus:outline-none focus:border-red-500 transition-colors text-sm"
+            />
+            <button type="submit" className="w-full py-3 bg-red-900/80 hover:bg-red-800 text-red-100 border border-red-700/50 text-sm font-bold uppercase tracking-wider rounded transition-colors">
+              Execute Redeem
+            </button>
+          </form>
+        </div>
+
+      </main>
+    </PioneerAuthGate>
   );
 }
