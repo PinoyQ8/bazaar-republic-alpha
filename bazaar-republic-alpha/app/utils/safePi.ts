@@ -5,7 +5,6 @@ if (typeof window !== "undefined") {
     window.location.hostname === "localhost" || 
     window.location.hostname === "127.0.0.1";
 
-  // 🛡️ Inject window.Pi mock if running on localhost without Pi Browser SDK
   if (isLocalhost && !(window as any).Pi) {
     console.warn("🛡️ MESH NOTICE: Injecting Localhost Pi SDK Mock.");
     (window as any).Pi = {
@@ -13,8 +12,6 @@ if (typeof window !== "undefined") {
         console.log("[MESH] Mock Pi.init executed with config:", config);
       },
       authenticate: async function(scopes: string[], onIncompletePayment?: any) {
-        console.warn("🛡️ MESH NOTICE: Bypassing Pi SDK postMessage bridge via local mock.");
-        
         const mockUser = { username: "BazaarTech", uid: "local_x570_node" };
         const mockToken = "mock_pioneer_token_alpha_92";
 
@@ -41,8 +38,6 @@ export async function safePiAuthenticate(scopes: string[], onIncompletePayment?:
     (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
 
   if (isLocalhost) {
-    console.warn("🛡️ MESH NOTICE: Localhost environment detected. Seeding all MESH session keys.");
-    
     const mockUser = { username: "BazaarTech", uid: "local_x570_node" };
     const mockToken = "mock_pioneer_token_alpha_92";
 
@@ -60,18 +55,26 @@ export async function safePiAuthenticate(scopes: string[], onIncompletePayment?:
     };
   }
 
-  // 🚀 Live Pi Browser Execution (Vercel / Testnet)
+  // 🚀 Live Pi Browser Execution with Mobile Data Safeguard
   if (typeof window !== "undefined" && (window as any).Pi) {
     const Pi = (window as any).Pi;
 
-    // 🛡️ CRITICAL FIX: Ensure SDK initialization is executed first
-    try {
-      await Pi.init({ version: "2.0", sandbox: true });
-    } catch (initErr) {
-      console.warn("[MESH] Pi.init notice:", initErr);
-    }
+    // Wrap initialization with a 5-second race timeout for mobile data stability
+    const initPromise = new Promise(async (resolve, reject) => {
+      try {
+        await Pi.init({ version: "2.0", sandbox: true });
+        const auth = await Pi.authenticate(scopes, onIncompletePayment);
+        resolve(auth);
+      } catch (err) {
+        reject(err);
+      }
+    });
 
-    return await Pi.authenticate(scopes, onIncompletePayment);
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error("Pi SDK Network Timeout on Mobile Node")), 5000)
+    );
+
+    return Promise.race([initPromise, timeoutPromise]);
   }
 
   throw new Error("Pi SDK not initialized in window scope.");
