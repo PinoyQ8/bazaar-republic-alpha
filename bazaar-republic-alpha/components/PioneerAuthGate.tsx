@@ -15,14 +15,16 @@ export default function PioneerAuthGate({ children, requiredTier, onLinkEstablis
   const [isAuthorized, setIsAuthorized] = useState<boolean>(false);
 
   useEffect(() => {
-    // 🛡️ MESH Localhost Bypass Guard
+    // 🛡️ MESH Localhost Bypass Guard (Hard-coded to Master Founder Node)
     const isLocalhost = 
       typeof window !== "undefined" && 
       (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
 
     if (isLocalhost) {
+      const masterNodeId = "pi_test_node_01";
+      localStorage.setItem("mesh_pioneer_uid", masterNodeId);
       setIsAuthorized(true);
-      if (onLinkEstablished) onLinkEstablished("local_x570_node");
+      if (onLinkEstablished) onLinkEstablished(masterNodeId);
       return;
     }
 
@@ -47,7 +49,7 @@ export default function PioneerAuthGate({ children, requiredTier, onLinkEstablis
       console.warn("[SECURITY FRACTURE] Unidentified Node. Redirecting to Handshake.");
       router.push("/onboarding");
     }
-  }, [router, requiredTier]);
+  }, [router, requiredTier, onLinkEstablished]);
 
   if (!isAuthorized) {
     return (
@@ -57,6 +59,6 @@ export default function PioneerAuthGate({ children, requiredTier, onLinkEstablis
     );
   }
 
-  // Safely render children if they exist, otherwise render nothing (for self-closing usage)
+  // Safely render children if they exist, otherwise render nothing
   return <>{children}</>;
 }
