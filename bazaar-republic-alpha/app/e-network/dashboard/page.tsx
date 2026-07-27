@@ -5,13 +5,12 @@ import { getActiveProviders } from "@/app/actions/enetworkActions";
 import { ProviderList, type ProviderNode } from "@/app/components/ProviderList";
 import { Header } from "@/app/components/layout/Header";
 import { ProviderLoadingShell } from "@/app/components/ProviderLoadingShell";
-import MeshStaking from '@/components/MeshStaking';
-import PioneerAuthGate from '@/components/PioneerAuthGate';
-import ENetworkConsole from '@/components/ENetworkConsole';
+import MeshStaking from "@/components/MeshStaking";
+import PioneerAuthGate from "@/components/PioneerAuthGate";
+import ENetworkConsole from "@/components/ENetworkConsole";
 
 export default function Dashboard() {
   const [pioneerIdentity, setPioneerIdentity] = useState<string | null>(null);
-  // NEW: State to track if the Pioneer has locked their liquidity
   const [isStaked, setIsStaked] = useState<boolean>(false); 
   const [mappedProviders, setMappedProviders] = useState<ProviderNode[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -25,7 +24,7 @@ export default function Dashboard() {
           id: raw.id,
           pioneer: raw.username || "Unknown Pioneer", 
           service: "E-Network Node", 
-          rate: "Standard Base",     
+          rate: "Standard Base",    
           status: "VERIFIED",        
           trustScore: 100
         }));
@@ -43,7 +42,6 @@ export default function Dashboard() {
     setPioneerIdentity(pioneerId);
   };
 
-  // NEW: Handler for successful staking confirmation
   const handleStakingConfirmation = () => {
     setIsStaked(true);
   };
@@ -67,7 +65,9 @@ export default function Dashboard() {
         {!pioneerIdentity ? (
           /* PHASE 01: IDENTITY TIMEOUT - STANDBY GATEWAY ACTIVE */
           <div className="w-full my-auto animate-fadeIn">
-            <PioneerAuthGate onLinkEstablished={handleIdentityLink} />
+            <PioneerAuthGate onLinkEstablished={handleIdentityLink}>
+              <span className="text-xs text-amber-500">Authenticate Pioneer Node</span>
+            </PioneerAuthGate>
           </div>
         ) : !isStaked ? (
           /* PHASE 02: IDENTITY VERIFIED, AWAITING LIQUIDITY SHIELD */

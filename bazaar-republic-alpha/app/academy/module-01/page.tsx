@@ -79,7 +79,7 @@ export default function ModuleOneSector() {
             The Bazaar Republic is not a traditional platform; it is an <span className="text-blue-400">E-Network</span>. Your mobile node is a localized logic forge. You do not rely on central servers to validate your truth. 
           </p>
           <p className="text-xs text-slate-400 font-mono leading-relaxed">
-            The <span className="text-emerald-400">92% Uptime Shield</span> is maintained by the Pioneers. If a node fractures, the DAO reroutes the logic.
+            The <span className="text-emerald-400">90% Uptime Shield</span> is maintained by the Pioneers. If a node fractures, the DAO reroutes the logic.
           </p>
 
           <h2 className="text-sm font-mono font-bold text-slate-200 uppercase border-b border-slate-800 pb-2 pt-4">

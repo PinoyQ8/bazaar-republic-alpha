@@ -27,7 +27,7 @@ export default function BazaarGate() {
 
         if (data.success) {
           setStatus("GATE_OPEN: Welcome, Pioneer.");
-          router.push("/enetwork/dashboard");
+          router.push("/e-network/dashboard");
         } else {
           // 🛡️ GOVERNANCE LOCK: Catch Frozens/Sanctions here
           setStatus(`GATE_CLOSED: ${data.message}`);

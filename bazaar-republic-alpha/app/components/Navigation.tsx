@@ -12,7 +12,7 @@ const navGroups = [
   },
   { 
     title: "E-NETWORK", 
-    links: [{n: "Dashboard", p: "/enetwork/dashboard"}, {n: "Adjudicator", p: "/enetwork/adjudicator"}, {n: "Register", p: "/enetwork/register"}] 
+    links: [{n: "Dashboard", p: "/e-network/dashboard"}, {n: "Adjudicator", p: "/e-network/adjudicator"}, {n: "Register", p: "/e-network/register"}] 
   }
 ];
 

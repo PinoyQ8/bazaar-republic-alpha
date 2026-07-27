@@ -1,3 +1,4 @@
+// Location: app/components/mesh/VerificationSector.tsx
 "use client";
 
 import React, { useState, useEffect } from 'react';
@@ -24,7 +25,7 @@ export default function VerificationSector() {
 
   const fetchPendingNodes = async () => {
     try {
-      const response = await fetch('/api/enetwork/pending-nodes', {
+      const response = await fetch('/api/e-network/pending-nodes', {
         headers: { 
           'x-mesh-pioneer-role': 'FOUNDER', // Clearance simulation
           'x-mesh-pioneer-uid': 'GENESIS-ANCHOR'
@@ -46,7 +47,7 @@ export default function VerificationSector() {
   const executeAdjudication = async (providerId: string, status: 'ACTIVE' | 'REJECTED') => {
     setProcessingId(providerId);
     try {
-      const response = await fetch('/api/enetwork/verify', {
+      const response = await fetch('/api/e-network/verify', {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -80,16 +81,16 @@ export default function VerificationSector() {
 
       <div className="space-y-4 max-h-100 overflow-y-auto pr-2 custom-scrollbar">
         {isScanning ? (
-          <div className="text-emerald-700 text-xs border border-emerald-900/30 p-6 text-center animate-pulse">
+          <div key="scanning-state" className="text-emerald-700 text-xs border border-emerald-900/30 p-6 text-center animate-pulse">
             [SCANNING LEDGER FOR PENDING NODES...]
           </div>
         ) : pendingNodes.length === 0 ? (
-          <div className="text-slate-500 text-xs border border-slate-800 p-6 text-center border-dashed">
+          <div key="empty-state" className="text-slate-500 text-xs border border-slate-800 p-6 text-center border-dashed">
             [NO PENDING NODE REGISTRATIONS DETECTED]
           </div>
         ) : (
-          pendingNodes.map((node) => (
-            <div key={node._id} className="border border-slate-700 bg-slate-900/50 rounded-lg p-4 w-full">
+          pendingNodes.map((node, index) => (
+            <div key={node._id ? node._id.toString() : `node-fallback-${index}`} className="border border-slate-700 bg-slate-900/50 rounded-lg p-4 w-full">
               
               <div className="flex justify-between items-start mb-3">
                 <div>

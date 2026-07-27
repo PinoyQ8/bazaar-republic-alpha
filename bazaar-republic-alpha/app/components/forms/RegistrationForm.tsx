@@ -17,7 +17,7 @@ export function RegisterForm({ pioneerId }: { pioneerId: string }) {
 });
     
     if (result.success) {
-      router.push("/enetwork/dashboard");
+      router.push("/e-network/dashboard");
     } else {
       alert("Registration Fracture: " + result.message);
     }

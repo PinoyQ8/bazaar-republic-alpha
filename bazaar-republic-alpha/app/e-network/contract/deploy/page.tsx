@@ -94,7 +94,7 @@ export default async function ContractDeploymentSector({
           </button>
           
           <Link
-            href={`/enetwork/provider/${providerId}`}
+            href={`/e-network/provider/${providerId}`}
             className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-center font-bold py-3 px-4 rounded transition-colors uppercase tracking-wider font-mono text-sm"
           >
             Abort Handshake

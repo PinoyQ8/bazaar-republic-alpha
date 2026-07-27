@@ -1,178 +1,211 @@
-// 🛡️ THE PROPOSAL MATRIX (Frontend UI: Two-Stage Filter Active)
+// Location: /app/dashboard/proposals/page.tsx
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import PioneerAuthGate from "@/app/components/PioneerAuthGate";
 
-// Maps E-Network roles to schema keys for localized UI logic
-const TIER_MAP: Record<string, string> = {
-  'FOUNDER': 'founder',
-  'ELDER': 'circleOfElders',
-  'MERCHANT': 'merchant',
-  'PROVIDER': 'serviceProvider',
-  'CITIZEN': 'citizen'
-};
+// Mapped directly to /app/models/mesh-schema.ts
+interface MESHProposal {
+  proposalId: string;
+  title: string;
+  rawText: string;
+  tierOrigin: string;
+  status: string;
+  startTime: string;
+  endTime: string;
+  yesVP: number;
+  noVP: number;
+  hasVoted?: boolean; // Injected by backend if current UID already voted
+}
 
 export default function ProposalsMatrix() {
-  const [proposals, setProposals] = useState<any[]>([]);
+  const router = useRouter();
+  const [session, setSession] = useState<{ username: string; uid: string } | null>(null);
+  const [proposals, setProposals] = useState<MESHProposal[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [votingOn, setVotingOn] = useState<string | null>(null);
 
-  // Hard-coded local identity for Alpha testing
-  const TEST_UID = "GENESIS-ANCHOR";
-  const TEST_ROLE = "FOUNDER";
-  const userTierKey = TIER_MAP[TEST_ROLE];
-
-  const fetchLedger = async () => {
-    try {
-      const res = await fetch('/api/governance/get-proposals');
-      const data = await res.json();
-      if (data.success) {
-        setProposals(data.proposals);
+  useEffect(() => {
+    const storedAuth = localStorage.getItem("pi_auth_user");
+    if (storedAuth) {
+      try {
+        const parsed = JSON.parse(storedAuth);
+        setSession(parsed);
+        fetchLedger(parsed.uid);
+      } catch (e) {
+        console.error("[MESH] Failed to parse local auth", e);
+        setIsLoading(false);
       }
+    }
+  }, []);
+
+  const fetchLedger = async (uid: string) => {
+    try {
+      // 🛡️ API will pull active proposals and flag if this UID voted
+      const res = await fetch('/api/mesh-vote', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'FETCH_ACTIVE', uid })
+      });
+      const data = await res.json();
+      if (data.proposals) setProposals(data.proposals);
     } catch (error) {
-      console.error("MESH UI Error:", error);
+      console.error("[MESH] Ledger Sync Error:", error);
     } finally {
       setIsLoading(false);
     }
   };
 
-  useEffect(() => {
-    fetchLedger();
-  }, []);
-
-  const handleVote = async (proposalId: string, decision: 'APPROVE' | 'REJECT') => {
+  const handleVote = async (proposalId: string, voteDirection: 'YES' | 'NO') => {
+    if (!session?.uid) return;
     setVotingOn(proposalId);
+    
     try {
-      const res = await fetch('/api/governance/vote', {
+      const res = await fetch('/api/mesh-vote', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-mesh-pioneer-uid': TEST_UID,
-          'x-mesh-pioneer-role': TEST_ROLE
-        },
-        body: JSON.stringify({ proposalId, decision })
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          action: 'CAST_VOTE',
+          uid: session.uid, 
+          proposalId, 
+          voteDirection 
+        })
       });
       
       const data = await res.json();
       
-      if (data.success) {
-        console.log(`[MESH-GOVERNANCE] Vote mathematically bound: ${decision}`);
-        await fetchLedger(); // Re-sync the ledger to update UI state
+      if (res.ok) {
+        console.log(`[MESH] VP Bound: ${voteDirection}`);
+        await fetchLedger(session.uid); // Resync UI with new VP math
       } else {
-        console.error(`[ADJUDICATOR] Vote rejected: ${data.error}`);
-        alert(`Vote Blocked by Adjudicator: ${data.error}`);
+        alert(`[ADJUDICATOR HALT]: ${data.error}`);
       }
     } catch (error) {
-      console.error("Voting Engine Panic:", error);
+      console.error("[MESH] Voting Engine Panic:", error);
     } finally {
       setVotingOn(null);
     }
   };
 
   if (isLoading) {
-    return <div className="text-green-500 font-mono text-sm animate-pulse">[MESH-SCAN] Syncing Ledger...</div>;
+    return (
+      <div className="min-h-screen bg-black text-amber-500 font-mono flex flex-col items-center justify-center space-y-4">
+        <div className="animate-pulse text-2xl font-bold tracking-widest">SYNCING LEDGER...</div>
+        <div className="text-xs text-neutral-500">Retrieving v25.2.2 Vote Pool</div>
+      </div>
+    );
   }
 
   return (
-    <div className="w-full max-w-4xl mx-auto p-4 space-y-6 font-mono">
-      <div className="border-b border-green-500/30 pb-2 mb-4 flex justify-between items-end">
-        <div>
-          <h2 className="text-xl text-green-400 font-bold tracking-widest">ACTIVE PROPOSALS</h2>
-          <p className="text-xs text-gray-400">14+14 Two-Stage Filter | 4/5 Consensus Required</p>
-        </div>
-        <div className="text-xs text-green-500/50">NODE: {TEST_ROLE}</div>
-      </div>
-
-      {proposals.length === 0 ? (
-        <div className="p-4 bg-black/40 border border-gray-800 rounded text-gray-500 text-sm">
-          No active proposals detected in the E-Network.
-        </div>
-      ) : (
-        proposals.map((prop) => {
-          const hasVoted = prop.votedUids?.includes(TEST_UID);
-          const isProcessing = votingOn === prop._id;
-          
-          // 🛡️ UI LOGIC GATE: Is the Pioneer authorized to vote right now?
-          const isAuthorized = prop.currentStage === 'REPUBLIC_FLOOR' || prop.proposerTier === userTierKey;
-          
-          // Calculate days remaining
-          const daysLeft = Math.max(0, Math.ceil((new Date(prop.currentDeadline).getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
-
-          return (
-            <div 
-              key={prop._id} 
-              className={`rounded-lg p-5 transition-all duration-300 ${
-                isAuthorized 
-                  ? "bg-black/60 border border-green-500/20 shadow-[0_0_15px_rgba(34,197,94,0.05)] hover:border-green-500/50" 
-                  : "bg-black/30 border border-gray-800 opacity-70 grayscale-50"
-              }`}
+    <PioneerAuthGate>
+      {/* 🛡️ Linter Fix: Swapped flex-grow for grow if it existed on the main wrapper, but focusing on the target line below */}
+      <div className="w-full max-w-full overflow-x-hidden space-y-4 p-2 min-h-screen bg-black text-neutral-300 font-mono flex flex-col">
+        
+        {/* HEADER BLOCK */}
+        <header className="border-b border-amber-900/60 pb-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <h1 className="text-lg font-bold tracking-tight text-amber-500 uppercase">
+              The Vote Pool
+            </h1>
+            <button 
+              onClick={() => router.push('/dashboard')}
+              className="text-xs px-2 py-1 bg-neutral-900 border border-neutral-700 rounded text-neutral-400 hover:text-amber-400"
             >
-              <div className="flex justify-between items-start mb-3">
-                <div>
-                  <h3 className={`text-lg font-semibold uppercase ${isAuthorized ? "text-white" : "text-gray-400"}`}>
-                    {prop.title}
-                  </h3>
-                  <div className="flex space-x-2 mt-1">
-                    <span className={`text-[9px] px-2 py-0.5 rounded border ${
-                      prop.currentStage === 'REPUBLIC_FLOOR' 
-                        ? 'bg-blue-900/20 text-blue-400 border-blue-900/50' 
-                        : 'bg-orange-900/20 text-orange-400 border-orange-900/50'
-                    }`}>
-                      {prop.currentStage.replace('_', ' ')}
-                    </span>
-                    <span className="text-[9px] bg-gray-900/50 text-gray-400 px-2 py-0.5 rounded border border-gray-800">
-                      T-MINUS: {daysLeft} DAYS
-                    </span>
-                  </div>
-                </div>
-                <span className="text-[10px] bg-green-500/10 text-green-400 px-2 py-1 rounded border border-green-500/30">
-                  TARGET: {prop.targetContract}
-                </span>
-              </div>
-              
-              <p className={`text-sm mb-4 leading-relaxed ${isAuthorized ? "text-gray-300" : "text-gray-500"}`}>
-                {prop.description}
-              </p>
-              
-              <div className="flex justify-between items-center border-t border-gray-800 pt-4 mt-2">
-                <div className="text-[10px] text-gray-500">
-                  ORIGIN TIER: <span className="text-gray-400 uppercase">{prop.proposerTier}</span>
-                </div>
-                
-                {/* Voting Terminal */}
-                <div className="flex space-x-3">
-                  {!isAuthorized ? (
-                    <span className="px-4 py-1.5 text-[10px] bg-red-900/10 text-red-500/50 border border-red-900/30 rounded uppercase tracking-wider">
-                      [ LOCKED IN PHASE 1 ]
-                    </span>
-                  ) : hasVoted ? (
-                    <span className="px-4 py-1.5 text-[10px] bg-gray-900/50 text-gray-500 border border-gray-800 rounded uppercase tracking-wider">
-                      [ VOTE CAST ]
-                    </span>
-                  ) : (
-                    <>
-                      <button 
-                        onClick={() => handleVote(prop._id, 'REJECT')}
-                        disabled={isProcessing}
-                        className="px-4 py-1.5 text-xs bg-red-900/30 text-red-400 border border-red-900/50 hover:bg-red-900/50 rounded transition-all disabled:opacity-50"
-                      >
-                        {isProcessing ? 'SYNCING...' : 'REJECT'}
-                      </button>
-                      <button 
-                        onClick={() => handleVote(prop._id, 'APPROVE')}
-                        disabled={isProcessing}
-                        className="px-4 py-1.5 text-xs bg-green-900/30 text-green-400 border border-green-900/50 hover:bg-green-900/50 rounded transition-all disabled:opacity-50"
-                      >
-                        {isProcessing ? 'SYNCING...' : 'APPROVE'}
-                      </button>
-                    </>
-                  )}
-                </div>
-              </div>
+              DASHBOARD
+            </button>
+          </div>
+          <div className="flex justify-between text-[10px] text-neutral-500 uppercase tracking-widest">
+            <span>80% VP Supermajority Required</span>
+            <span className="text-amber-600">ID: {session?.uid.slice(0, 8)}...</span>
+          </div>
+        </header>
+
+        {/* PROPOSAL MATRIX */}
+        {/* 🛡️ Linter Fix Applied Here: flex-grow replaced with grow */}
+        <div className="space-y-4 grow">
+          {proposals.length === 0 ? (
+            <div className="p-4 bg-neutral-900/60 border border-amber-900/30 rounded text-neutral-500 text-xs text-center">
+              No active logic drafts in the E-Network.
             </div>
-          );
-        })
-      )}
-    </div>
+          ) : (
+            proposals.map((prop) => {
+              const isProcessing = votingOn === prop.proposalId;
+              const totalVP = prop.yesVP + prop.noVP;
+              const approvalRate = totalVP > 0 ? (prop.yesVP / totalVP) * 100 : 0;
+              
+              // Timer calculation based on immutable ledger endTime
+              const hoursLeft = Math.max(0, Math.floor((new Date(prop.endTime).getTime() - Date.now()) / (1000 * 60 * 60)));
+
+              return (
+                <div key={prop.proposalId} className="p-3 bg-neutral-900/60 border border-amber-900/50 rounded-lg space-y-3">
+                  
+                  <div className="flex justify-between items-start">
+                    <div className="space-y-1">
+                      <h3 className="text-sm font-bold text-amber-400 uppercase">{prop.title}</h3>
+                      <div className="flex space-x-2 text-[9px]">
+                        <span className="px-1.5 py-0.5 bg-neutral-800 text-neutral-400 rounded border border-neutral-700">
+                          ORIGIN: {prop.tierOrigin}
+                        </span>
+                        <span className="px-1.5 py-0.5 bg-blue-900/30 text-blue-400 rounded border border-blue-900/50">
+                          T-MINUS: {hoursLeft}H
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <p className="text-xs text-neutral-400 line-clamp-3 bg-black/40 p-2 rounded border border-neutral-800">
+                    {prop.rawText}
+                  </p>
+
+                  {/* VP Progress Shield */}
+                  <div className="space-y-1 pt-1">
+                    <div className="flex justify-between text-[10px] text-neutral-500">
+                      <span>Approval: {approvalRate.toFixed(1)}%</span>
+                      <span>Total VP: {totalVP.toFixed(2)}</span>
+                    </div>
+                    <div className="h-1.5 w-full bg-neutral-800 rounded overflow-hidden flex">
+                      <div className="h-full bg-emerald-500" style={{ width: `${approvalRate}%` }}></div>
+                      <div className="h-full bg-red-500" style={{ width: `${100 - approvalRate}%` }}></div>
+                    </div>
+                    {/* Hard-coded 80% Supermajority Line */}
+                    <div className="relative w-full h-2">
+                      <div className="absolute top-0 w-0.5 h-2 bg-amber-500" style={{ left: '80%' }}></div>
+                    </div>
+                  </div>
+
+                  {/* Adjudicator Action Gate */}
+                  <div className="pt-2 border-t border-amber-900/40">
+                    {prop.hasVoted ? (
+                      <div className="w-full text-center py-2 text-xs font-bold bg-neutral-800/50 text-neutral-500 rounded border border-neutral-800 uppercase tracking-widest">
+                        VP Locked in Ledger
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-2 gap-2">
+                        <button 
+                          onClick={() => handleVote(prop.proposalId, 'NO')}
+                          disabled={isProcessing}
+                          className="py-2 text-xs bg-red-900/20 hover:bg-red-900/40 text-red-400 border border-red-900/50 rounded font-bold transition-all disabled:opacity-50 tracking-wider"
+                        >
+                          {isProcessing ? 'SYNCING...' : 'REJECT'}
+                        </button>
+                        <button 
+                          onClick={() => handleVote(prop.proposalId, 'YES')}
+                          disabled={isProcessing}
+                          className="py-2 text-xs bg-emerald-900/20 hover:bg-emerald-900/40 text-emerald-400 border border-emerald-900/50 rounded font-bold transition-all disabled:opacity-50 tracking-wider"
+                        >
+                          {isProcessing ? 'SYNCING...' : 'APPROVE'}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                </div>
+              );
+            })
+          )}
+        </div>
+      </div>
+    </PioneerAuthGate>
   );
 }

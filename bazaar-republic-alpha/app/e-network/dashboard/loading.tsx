@@ -1,4 +1,4 @@
-// app/enetwork/dashboard/loading.tsx
+// app/e-network/dashboard/loading.tsx
 export default function Loading() {
   return (
     <div className="flex flex-col min-h-screen bg-slate-950 p-4 justify-center items-center">

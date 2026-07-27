@@ -18,7 +18,7 @@ export default function ProfileActionPanel({ node }: { node: ProviderNode }) {
     console.log(`[MESH-BRIDGE] Initializing contract handshake for node: ${node.id}`);
     
     // Route the consumer directly to the contract deployment form with parameters
-    router.push(`/enetwork/contract/deploy?providerId=${node.id}&rate=${node.rate}&name=${node.username}`);
+    router.push(`/e-network/contract/deploy?providerId=${node.id}&rate=${node.rate}&name=${node.username}`);
   };
 
   return (
@@ -36,7 +36,7 @@ export default function ProfileActionPanel({ node }: { node: ProviderNode }) {
       </button>
       
       <button 
-        onClick={() => router.push("/enetwork/dashboard")}
+        onClick={() => router.push("/e-network/dashboard")}
         className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-center font-bold py-3 px-4 rounded transition-colors uppercase tracking-wider"
       >
         Return to Dashboard

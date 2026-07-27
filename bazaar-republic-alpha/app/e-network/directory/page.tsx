@@ -1,4 +1,4 @@
-// 🛡️ app/enetwork/directory/page.tsx
+// 🛡️ app/e-network/directory/page.tsx
 import PublicDirectory from '@/app/components/mesh/PublicDirectory';
 
 export const metadata = {

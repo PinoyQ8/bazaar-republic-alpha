@@ -11,7 +11,7 @@ const PUBLIC_UI = ["/", "/log-in", "/alpha-track"];
 const PUBLIC_API = ["/api/auth"];
 
 // 2. VAULT NODES (Cryptographic Handshake Required)
-const RESTRICTED_SECTORS = ["/academy", "/enetwork", "/governance", "/treasury"];
+const RESTRICTED_SECTORS = ["/academy", "/e-network", "/governance", "/treasury"];
 const RESTRICTED_API = ["/api/academy", "/api/governance", "/api/treasury", "/api/mesh-transactions", "/api/consensus", "/mesh-consensus"];
 
 export default function proxy(req: NextRequest) {

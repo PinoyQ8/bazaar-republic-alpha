@@ -1,4 +1,4 @@
-// 🛡️ app/enetwork/adjudicator/page.tsx
+// 🛡️ app/e-network/adjudicator/page.tsx
 import VerificationSector from '@/app/components/mesh/VerificationSector';
 
 export const metadata = {

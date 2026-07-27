@@ -33,7 +33,7 @@ export default function ProviderDashboard() {
     setIsLoading(true);
     setError('');
     try {
-      const response = await fetch('/api/enetwork/provider', {
+      const response = await fetch('/api/e-network/provider', {
         headers: {
           'x-mesh-pioneer-uid': uid // 🛡️ Passing the mathematically verified UID
         }

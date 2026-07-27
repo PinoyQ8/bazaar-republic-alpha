@@ -25,6 +25,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html 
       lang="en" 
       className="bg-neutral-950 text-amber-500 font-mono antialiased scroll-smooth"
+      data-scroll-behavior="smooth"
     >
       <body className="bg-neutral-950 min-h-screen flex flex-col md:flex-row overflow-x-hidden overflow-y-auto">
         

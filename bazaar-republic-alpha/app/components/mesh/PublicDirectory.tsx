@@ -21,7 +21,7 @@ export default function PublicDirectory() {
 
   const fetchActiveNodes = async () => {
     try {
-      const response = await fetch('/api/enetwork/active-nodes');
+      const response = await fetch('/api/e-network/active-nodes');
       if (response.ok) {
         const data = await response.json();
         if (data.success) {

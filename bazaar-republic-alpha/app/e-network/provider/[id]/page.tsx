@@ -1,4 +1,4 @@
-// app/enetwork/provider/[id]/page.tsx
+// app/e-network/provider/[id]/page.tsx
 import { getProviderById } from "@/app/actions/enetworkActions";
 import { notFound } from "next/navigation";
 import ProfileActionPanel from "@/app/components/ProfileActionPanel";

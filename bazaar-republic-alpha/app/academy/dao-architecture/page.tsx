@@ -1,7 +1,9 @@
+// Location: app/dao/architecture/page.tsx
 "use client";
 
 import React from "react";
 import Link from "next/link";
+import { MESH_VERSION, MESH_STATUS } from "@/app/config/meshVersion";
 
 // 🛡️ CONSTITUTIONAL DATA: HARD-CODED TIER LOGIC
 const GOVERNANCE_TIERS = [
@@ -20,10 +22,12 @@ export default function DaoArchitectureModule() {
       <div className="mb-6 border-b border-zinc-800 pb-4 flex items-center justify-between">
         <div>
           <h2 className="text-emerald-400 font-bold tracking-widest uppercase text-sm">DAO ARCHITECTURE</h2>
-          <p className="text-zinc-500 text-xs mt-1">Status: <span className="text-emerald-500 font-bold">L1 MATRIX LOCKED</span></p>
+          <p className="text-zinc-500 text-xs mt-1">
+            Status: <span className="text-emerald-500 font-bold">{MESH_STATUS}</span>
+          </p>
         </div>
         <div className="text-[10px] text-zinc-600 border border-zinc-800 px-2 py-1 rounded">
-          v24.0.ALPHA
+          {MESH_VERSION}
         </div>
       </div>
 

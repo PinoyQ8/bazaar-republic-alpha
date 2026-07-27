@@ -111,9 +111,9 @@ export default function GenesisCapstonePage() {
         <div className="p-6 border border-slate-800 bg-slate-900/40 rounded-xl space-y-4">
           <h3 className="text-[10px] font-bold text-blue-500 uppercase tracking-widest border-b border-slate-800 pb-2">The Genesis Pledge</h3>
           <ul className="space-y-3 text-[10px] text-slate-400 font-mono list-none p-0">
-            <li className="flex gap-2"><span className="text-blue-500">1.</span> Maintain 92% Uptime Shield.</li>
+            <li className="flex gap-2"><span className="text-blue-500">1.</span> Maintain 90% Uptime Shield.</li>
             <li className="flex gap-2"><span className="text-blue-500">2.</span> Adjudicate logic without bias.</li>
-            <li className="flex gap-2"><span className="text-blue-500">3.</span> Vote on all V23 Mainnet PIPs.</li>
+            <li className="flex gap-2"><span className="text-blue-500">3.</span> Vote on all V25 Mainnet PIPs.</li>
             <li className="flex gap-2"><span className="text-blue-500">4.</span> Defend the Zero-Trust perimeter.</li>
           </ul>
         </div>
