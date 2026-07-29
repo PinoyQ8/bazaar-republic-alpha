@@ -30,7 +30,7 @@ export default function DashboardPage() {
         const parsed = JSON.parse(storedAuth);
         setSession(parsed);
 
-        // 🛡️ STEP 2: Execute live API fetch to v25.2.2 Node
+        // 🛡️ STEP 2: Execute live API fetch to 26.1.0 Node
         fetch("/api/mesh-telemetry", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -61,7 +61,7 @@ export default function DashboardPage() {
     return (
       <div className="min-h-screen bg-black text-amber-500 font-mono flex flex-col items-center justify-center space-y-4">
         <div className="animate-pulse text-2xl font-bold tracking-widest">SYNCING MESH...</div>
-        <div className="text-xs text-neutral-500">Querying v25.2.2 Node Telemetry</div>
+        <div className="text-xs text-neutral-500">Querying 26.1.0 Node Telemetry</div>
       </div>
     );
   }

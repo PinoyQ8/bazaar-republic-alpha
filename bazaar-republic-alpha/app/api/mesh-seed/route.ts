@@ -36,7 +36,7 @@ export async function GET() {
         proposalId,
         proposerUid: testUid,
         tierOrigin: "Genesis",
-        title: "Deploy v25.2.2 Dual-Vector Quorum & Quadratic Staking",
+        title: "Deploy 26.1.0 Dual-Vector Quorum & Quadratic Staking",
         rawText: "This protocol upgrade hard-codes the separation between unique node participation (Quorum) and economic weight (Voting Power) across all E-Network nodes.",
         status: "ACTIVE_VOTING",
         clearanceHash: "mesh_hash_verified_99f2a8c1",

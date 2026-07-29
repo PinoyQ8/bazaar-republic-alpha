@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { MESH_VERSION, MESH_STATUS } from "@/app/config/meshVersion";
 
 export default function AcademyDashboard() {
   const router = useRouter();

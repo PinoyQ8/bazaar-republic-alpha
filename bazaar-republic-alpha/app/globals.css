@@ -61,3 +61,15 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: var(--mesh-green); /* Active sync highlight */
 }
+
+/* 🛡️ MESH VIEWPORT CLAMP: Prevent all horizontal scrolling globally */
+html, body {
+  max-width: 100vw;
+  overflow-x: hidden;
+}
+
+/* Ensure long unbroken strings (like wallet addresses or hashes) break instead of stretching the screen */
+* {
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+}

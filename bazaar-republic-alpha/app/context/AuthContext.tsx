@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, ReactNode, useMemo } from "react";
+import { createContext, useContext, useState, useEffect, ReactNode, useMemo } from "react";
 import { signTransaction } from "@stellar/freighter-api";
 import * as StellarSdk from "@stellar/stellar-sdk";
 
@@ -53,6 +53,47 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     isHydrated: false,
     accessToken: null,
   });
+
+  // 🛡️ THE HYDRATION BRIDGE: Auto-authenticates node on mount
+  useEffect(() => {
+    const initializeNode = async () => {
+      try {
+        if (typeof window !== "undefined" && window.Pi) {
+          const auth = await window.Pi.authenticate(['username', 'payments', 'wallet_address'], ['incomplete', 'approved']);
+          
+          setPioneer({
+            username: auth.user.username,
+            uid: auth.user.uid,
+            tier: "TIER-1-NODE",
+            role: "PIONEER",
+            trustScore: 50,
+            isAuthenticated: true,
+            isHydrated: true,
+            accessToken: auth.accessToken,
+          });
+          console.log("[MESH-SYNC] Pi SDK Authenticated Node:", auth.user.username);
+        } else {
+          // 🛡️ DEV BYPASS: Injects a safe 24-character MongoDB hex ID for local X570 testing
+          console.warn("[MESH-SCAN] Pi SDK not found. Injecting Local Dev Node.");
+          setPioneer({
+            username: "PinoyQ8_Dev",
+            uid: "5f9b3b9b9b9b9b9b9b9b9b9b", 
+            tier: "TIER-ALPHA",
+            role: "FOUNDER",
+            trustScore: 99,
+            isAuthenticated: true,
+            isHydrated: true,
+            accessToken: "DEV_ACCESS_TOKEN_OVERRIDE",
+          });
+        }
+      } catch (error) {
+        console.error("[MESH FRACTURE] Authentication failed:", error);
+        setPioneer(prev => ({ ...prev, isHydrated: true })); 
+      }
+    };
+
+    initializeNode();
+  }, []);
 
   const executeStakePayment = async (amount: number): Promise<void> => {
     try {

@@ -94,12 +94,12 @@ export class QuorumValidator {
       };
     }
 
-    // ALL GATES CLEARED: Push to v25.2.2 Timelock
+    // ALL GATES CLEARED: Push to 26.1.0 Timelock
     return {
       status: 'EXECUTING',
       participationRate,
       approvalRateVP,
-      message: 'Vote passed via VP Supermajority. Triggering 48-hour v25.2.2 Execution Timelock.',
+      message: 'Vote passed via VP Supermajority. Triggering 48-hour 26.1.0 Execution Timelock.',
     };
   }
 }

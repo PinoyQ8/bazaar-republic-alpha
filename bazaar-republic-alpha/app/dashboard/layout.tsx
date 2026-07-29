@@ -30,7 +30,8 @@ export default function DashboardLayout({
         </header>
 
         {/* 🧩 Nested Page Content Injection */}
-        <main className="flex-1 w-full max-w-7xl mx-auto px-4 py-6">
+        {/* 🛡️ PATCH: Added pb-24 (96px of padding) so the S23 Bottom Bar never covers your content */}
+        <main className="flex-1 w-full max-w-7xl mx-auto px-4 pt-6 pb-24">
           {children}
         </main>
         

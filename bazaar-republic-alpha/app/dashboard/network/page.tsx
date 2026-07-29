@@ -59,7 +59,7 @@ export default function NetworkPage() {
     return (
       <div className="min-h-screen bg-black text-amber-500 font-mono flex flex-col items-center justify-center space-y-4">
         <div className="animate-pulse text-2xl font-bold tracking-widest">SCANNING MESH...</div>
-        <div className="text-xs text-neutral-500">Querying v25.2.2 Peer Topology</div>
+        <div className="text-xs text-neutral-500">Querying 26.1.0 Peer Topology</div>
       </div>
     );
   }
@@ -82,7 +82,7 @@ export default function NetworkPage() {
             </button>
           </div>
           <div className="flex justify-between text-[10px] text-neutral-500 uppercase tracking-widest">
-            <span>Protocol v25.2.2</span>
+            <span>Protocol 26.1.0</span>
             <span className="text-emerald-400">MESH STABLE</span>
           </div>
         </header>

@@ -23,7 +23,7 @@ export default function DaoArchitectureModule() {
         <div>
           <h2 className="text-emerald-400 font-bold tracking-widest uppercase text-sm">DAO ARCHITECTURE</h2>
           <p className="text-zinc-500 text-xs mt-1">
-            Status: <span className="text-emerald-500 font-bold">{MESH_STATUS}</span>
+            Status: <span className="text-emerald-500 font-bold">{MESH_STATUS.version}</span>
           </p>
         </div>
         <div className="text-[10px] text-zinc-600 border border-zinc-800 px-2 py-1 rounded">

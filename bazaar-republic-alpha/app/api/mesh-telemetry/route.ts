@@ -42,7 +42,7 @@ export async function POST(request: Request) {
       cFlow: powerMatrix.breakdown.cFlow,
       pSlash: powerMatrix.breakdown.pSlash,
       votingPower: powerMatrix.votingPower,
-      status: "v25.2.2 SYNCED",
+      status: "26.1.0 SYNCED",
     });
 
   } catch (error) {

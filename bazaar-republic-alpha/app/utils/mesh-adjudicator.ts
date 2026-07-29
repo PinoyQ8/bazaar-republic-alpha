@@ -61,7 +61,7 @@ export class SecurityAdjudicator {
       return this.reject('CONSTITUTIONAL_VIOLATION: Draft conflicts with Republic Vision, Mission, or Core Architecture.');
     }
 
-    // ALL GATES CLEARED: Generate v25.2.2 execution clearance hash
+    // ALL GATES CLEARED: Generate 26.1.0 execution clearance hash
     const hash = this.generateClearanceHash(draft);
     return {
       status: 'PASSED',
@@ -90,7 +90,7 @@ export class SecurityAdjudicator {
     
     // Array of forbidden operational invariants (e.g., centralization attempts)
     const FORBIDDEN_INVARIANTS = [
-      'BYPASS V25.2.2', 
+      'BYPASS V26.1.0', 
       'REMOVE UPTIME SHIELD', 
       'CENTRALIZED AUTHORITY', 
       'SUSPEND CONSTITUTION'
@@ -110,7 +110,7 @@ export class SecurityAdjudicator {
    * HELPER: Cryptographically stamps approved drafts for the MESH ledger.
    */
   private static generateClearanceHash(draft: ProposalDraft): string {
-    const salt = process.env.PI_API_KEY || 'v25.2.2_fallback_salt';
+    const salt = process.env.PI_API_KEY || '26.1.0_fallback_salt';
     const payload = `${draft.draftId}:${draft.title}:${Date.now()}:${salt}`;
     return createHash('sha256').update(payload).digest('hex');
   }

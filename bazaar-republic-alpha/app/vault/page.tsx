@@ -1,14 +1,13 @@
 "use client";
 
 import SecurityCircleHUD from "../components/SecurityCircleHUD";
-// 🛡️ THE TRUE IMPORT BRIDGE
+// 🛡️ INJECT THE NEW STAKE MODULE
+import MeshStakeButton from "../components/MeshStakeButton";
 import { useAuth } from "@/context/AuthContext";
 
 export default function VaultPage() {
-  // 1. Pull the exact variables broadcasted by your True Engine
   const { pioneer, isHydrated } = useAuth(); 
 
-  // 2. 🛑 THE AUTHENTICATION GATE (Bulletproofed with Optional Chaining)
   if (!isHydrated || !pioneer?.isAuthenticated || !pioneer?.username) {
     return (
       <div className="min-h-screen bg-black text-zinc-400 p-6 flex items-center justify-center font-mono">
@@ -19,11 +18,9 @@ export default function VaultPage() {
     );
   }
 
-  // 3. Identity is confirmed. Lock the routing variable.
   const activeNodeId = pioneer.username;
 
   return (
-    /* 🛡️ S23 VIEWPORT SHIELD: Locked to max-w-[384px] to align with Mobile Dock */
     <div className="min-h-screen bg-black text-zinc-300 p-4 font-mono pb-24 flex flex-col items-center">
       <div className="w-full max-w-[384px] space-y-6">
         
@@ -39,6 +36,9 @@ export default function VaultPage() {
 
         {/* HUD MOUNT */}
         <SecurityCircleHUD pioneerId={activeNodeId} />
+
+        {/* 🛡️ THE NEW TRANSACTION MOUNT */}
+        <MeshStakeButton pioneerId={activeNodeId} />
 
       </div>
     </div>

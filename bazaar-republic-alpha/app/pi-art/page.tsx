@@ -20,7 +20,7 @@ export default function PiArtForge() {
             Project Bazaar
           </h1>
           <p className="text-xl text-zinc-500 tracking-widest mt-4">
-            MESH PROTOCOL v24
+            MESH PROTOCOL v26.1
           </p>
         </div>
 
