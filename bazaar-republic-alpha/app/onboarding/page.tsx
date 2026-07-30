@@ -85,7 +85,7 @@ export default function OnboardingPage() {
         <h2 className="text-lg font-bold text-indigo-400">NEO PROTOCOL</h2>
         <p className="text-xs text-zinc-400">Stage 1: Identity Handshake</p>
         
-        <div className="p-4 bg-zinc-950 border border-zinc-800 rounded text-xs text-emerald-400 min-h-[80px]">
+        <div className="p-4 bg-zinc-950 border border-zinc-800 rounded text-xs text-emerald-400 min-h-80px">
           Terminal Telemetry:<br/>
           <span className="text-zinc-300">{telemetry}</span>
         </div>

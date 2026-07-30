@@ -73,12 +73,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       role: "CITIZEN",
       trustScore: 0,
       isAuthenticated: false,
-      isHydrated: true, // Mark hydrated immediately
+      isHydrated: true,
       accessToken: null,
     };
   });
 
-  // 🛡️ THE MESH BRIDGE: Declared in scope
   const login = (data: PioneerState) => {
     setPioneer({ ...data, isHydrated: true });
   };
@@ -108,11 +107,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const server = new StellarSdk.rpc.Server(rpcUrl);
       const networkPassphrase = process.env.NEXT_PUBLIC_STELLAR_NETWORK || StellarSdk.Networks.TESTNET;
       
-      console.log("[MESH-STAKE] Fetching account details for UID:", pioneer.uid);
       const account = await server.getAccount(pioneer.uid);
       const contract = new StellarSdk.Contract(contractId);
       
-      // 🛡️ Build the contract invocation operation
       const invokeOperation = contract.call(
         "stake", 
         StellarSdk.nativeToScVal(amount, { type: "i128" }),
@@ -120,14 +117,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       );
 
       const tx = new StellarSdk.TransactionBuilder(account, { 
-        fee: "100000", // Standard Soroban fee buffer
+        fee: "100000",
         networkPassphrase 
       })
         .addOperation(invokeOperation)
         .setTimeout(30)
         .build();
 
-      console.log("[MESH-STAKE] Simulating Soroban transaction...");
       const simulatedTx = await server.simulateTransaction(tx);
       
       if (StellarSdk.rpc.Api.isSimulationError(simulatedTx)) {
@@ -137,7 +133,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const assembledTx = StellarSdk.rpc.assembleTransaction(tx, simulatedTx);
       const finalTx = assembledTx as unknown as StellarSdk.Transaction;
 
-      console.log("[MESH-STAKE] Requesting signature from wallet provider...");
       const signResponse = await signTransaction(finalTx.toXDR(), { networkPassphrase });
       
       if (signResponse.error) {
@@ -145,12 +140,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
 
       const signedTx = StellarSdk.TransactionBuilder.fromXDR(signResponse.signedTxXdr, networkPassphrase);
-      
-      console.log("[MESH-STAKE] Broadcasting transaction to Soroban network...");
       const response = await server.sendTransaction(signedTx);
 
       if ((response.status as string) === "SUCCESS" || response.status === "PENDING") {
-        console.log("[MESH-STAKE] 🟢 YIELD DELIVERED: Fuel successfully staked.");
         setPioneer((prev) => ({ 
           ...prev, 
           tier: "TIER-5-ACTIVE", 
@@ -182,4 +174,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   );
 };
 
+// 🛡️ DUAL EXPORT BRIDGE: Satisfies both named and default compiler lookups
 export const useAuth = (): AuthContextType => useContext(AuthContext) ?? FALLBACK_AUTH;
+export default useAuth;
