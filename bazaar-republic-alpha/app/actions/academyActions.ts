@@ -135,7 +135,7 @@ export async function commitModuleSignature(pioneerId: string, moduleId: string)
           network: "v26.1-MAINNET-ALPHA"
         }
       },
-      { upsert: true, new: true }
+      { upsert: true, returnDocument: 'after' }
     );
 
     console.log(`[MESH-BRIDGE] ✅ Module ${moduleId} locked. +${MODULE_YIELD} Fuel | TS: ${newTS}/100 -> ${pioneerId}. Hash: ${generatedHash}`);

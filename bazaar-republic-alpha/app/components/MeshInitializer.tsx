@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState, useMemo } from "react";
+import { createContext, useContext, useEffect, useState } from "react";
 
 interface PioneerIdentity { 
   uid: string; 
@@ -15,96 +15,119 @@ interface MeshContextType {
 }
 
 const MeshContext = createContext<MeshContextType>({ 
-  isPiReady: true,
-  isAuthenticated: true,
-  accessToken: "MESH_ALPHA_TOKEN_SECURE",
-  user: { uid: "5f9b3b9b9b9b9b9b9b9b9b9b", username: "PinoyQ8_Dev" },
+  isPiReady: false,
+  isAuthenticated: false,
+  accessToken: null,
+  user: null,
 });
 
 export function MeshInitializer({ children }: { children: React.ReactNode }) {
-  const [bypassActive, setBypassActive] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(true);
+  const [contextValue, setContextValue] = useState<MeshContextType>({
+    isPiReady: false,
+    isAuthenticated: false,
+    accessToken: null,
+    user: null
+  });
 
   useEffect(() => {
-    const activeHost = typeof window !== "undefined" ? window.location.hostname : "";
-    const isTunnelRoute = activeHost.includes('trycloudflare.com') || 
-                          activeHost.includes('ngrok-free.app') || 
-                          activeHost.includes('localhost') ||
-                          activeHost.includes('192.168.');
-    
-    if (isTunnelRoute) {
-      console.warn("🚨 CRITICAL S23 BYPASS: Tunnel/Local detected. Injecting MOCK Pi SDK Shim.");
-      
-      // 🛡️ MOCK PI SDK SHIM: Prevents 'Pi SDK Not Detected' errors during local testing
-      if (typeof window !== "undefined" && !(window as any).Pi) {
-        (window as any).Pi = {
-          authenticate: async (scopes: string[], onIncompletePaymentFound: Function) => {
-            console.log("[MOCK Pi SDK] Authenticate called with scopes:", scopes);
-            return {
+    const initMesh = async () => {
+      try {
+        const activeHost = typeof window !== "undefined" ? window.location.hostname : "";
+        const isLocal = activeHost.includes('localhost') || activeHost.includes('192.168.');
+
+        // ====================================================================
+        // 🛡️ PHASE 1: LIVE PI BROWSER INTERCEPT
+        // ====================================================================
+        if (typeof window !== "undefined" && (window as any).Pi && !isLocal) {
+          console.log("[MESH-SCAN] Native Pi SDK detected. Initiating True Handshake.");
+          const Pi = (window as any).Pi;
+          
+          // Authenticate with Pi Core Servers
+          const authResult = await Pi.authenticate(['username', 'payments'], (payment: any) => {
+            console.warn("[MESH-BRIDGE] Incomplete payment detected:", payment);
+          });
+
+          setContextValue({
+            isPiReady: true,
+            isAuthenticated: true,
+            accessToken: authResult.accessToken,
+            user: { uid: authResult.user.uid, username: authResult.user.username }
+          });
+          return; // Escape hatch: Handshake complete
+        }
+
+        // ====================================================================
+        // 🛡️ PHASE 2: S23 BYPASS / DESKTOP SHIM
+        // ====================================================================
+        console.warn("🚨 MESH SHIM: Pi SDK missing or Local Node. Injecting X570 Mock.");
+        
+        if (typeof window !== "undefined" && !(window as any).Pi) {
+          (window as any).Pi = {
+            authenticate: async () => ({
               accessToken: "MOCK_PI_ACCESS_TOKEN_2026",
-              user: { uid: "5f9b3b9b9b9b9b9b9b9b9b9b", username: "PinoyQ8_Dev" }
-            };
-          },
-          createPayment: (paymentData: any, callbacks: any) => {
-            console.log("[MOCK Pi SDK] Create Payment intercepted with data:", paymentData);
-            
-            const activeCallbacks = callbacks || paymentData?.callbacks || paymentData;
+              user: { uid: "local_x570_node", username: "PinoyQ8_Dev" }
+            }),
+            createPayment: (paymentData: any, callbacks: any) => {
+              console.log("[MOCK Pi SDK] Create Payment intercepted:", paymentData);
+              const activeCallbacks = callbacks || paymentData?.callbacks || paymentData;
 
-            setTimeout(async () => {
-              try {
-                const mockPaymentId = "MOCK_PAYMENT_ID_999";
-                const mockTxid = "MOCK_TXID_999";
+              setTimeout(async () => {
+                try {
+                  const mockPaymentId = `MOCK_PAY_${Date.now()}`;
+                  const mockTxid = `TXID_${Math.random().toString(36).substr(2, 9)}`;
 
-                // 1. Trigger Approval Step
-                if (activeCallbacks && typeof activeCallbacks.onReadyForServerApproval === 'function') {
-                  console.log("[MOCK Pi SDK] Triggering onReadyForServerApproval callback...");
-                  // Pass data matching MeshStakeButton expectation (usually { paymentId })
-                  await activeCallbacks.onReadyForServerApproval({ paymentId: mockPaymentId });
+                  if (activeCallbacks?.onReadyForServerApproval) {
+                    await activeCallbacks.onReadyForServerApproval({ paymentId: mockPaymentId });
+                  }
+                  await new Promise(res => setTimeout(res, 800));
+                  
+                  if (activeCallbacks?.onReadyForServerCompletion) {
+                    await activeCallbacks.onReadyForServerCompletion({ paymentId: mockPaymentId, txid: mockTxid });
+                  }
+                } catch (err) {
+                  console.error("[MOCK Pi SDK] Lifecycle fracture:", err);
                 }
+              }, 1000);
+            }
+          };
+        }
 
-                // Simulate brief network pause between handshake and completion
-                await new Promise(res => setTimeout(res, 800));
+        // Lock in the Dev Identity
+        setContextValue({
+          isPiReady: true,
+          isAuthenticated: true,
+          accessToken: "MESH_ALPHA_TOKEN_SECURE",
+          user: { uid: "local_x570_node", username: "PinoyQ8_Dev" }
+        });
 
-                // 2. Trigger Completion Step
-                if (activeCallbacks && typeof activeCallbacks.onReadyForServerCompletion === 'function') {
-                  console.log("[MOCK Pi SDK] Triggering onReadyForServerCompletion callback...");
-                  await activeCallbacks.onReadyForServerCompletion({ paymentId: mockPaymentId, txid: mockTxid });
-                }
-
-                console.log("[MOCK Pi SDK] Full payment lifecycle simulation complete.");
-              } catch (err) {
-                console.error("[MOCK Pi SDK] Lifecycle execution error:", err);
-              }
-            }, 1000);
-          }
-        };
+      } catch (error) {
+        console.error("[MESH-BRIDGE] Initializer Fracture:", error);
+      } finally {
+        // 🛡️ THE FAILSAFE: This guarantees the spinner dies no matter what.
+        setIsSyncing(false);
       }
+    };
 
-      setBypassActive(true);
-    }
+    // 500ms Buffer: Allows the external Pi SDK script to mount before checking
+    setTimeout(() => initMesh(), 500);
   }, []);
 
-  const defaultContextValue = useMemo(() => ({
-    isPiReady: true,
-    isAuthenticated: true,
-    accessToken: "MESH_ALPHA_TOKEN_SECURE",
-    user: { uid: "5f9b3b9b9b9b9b9b9b9b9b9b", username: "PinoyQ8_Dev" }
-  }), []);
-
-  if (bypassActive) {
+  if (isSyncing) {
     return (
-      <MeshContext.Provider value={defaultContextValue}>
-        <div data-mesh-status="TUNNEL_OVERRIDE" className="w-full h-full contents">
-          {children}
-        </div>
-      </MeshContext.Provider>
+      <div className="flex flex-col items-center justify-center min-h-screen bg-neutral-950 font-mono text-xs text-emerald-500 w-full max-w-[384px] mx-auto border-x border-neutral-800">
+        <div className="h-6 w-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin mb-3"></div>
+        <div className="animate-pulse tracking-widest">[MESH-SCAN] SYNCING WORKSPACE MATRIX...</div>
+      </div>
     );
   }
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-neutral-950 font-mono text-xs text-emerald-500 w-full max-w-[384px] mx-auto border-x border-neutral-800">
-      <div className="h-6 w-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin mb-3"></div>
-      <div className="animate-pulse tracking-widest">[MESH-SCAN] SYNCING WORKSPACE MATRIX...</div>
-    </div>
+    <MeshContext.Provider value={contextValue}>
+      <div data-mesh-status={contextValue.user?.username === 'PinoyQ8_Dev' ? "TUNNEL_OVERRIDE" : "LIVE_MAINNET"} className="w-full h-full contents">
+        {children}
+      </div>
+    </MeshContext.Provider>
   );
 }
 
