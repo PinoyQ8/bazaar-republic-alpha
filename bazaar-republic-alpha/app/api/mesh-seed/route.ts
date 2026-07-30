@@ -44,12 +44,11 @@ export async function POST(req: Request) {
     const db = mongoClient.db(process.env.MONGODB_DB_NAME || "bazaar_db");
     const pioneersCollection = db.collection("pioneers");
 
-    // 🛡️ ATOMIC UPSERT MATRIX: Preserves legacy node data while updating sync timestamps
+    // 🛡️ ATOMIC UPSERT MATRIX: Error 40 Conflict Resolved
     const filter = { uid: cleanUid };
     const update = {
       $setOnInsert: {
         uid: cleanUid,
-        username: cleanUsername,
         tier: "TIER-1-NODE",
         role: "PIONEER",
         trustScore: 50,
@@ -57,7 +56,7 @@ export async function POST(req: Request) {
       },
       $set: {
         lastSync: new Date(),
-        username: cleanUsername,
+        username: cleanUsername, // Master anchor: Updates on login, inserts on creation
       },
     };
 
