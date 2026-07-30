@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState } from "react";
-import { useAuth } from "@/context/AuthContext"; // 🛡️ CRITICAL: Import global auth
+import { useAuth } from "@/app/context/AuthContext"; // 🛡️ CRITICAL: Import global auth
 
 interface PioneerIdentity { 
   uid: string; 
@@ -24,14 +24,7 @@ const MeshContext = createContext<MeshContextType>({
 
 export function MeshInitializer({ children }: { children: React.ReactNode }) {
   const [isSyncing, setIsSyncing] = useState(true);
-  const { login } = useAuth(); // 🛡️ PULL THE LOGIN TRIGGER
-  
-  const [contextValue, setContextValue] = useState<MeshContextType>({
-    isPiReady: false,
-    isAuthenticated: false,
-    accessToken: null,
-    user: null
-  });
+  const { pioneer, login } = useAuth(); // 🛡️ PULL BOTH GLOBAL STATE AND LOGIN TRIGGER
 
   useEffect(() => {
     const initMesh = async () => {
@@ -44,25 +37,19 @@ export function MeshInitializer({ children }: { children: React.ReactNode }) {
           const parsedUser = JSON.parse(cachedUser);
           console.log("[MESH-SCAN] Cached Pioneer session detected. Bypassing re-auth loop.");
           
-          // Sync React AuthContext with cached profile
           login({
             uid: parsedUser.uid,
             username: parsedUser.username,
             isAuthenticated: true,
             role: "Pioneer",
             tier: "Alpha",
-            trustScore: 100
+            trustScore: 100,
+            isHydrated: true,
+            accessToken: "CACHED_SESSION_TOKEN"
           } as any);
 
-          setContextValue({
-            isPiReady: true,
-            isAuthenticated: true,
-            accessToken: "CACHED_SESSION_TOKEN",
-            user: parsedUser
-          });
-          
           setIsSyncing(false);
-          return; // 🛑 Escape hatch: Shatters the redirect loop permanently!
+          return; 
         }
 
         const activeHost = typeof window !== "undefined" ? window.location.hostname : "";
@@ -93,9 +80,7 @@ export function MeshInitializer({ children }: { children: React.ReactNode }) {
 
           try {
             await waitForPi();
-            console.log("[MESH-SCAN] Native Pi SDK detected. Initiating True Handshake.");
             const Pi = (window as any).Pi;
-            
             Pi.init({ version: "2.0", sandbox: true });
             
             const authResult = await Pi.authenticate(['username', 'payments'], (payment: any) => {
@@ -104,33 +89,25 @@ export function MeshInitializer({ children }: { children: React.ReactNode }) {
 
             const liveUser = { uid: authResult.user.uid, username: authResult.user.username };
 
-            // 1. Sync React AuthContext (Stops the redirect loop)
             login({
               uid: liveUser.uid,
               username: liveUser.username,
               isAuthenticated: true,
               role: "Pioneer",
               tier: "Alpha",
-              trustScore: 100
-            } as any); // 🛡️ TS Override: Forces acceptance of the PioneerState matrix
+              trustScore: 100,
+              isHydrated: true,
+              accessToken: authResult.accessToken
+            } as any);
             
-            // 2. Cache it locally
             localStorage.setItem("pi_auth_user", JSON.stringify(liveUser));
 
-            // 3. Seed MongoDB Vault (Required for Fuel Pump)
             await fetch("/api/mesh-seed", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify(liveUser),
             });
 
-            setContextValue({
-              isPiReady: true,
-              isAuthenticated: true,
-              accessToken: authResult.accessToken,
-              user: liveUser
-            });
-            
             setIsSyncing(false); 
             return; 
 
@@ -148,23 +125,22 @@ export function MeshInitializer({ children }: { children: React.ReactNode }) {
               accessToken: "MOCK_PI_ACCESS_TOKEN_2026",
               user: { uid: "local_x570_node", username: "PinoyQ8_Dev" }
             }),
-            createPayment: (paymentData: any, callbacks: any) => {
-              // ... mock payment logic ...
-            }
+            createPayment: () => {}
           };
         }
 
         const devUser = { uid: "local_x570_node", username: "PinoyQ8_Dev" };
         
-        // Sync Dev Node
         login({
           uid: devUser.uid,
           username: devUser.username,
           isAuthenticated: true,
           role: "Pioneer",
           tier: "Alpha",
-          trustScore: 100
-        } as any); // 🛡️ TS Override
+          trustScore: 100,
+          isHydrated: true,
+          accessToken: "MESH_ALPHA_TOKEN_SECURE"
+        } as any);
         
         localStorage.setItem("pi_auth_user", JSON.stringify(devUser));
 
@@ -172,13 +148,6 @@ export function MeshInitializer({ children }: { children: React.ReactNode }) {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(devUser),
-        });
-
-        setContextValue({
-          isPiReady: true,
-          isAuthenticated: true,
-          accessToken: "MESH_ALPHA_TOKEN_SECURE",
-          user: devUser
         });
 
       } catch (error) {
@@ -189,7 +158,15 @@ export function MeshInitializer({ children }: { children: React.ReactNode }) {
     };
 
     setTimeout(() => initMesh(), 500);
-  }, [login]); // 🛡️ Added login to dependency array
+  }, [login]);
+
+  // 🛡️ UNIFIED STATE BRIDGE: Directly derive MeshContext from global AuthContext pioneer state
+  const contextValue: MeshContextType = {
+    isPiReady: pioneer.isAuthenticated,
+    isAuthenticated: pioneer.isAuthenticated,
+    accessToken: pioneer.accessToken,
+    user: pioneer.uid && pioneer.username ? { uid: pioneer.uid, username: pioneer.username } : null,
+  };
 
   if (isSyncing) {
     return (
