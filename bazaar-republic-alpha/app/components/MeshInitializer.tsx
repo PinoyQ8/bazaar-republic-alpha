@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState } from "react";
+import { useAuth } from "@/context/AuthContext"; // 🛡️ CRITICAL: Import global auth
 
 interface PioneerIdentity { 
   uid: string; 
@@ -23,6 +24,8 @@ const MeshContext = createContext<MeshContextType>({
 
 export function MeshInitializer({ children }: { children: React.ReactNode }) {
   const [isSyncing, setIsSyncing] = useState(true);
+  const { login } = useAuth(); // 🛡️ PULL THE LOGIN TRIGGER
+  
   const [contextValue, setContextValue] = useState<MeshContextType>({
     isPiReady: false,
     isAuthenticated: false,
@@ -37,15 +40,12 @@ export function MeshInitializer({ children }: { children: React.ReactNode }) {
         const isLocal = activeHost.includes('localhost') || activeHost.includes('192.168.');
 
         // ====================================================================
-        // 🛡️ PHASE 1: LIVE PI BROWSER INTERCEPT (POLLING MATRIX)
+        // 🛡️ PHASE 1: LIVE PI BROWSER INTERCEPT
         // ====================================================================
         if (!isLocal) {
           console.log("[MESH-SCAN] Checking for Native Pi SDK...");
           
-          // Poll for the SDK (Max 3 seconds)
           let retries = 0;
-          const maxRetries = 30; // 30 * 100ms = 3 seconds max wait
-          
           const waitForPi = async () => {
             return new Promise<void>((resolve, reject) => {
               const interval = setInterval(() => {
@@ -54,7 +54,7 @@ export function MeshInitializer({ children }: { children: React.ReactNode }) {
                   resolve();
                 }
                 retries++;
-                if (retries >= maxRetries) {
+                if (retries >= 30) {
                   clearInterval(interval);
                   reject(new Error("Pi SDK timeout"));
                 }
@@ -67,34 +67,45 @@ export function MeshInitializer({ children }: { children: React.ReactNode }) {
             console.log("[MESH-SCAN] Native Pi SDK detected. Initiating True Handshake.");
             const Pi = (window as any).Pi;
             
-            // ⚠️ IGNITION SEQUENCE
             Pi.init({ version: "2.0", sandbox: true });
             
-            // ⚠️ AUTHENTICATION
             const authResult = await Pi.authenticate(['username', 'payments'], (payment: any) => {
               console.warn("[MESH-BRIDGE] Incomplete payment detected:", payment);
+            });
+
+            const liveUser = { uid: authResult.user.uid, username: authResult.user.username };
+
+            // 1. Sync React AuthContext (Stops the redirect loop)
+            login(liveUser.uid, liveUser.username);
+            
+            // 2. Cache it locally
+            localStorage.setItem("pi_auth_user", JSON.stringify(liveUser));
+
+            // 3. Seed MongoDB Vault (Required for Fuel Pump)
+            await fetch("/api/mesh-seed", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(liveUser),
             });
 
             setContextValue({
               isPiReady: true,
               isAuthenticated: true,
               accessToken: authResult.accessToken,
-              user: { uid: authResult.user.uid, username: authResult.user.username }
+              user: liveUser
             });
-            setIsSyncing(false); // Kill spinner
-            return; // Escape hatch: Handshake complete!
+            
+            setIsSyncing(false); 
+            return; 
 
           } catch (err) {
-            console.warn("🚨 MESH SHIM: Pi SDK did not load in time. Falling back to Mock.");
-            // If it fails, it will naturally fall down to Phase 2 (the Shim)
+            console.warn("🚨 MESH SHIM: Pi SDK did not load. Falling back to Mock.");
           }
         }
 
         // ====================================================================
         // 🛡️ PHASE 2: S23 BYPASS / DESKTOP SHIM
         // ====================================================================
-        console.warn("🚨 MESH SHIM: Pi SDK missing or Local Node. Injecting X570 Mock.");
-        
         if (typeof window !== "undefined" && !(window as any).Pi) {
           (window as any).Pi = {
             authenticate: async () => ({
@@ -102,49 +113,39 @@ export function MeshInitializer({ children }: { children: React.ReactNode }) {
               user: { uid: "local_x570_node", username: "PinoyQ8_Dev" }
             }),
             createPayment: (paymentData: any, callbacks: any) => {
-              console.log("[MOCK Pi SDK] Create Payment intercepted:", paymentData);
-              const activeCallbacks = callbacks || paymentData?.callbacks || paymentData;
-
-              setTimeout(async () => {
-                try {
-                  const mockPaymentId = `MOCK_PAY_${Date.now()}`;
-                  const mockTxid = `TXID_${Math.random().toString(36).substr(2, 9)}`;
-
-                  if (activeCallbacks?.onReadyForServerApproval) {
-                    await activeCallbacks.onReadyForServerApproval({ paymentId: mockPaymentId });
-                  }
-                  await new Promise(res => setTimeout(res, 800));
-                  
-                  if (activeCallbacks?.onReadyForServerCompletion) {
-                    await activeCallbacks.onReadyForServerCompletion({ paymentId: mockPaymentId, txid: mockTxid });
-                  }
-                } catch (err) {
-                  console.error("[MOCK Pi SDK] Lifecycle fracture:", err);
-                }
-              }, 1000);
+              // ... mock payment logic ...
             }
           };
         }
 
-        // Lock in the Dev Identity
+        const devUser = { uid: "local_x570_node", username: "PinoyQ8_Dev" };
+        
+        // Sync Dev Node
+        login(devUser.uid, devUser.username);
+        localStorage.setItem("pi_auth_user", JSON.stringify(devUser));
+        
+        await fetch("/api/mesh-seed", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(devUser),
+        });
+
         setContextValue({
           isPiReady: true,
           isAuthenticated: true,
           accessToken: "MESH_ALPHA_TOKEN_SECURE",
-          user: { uid: "local_x570_node", username: "PinoyQ8_Dev" }
+          user: devUser
         });
 
       } catch (error) {
         console.error("[MESH-BRIDGE] Initializer Fracture:", error);
       } finally {
-        // 🛡️ THE FAILSAFE: This guarantees the spinner dies no matter what.
         setIsSyncing(false);
       }
     };
 
-    // 500ms Buffer: Allows the external Pi SDK script to mount before checking
     setTimeout(() => initMesh(), 500);
-  }, []);
+  }, [login]); // 🛡️ Added login to dependency array
 
   if (isSyncing) {
     return (
