@@ -19,11 +19,12 @@ export interface AuthContextType {
   setPioneer: React.Dispatch<React.SetStateAction<PioneerState>>;
   login: (data: PioneerState) => void;
   logout: () => void;
+  executeStakePayment: (amount: number) => Promise<void>; // 🛡️ RESTORED STUB
   isHydrated: boolean;
   accessToken: string | null;
 }
 
-// 🛡️ STATIC FALLBACK: Prevents memory churn on hook initialization
+// 🛡️ STATIC FALLBACK
 const FALLBACK_AUTH: AuthContextType = {
   pioneer: { 
     username: undefined, uid: undefined, tier: undefined, role: "CITIZEN", 
@@ -32,6 +33,7 @@ const FALLBACK_AUTH: AuthContextType = {
   setPioneer: () => {},
   login: () => {},
   logout: () => {},
+  executeStakePayment: async () => {}, // 🛡️ RESTORED STUB
   isHydrated: false,
   accessToken: null,
 };
@@ -46,11 +48,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     role: "CITIZEN",
     trustScore: 0,
     isAuthenticated: false,
-    isHydrated: false, // Starts false, MeshInitializer will flip this
+    isHydrated: false,
     accessToken: null,
   });
 
-  // 🛡️ THE MESH BRIDGE: Allows MeshInitializer to lock in the true identity
   const login = (data: PioneerState) => {
     setPioneer({ ...data, isHydrated: true });
   };
@@ -68,12 +69,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     });
   };
 
-  // 🛡️ MEMOIZED CONTEXT VALUE: Prevents unnecessary Provider re-renders
+  // 🛡️ HOLLOW STUB: Appeases TS compiler without interfering with Pi SDK
+  const executeStakePayment = async (amount: number): Promise<void> => {
+    console.warn("[MESH-BRIDGE] executeStakePayment is temporarily bypassed for Pi SDK native testing.");
+  };
+
   const contextValue = useMemo(() => ({
     pioneer,
     setPioneer,
     login,
     logout,
+    executeStakePayment, // 🛡️ RESTORED STUB
     isHydrated: pioneer.isHydrated,
     accessToken: pioneer.accessToken
   }), [pioneer]);
