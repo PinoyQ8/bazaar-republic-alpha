@@ -36,6 +36,35 @@ export function MeshInitializer({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const initMesh = async () => {
       try {
+        // ====================================================================
+        // 🛡️ RE-ENTRY SHIELD: Check local cache BEFORE triggering Pi SDK loop
+        // ====================================================================
+        const cachedUser = localStorage.getItem("pi_auth_user");
+        if (cachedUser) {
+          const parsedUser = JSON.parse(cachedUser);
+          console.log("[MESH-SCAN] Cached Pioneer session detected. Bypassing re-auth loop.");
+          
+          // Sync React AuthContext with cached profile
+          login({
+            uid: parsedUser.uid,
+            username: parsedUser.username,
+            isAuthenticated: true,
+            role: "Pioneer",
+            tier: "Alpha",
+            trustScore: 100
+          } as any);
+
+          setContextValue({
+            isPiReady: true,
+            isAuthenticated: true,
+            accessToken: "CACHED_SESSION_TOKEN",
+            user: parsedUser
+          });
+          
+          setIsSyncing(false);
+          return; // 🛑 Escape hatch: Shatters the redirect loop permanently!
+        }
+
         const activeHost = typeof window !== "undefined" ? window.location.hostname : "";
         const isLocal = activeHost.includes('localhost') || activeHost.includes('192.168.');
 
@@ -137,6 +166,8 @@ export function MeshInitializer({ children }: { children: React.ReactNode }) {
           trustScore: 100
         } as any); // 🛡️ TS Override
         
+        localStorage.setItem("pi_auth_user", JSON.stringify(devUser));
+
         await fetch("/api/mesh-seed", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
