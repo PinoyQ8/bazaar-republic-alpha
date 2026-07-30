@@ -43,6 +43,9 @@ export function MeshInitializer({ children }: { children: React.ReactNode }) {
           console.log("[MESH-SCAN] Native Pi SDK detected. Initiating True Handshake.");
           const Pi = (window as any).Pi;
           
+          // ⚠️ CRITICAL PATCH: Ignite the SDK with Sandbox parameters
+          Pi.init({ version: "2.0", sandbox: true });
+          
           // Authenticate with Pi Core Servers
           const authResult = await Pi.authenticate(['username', 'payments'], (payment: any) => {
             console.warn("[MESH-BRIDGE] Incomplete payment detected:", payment);
