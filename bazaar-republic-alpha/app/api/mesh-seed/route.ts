@@ -1,67 +1,87 @@
-// Location: /app/api/mesh-seed/route.ts
 import { NextResponse } from "next/server";
-import dbConnect from "@/app/utils/dbConnect";
-import { Pioneer, Proposal } from "@/app/models/mesh-schema";
+import { MongoClient } from "mongodb";
 
-export async function GET() {
+// 🛡️ GLOBAL CONNECTION CACHE: Prevents connection pooling leaks in Next.js API routes
+const uri = process.env.MONGODB_URI || "";
+let client: MongoClient;
+let clientPromise: Promise<MongoClient>;
+
+if (!process.env.MONGODB_URI) {
+  console.warn("[MESH-SEED] Warning: MONGODB_URI environment variable is missing.");
+}
+
+if (process.env.NODE_ENV === "development") {
+  const globalWithMongo = global as typeof globalThis & {
+    _mongoClientPromise?: Promise<MongoClient>;
+  };
+  if (!globalWithMongo._mongoClientPromise) {
+    client = new MongoClient(uri);
+    globalWithMongo._mongoClientPromise = client.connect();
+  }
+  clientPromise = globalWithMongo._mongoClientPromise;
+} else {
+  client = new MongoClient(uri);
+  clientPromise = client.connect();
+}
+
+export async function POST(req: Request) {
   try {
-    // 🛡️ Connect to the Ledger
-    await dbConnect();
+    const body = await req.json();
+    const { uid, username } = body;
 
-    // 🛡️ STEP 1: Inject Genesis Founder Node
-    const testUid = "GENESIS-FOUNDER-001";
-    
-    const pioneer = await Pioneer.findOneAndUpdate(
-      { uid: testUid },
-      {
-        uid: testUid,
-        username: "Bazaar Founder",
-        isKYCVerified: true,
-        isNodeBound: true,
-        rollingUptime30D: 0.95, // 95% Uptime (Triggers max U_shield)
-        txCount30D: 60,         // 60 Transactions (Triggers max C_flow)
-        stakedPi: 2500,         // 2500 Pi Staked
-        activePenalties: 0,
-        lastProposalTimestamp: null,
+    // 🛡️ INPUT VALIDATION SHIELD
+    if (!uid || typeof uid !== "string" || !username || typeof username !== "string") {
+      return NextResponse.json(
+        { error: "Invalid or missing Pioneer identity parameters." },
+        { status: 400 }
+      );
+    }
+
+    const cleanUid = uid.trim();
+    const cleanUsername = username.trim();
+
+    const mongoClient = await clientPromise;
+    const db = mongoClient.db(process.env.MONGODB_DB_NAME || "bazaar_db");
+    const pioneersCollection = db.collection("pioneers");
+
+    // 🛡️ ATOMIC UPSERT MATRIX: Preserves legacy node data while updating sync timestamps
+    const filter = { uid: cleanUid };
+    const update = {
+      $setOnInsert: {
+        uid: cleanUid,
+        username: cleanUsername,
+        tier: "TIER-1-NODE",
+        role: "PIONEER",
+        trustScore: 50,
+        createdAt: new Date(),
       },
-      { upsert: true, new: true }
-    );
-
-    // 🛡️ STEP 2: Inject Test Proposal
-    const proposalId = "PROP-MESH-2026-001";
-    
-    const proposal = await Proposal.findOneAndUpdate(
-      { proposalId },
-      {
-        proposalId,
-        proposerUid: testUid,
-        tierOrigin: "Genesis",
-        title: "Deploy 26.1.0 Dual-Vector Quorum & Quadratic Staking",
-        rawText: "This protocol upgrade hard-codes the separation between unique node participation (Quorum) and economic weight (Voting Power) across all E-Network nodes.",
-        status: "ACTIVE_VOTING",
-        clearanceHash: "mesh_hash_verified_99f2a8c1",
-        startTime: new Date(),
-        endTime: new Date(Date.now() + 72 * 60 * 60 * 1000), // 72 Hours from now
-        eligibleNodesCount: 100,
-        totalParticipants: 0,
-        yesVP: 0,
-        noVP: 0,
+      $set: {
+        lastSync: new Date(),
+        username: cleanUsername,
       },
-      { upsert: true, new: true }
+    };
+
+    const result = await pioneersCollection.updateOne(filter, update, { upsert: true });
+
+    console.log(`[MESH-SEED] 🟢 Synchronized Pioneer Node: ${cleanUsername} (${cleanUid})`);
+
+    return NextResponse.json(
+      {
+        status: "SYNCED",
+        node: {
+          uid: cleanUid,
+          username: cleanUsername,
+        },
+        upserted: !!result.upsertedId,
+      },
+      { status: 200 }
     );
-
-    // 🛡️ STEP 3: Seed LocalStorage Mock Credentials Helper
-    // Note: To test on the frontend, ensure your browser's localStorage has:
-    // localStorage.setItem("pi_auth_user", JSON.stringify({ uid: "GENESIS-FOUNDER-001", username: "Bazaar Founder" }));
-
-    return NextResponse.json({
-      message: "MESH Ledger Successfully Seeded",
-      pioneer: { uid: pioneer.uid, username: pioneer.username },
-      proposal: { proposalId: proposal.proposalId, title: proposal.title }
-    }, { status: 200 });
-
   } catch (error) {
-    console.error("[MESH] Seeding Failure:", error);
-    return NextResponse.json({ error: "Failed to seed ledger" }, { status: 500 });
+    console.error("[MESH-SEED FRACTURE] Database Seeding Error:", error);
+    // 🛡️ Zero-Leak Response: Shield internal system errors from public clients
+    return NextResponse.json(
+      { error: "Vault Synchronization Failure" },
+      { status: 500 }
+    );
   }
 }
