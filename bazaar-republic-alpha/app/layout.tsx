@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Script from "next/script"; // 🛡️ INJECT: Next.js Script Component
 import { AuthProvider } from "@/context/AuthContext";
 import { MeshInitializer } from "@/app/components/MeshInitializer";
 import MeshMobileNav from "@/app/components/MeshMobileNav"; 
@@ -16,7 +17,14 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" data-scroll-behavior="smooth">
-      {/* 🛡️ PATCH: Added overflow-x-hidden w-full max-w-full to clamp horizontal scrolling */}
+      <head>
+        {/* 🛡️ PI SDK INJECTION: Must load before interactive logic */}
+        <Script 
+          src="https://sdk.minepi.com/pi-sdk.js" 
+          strategy="beforeInteractive" 
+        />
+      </head>
+      {/* 🛡️ Viewport Clamp Active */}
       <body className="bg-black text-zinc-100 font-mono antialiased pb-24 overflow-x-hidden w-full max-w-full">
         
         <AuthProvider>

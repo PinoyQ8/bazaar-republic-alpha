@@ -37,27 +37,57 @@ export function MeshInitializer({ children }: { children: React.ReactNode }) {
         const isLocal = activeHost.includes('localhost') || activeHost.includes('192.168.');
 
         // ====================================================================
-        // 🛡️ PHASE 1: LIVE PI BROWSER INTERCEPT
+        // 🛡️ PHASE 1: LIVE PI BROWSER INTERCEPT (POLLING MATRIX)
         // ====================================================================
-        if (typeof window !== "undefined" && (window as any).Pi && !isLocal) {
-          console.log("[MESH-SCAN] Native Pi SDK detected. Initiating True Handshake.");
-          const Pi = (window as any).Pi;
+        if (!isLocal) {
+          console.log("[MESH-SCAN] Checking for Native Pi SDK...");
           
-          // ⚠️ CRITICAL PATCH: Ignite the SDK with Sandbox parameters
-          Pi.init({ version: "2.0", sandbox: true });
+          // Poll for the SDK (Max 3 seconds)
+          let retries = 0;
+          const maxRetries = 30; // 30 * 100ms = 3 seconds max wait
           
-          // Authenticate with Pi Core Servers
-          const authResult = await Pi.authenticate(['username', 'payments'], (payment: any) => {
-            console.warn("[MESH-BRIDGE] Incomplete payment detected:", payment);
-          });
+          const waitForPi = async () => {
+            return new Promise<void>((resolve, reject) => {
+              const interval = setInterval(() => {
+                if (typeof window !== "undefined" && (window as any).Pi) {
+                  clearInterval(interval);
+                  resolve();
+                }
+                retries++;
+                if (retries >= maxRetries) {
+                  clearInterval(interval);
+                  reject(new Error("Pi SDK timeout"));
+                }
+              }, 100);
+            });
+          };
 
-          setContextValue({
-            isPiReady: true,
-            isAuthenticated: true,
-            accessToken: authResult.accessToken,
-            user: { uid: authResult.user.uid, username: authResult.user.username }
-          });
-          return; // Escape hatch: Handshake complete
+          try {
+            await waitForPi();
+            console.log("[MESH-SCAN] Native Pi SDK detected. Initiating True Handshake.");
+            const Pi = (window as any).Pi;
+            
+            // ⚠️ IGNITION SEQUENCE
+            Pi.init({ version: "2.0", sandbox: true });
+            
+            // ⚠️ AUTHENTICATION
+            const authResult = await Pi.authenticate(['username', 'payments'], (payment: any) => {
+              console.warn("[MESH-BRIDGE] Incomplete payment detected:", payment);
+            });
+
+            setContextValue({
+              isPiReady: true,
+              isAuthenticated: true,
+              accessToken: authResult.accessToken,
+              user: { uid: authResult.user.uid, username: authResult.user.username }
+            });
+            setIsSyncing(false); // Kill spinner
+            return; // Escape hatch: Handshake complete!
+
+          } catch (err) {
+            console.warn("🚨 MESH SHIM: Pi SDK did not load in time. Falling back to Mock.");
+            // If it fails, it will naturally fall down to Phase 2 (the Shim)
+          }
         }
 
         // ====================================================================
