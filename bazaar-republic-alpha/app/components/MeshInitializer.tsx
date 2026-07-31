@@ -1,7 +1,8 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState } from "react";
-import { useAuth } from "@/app/context/AuthContext"; // 🛡️ CRITICAL: Import global auth
+import { useAuth } from "@/app/context/AuthContext"; // 🛡️ GLOBAL AUTH ANCHOR
+import { Loader2 } from "lucide-react";
 
 interface PioneerIdentity { 
   uid: string; 
@@ -24,7 +25,7 @@ const MeshContext = createContext<MeshContextType>({
 
 export function MeshInitializer({ children }: { children: React.ReactNode }) {
   const [isSyncing, setIsSyncing] = useState(true);
-  const { pioneer, login } = useAuth(); // 🛡️ PULL BOTH GLOBAL STATE AND LOGIN TRIGGER
+  const { pioneer, login } = useAuth(); // 🛡️ PULL GLOBAL STATE
 
   useEffect(() => {
     const initMesh = async () => {
@@ -42,8 +43,9 @@ export function MeshInitializer({ children }: { children: React.ReactNode }) {
             username: parsedUser.username,
             isAuthenticated: true,
             role: "Pioneer",
-            tier: "Alpha",
-            trustScore: 100,
+            tier: parsedUser.tier || "CITIZEN",
+            status: parsedUser.status || "ACTIVE", // Schema v2.3 NodeStatus
+            trustScore: parsedUser.trustScore || 100,
             isHydrated: true,
             accessToken: "CACHED_SESSION_TOKEN"
           } as any);
@@ -54,6 +56,9 @@ export function MeshInitializer({ children }: { children: React.ReactNode }) {
 
         const activeHost = typeof window !== "undefined" ? window.location.hostname : "";
         const isLocal = activeHost.includes('localhost') || activeHost.includes('192.168.');
+
+        let activeAccessToken = "";
+        let liveUser = { uid: "", username: "" };
 
         // ====================================================================
         // 🛡️ PHASE 1: LIVE PI BROWSER INTERCEPT
@@ -81,74 +86,64 @@ export function MeshInitializer({ children }: { children: React.ReactNode }) {
           try {
             await waitForPi();
             const Pi = (window as any).Pi;
-            Pi.init({ version: "2.0", sandbox: true });
+            Pi.init({ version: "2.0", sandbox: process.env.NODE_ENV !== 'production' });
             
             const authResult = await Pi.authenticate(['username', 'payments'], (payment: any) => {
               console.warn("[MESH-BRIDGE] Incomplete payment detected:", payment);
             });
 
-            const liveUser = { uid: authResult.user.uid, username: authResult.user.username };
-
-            login({
-              uid: liveUser.uid,
-              username: liveUser.username,
-              isAuthenticated: true,
-              role: "Pioneer",
-              tier: "Alpha",
-              trustScore: 100,
-              isHydrated: true,
-              accessToken: authResult.accessToken
-            } as any);
-            
-            localStorage.setItem("pi_auth_user", JSON.stringify(liveUser));
-
-            await fetch("/api/mesh-seed", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(liveUser),
-            });
-
-            setIsSyncing(false); 
-            return; 
-
+            activeAccessToken = authResult.accessToken;
           } catch (err) {
             console.warn("🚨 MESH SHIM: Pi SDK did not load. Falling back to Mock.");
           }
         }
 
         // ====================================================================
-        // 🛡️ PHASE 2: S23 BYPASS / DESKTOP SHIM
+        // 🛡️ PHASE 2: S23 BYPASS / X570 DESKTOP SHIM
         // ====================================================================
-        if (typeof window !== "undefined" && !(window as any).Pi) {
-          (window as any).Pi = {
-            authenticate: async () => ({
-              accessToken: "MOCK_PI_ACCESS_TOKEN_2026",
-              user: { uid: "local_x570_node", username: "PinoyQ8_Dev" }
-            }),
-            createPayment: () => {}
-          };
+        if (!activeAccessToken) {
+          console.log("[MESH-SCAN] Activating Local X570 Shim Protocol...");
+          activeAccessToken = "MOCK_PI_ACCESS_TOKEN_2026";
         }
 
-        const devUser = { uid: "local_x570_node", username: "PinoyQ8_Dev" };
-        
-        login({
-          uid: devUser.uid,
-          username: devUser.username,
-          isAuthenticated: true,
-          role: "Pioneer",
-          tier: "Alpha",
-          trustScore: 100,
-          isHydrated: true,
-          accessToken: "MESH_ALPHA_TOKEN_SECURE"
-        } as any);
-        
-        localStorage.setItem("pi_auth_user", JSON.stringify(devUser));
-
-        await fetch("/api/mesh-seed", {
+        // ====================================================================
+        // 🛡️ PHASE 3: SCHEMA v2.3 DATABASE SYNC (/api/auth/pi-verify)
+        // ====================================================================
+        const res = await fetch("/api/auth/pi-verify", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(devUser),
+          body: JSON.stringify({ accessToken: activeAccessToken }),
         });
+
+        if (!res.ok) throw new Error("Backend Bridge Sync Failed");
+
+        const dbRecord = await res.json();
+        
+        liveUser = { 
+          uid: dbRecord.uid, 
+          username: dbRecord.username 
+        };
+        
+        // Push the DB confirmed stats into the Global Auth Context
+        login({
+          uid: liveUser.uid,
+          username: liveUser.username,
+          isAuthenticated: true,
+          role: "Pioneer",
+          tier: dbRecord.tier || "CITIZEN",
+          status: dbRecord.status || "SYNCING",
+          trustScore: 100,
+          isHydrated: true,
+          accessToken: activeAccessToken
+        } as any);
+        
+        // Cache the result to bypass the loop on next render
+        localStorage.setItem("pi_auth_user", JSON.stringify({
+          ...liveUser,
+          tier: dbRecord.tier,
+          status: dbRecord.status,
+          trustScore: 100
+        }));
 
       } catch (error) {
         console.error("[MESH-BRIDGE] Initializer Fracture:", error);
@@ -157,10 +152,11 @@ export function MeshInitializer({ children }: { children: React.ReactNode }) {
       }
     };
 
-    setTimeout(() => initMesh(), 500);
+    // Minimal delay to allow UI to lock before heavy async logic
+    setTimeout(() => initMesh(), 300);
   }, [login]);
 
-  // 🛡️ UNIFIED STATE BRIDGE: Directly derive MeshContext from global AuthContext pioneer state
+  // 🛡️ UNIFIED STATE BRIDGE: Link MeshContext to global AuthContext pioneer state
   const contextValue: MeshContextType = {
     isPiReady: pioneer.isAuthenticated,
     isAuthenticated: pioneer.isAuthenticated,
@@ -170,9 +166,11 @@ export function MeshInitializer({ children }: { children: React.ReactNode }) {
 
   if (isSyncing) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-neutral-950 font-mono text-xs text-emerald-500 w-full max-w-[384px] mx-auto border-x border-neutral-800">
-        <div className="h-6 w-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin mb-3"></div>
-        <div className="animate-pulse tracking-widest">[MESH-SCAN] SYNCING WORKSPACE MATRIX...</div>
+      <div className="flex flex-col items-center justify-center min-h-screen bg-slate-950 font-mono text-xs text-cyan-500 w-full max-w-[384px] mx-auto">
+        <Loader2 className="w-8 h-8 text-cyan-500 animate-spin mb-4" />
+        <div className="animate-pulse tracking-widest font-bold">
+          [MESH-SCAN] SYNCING MATRIX...
+        </div>
       </div>
     );
   }

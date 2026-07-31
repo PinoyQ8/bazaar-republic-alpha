@@ -1,10 +1,13 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import PioneerAuthGate from '@/app/components/PioneerAuthGate';
+import Link from 'next/link';
+import { useAuth } from '@/app/context/AuthContext';
+import { ArrowLeft, Cpu, Zap, ShieldAlert, Loader2, Network, CheckCircle2, Activity } from 'lucide-react';
 
-// 1. FIXED ECONOMIC CONSTANTS (Outside Component Scope)
+// 🛡️ ECONOMIC CONSTANTS (Pure Algorithmic Peg)
 const PI_TO_MBZR_RATIO = 1000;
+const GENESIS_STAKE_AMOUNT = 100;
 
 interface MilestoneTier {
   tier: number;
@@ -19,8 +22,15 @@ const MILESTONE_TIERS: MilestoneTier[] = [
   { tier: 4, label: 'Tier 4: Mainnet Stability', basePenalty: 0.00 },
 ];
 
-export default function AlphaTrackDashboard() {
-  // 2. STATE HOOKS
+export default function AlphaTrackModule() {
+  const { pioneer, executeStakePayment } = useAuth();
+  
+  // 🛡️ PHASE 1 STATE: Soroban Staking
+  const [isStaking, setIsStaking] = useState(false);
+  const [txLog, setTxLog] = useState<string[]>([]);
+  const [stakeError, setStakeError] = useState<string | null>(null);
+
+  // 🛡️ PHASE 2 STATE: Economic Engine (Mint/Redeem)
   const [totalMinted, setTotalMinted] = useState<number>(9190);
   const [stakedReserve, setStakedReserve] = useState<number>(8010);
   const [circulatingPool, setCirculatingPool] = useState<number>(1180);
@@ -29,18 +39,49 @@ export default function AlphaTrackDashboard() {
   const [monthsElapsed, setMonthsElapsed] = useState<number>(0);
   const [mintInput, setMintInput] = useState<string>('');
   const [redeemInput, setRedeemInput] = useState<string>('');
-  
-  const currentVaultCollateralPi = totalMinted / PI_TO_MBZR_RATIO;
-  const totalGoldReservedMg = totalMinted;
-
   const [activePenalty, setActivePenalty] = useState<number>(0.40);
+
+  // Computed Values (Gold Mass completely purged)
+  const currentVaultCollateralPi = totalMinted / PI_TO_MBZR_RATIO;
+  const isGuardian = pioneer.tier === 'MESH_GUARDIAN' || pioneer.tier === 'BAZAAR_FOUNDER';
 
   useEffect(() => {
     const calculated = Math.max(0, currentTier.basePenalty - (monthsElapsed * 0.025));
     setActivePenalty(calculated);
   }, [currentTier, monthsElapsed]);
 
-  // 3. SECURE API ACTIONS
+  const addLog = (message: string) => setTxLog((prev) => [...prev, `> ${message}`]);
+
+  // ==========================================================================
+  // 🛡️ SECTOR 1 ACTIONS
+  // ==========================================================================
+
+  // ACTION 1: Anchor Node (Soroban Stake)
+  const handleGenesisStake = async () => {
+    if (!pioneer.uid) {
+      setStakeError('MESH_ERROR: Node Identity Missing.');
+      return;
+    }
+    setIsStaking(true);
+    setStakeError(null);
+    setTxLog([]);
+    addLog('INITIATING SOROBAN SMART CONTRACT...');
+    addLog(`Target Payload: ${GENESIS_STAKE_AMOUNT} Pi`);
+
+    try {
+      await executeStakePayment(GENESIS_STAKE_AMOUNT);
+      addLog('TRANSACTION BROADCAST SUCCESS.');
+      addLog('Node Tier upgraded to [MESH_GUARDIAN].');
+    } catch (err: any) {
+      console.error('[MESH-SCAN] Minting Fault:', err);
+      setStakeError(err.message || 'Transaction rejected by network.');
+      addLog('CRITICAL: Transaction aborted.');
+    } finally {
+      setIsStaking(false);
+    }
+  };
+
+  // ACTION 2: Mint mBZR (API Bridge)
   const executeMint = async (e: React.FormEvent) => {
     e.preventDefault();
     const piAmount = parseFloat(mintInput);
@@ -51,7 +92,7 @@ export default function AlphaTrackDashboard() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          senderWallet: 'pi_test_node_01',
+          senderWallet: pioneer.uid,
           lockedPiAmount: piAmount,
           l1TxSignature: `pi_tx_mock_${Date.now()}`
         })
@@ -59,17 +100,16 @@ export default function AlphaTrackDashboard() {
 
       const result = await response.json();
       if (result.success) {
-        setTotalMinted((prev: number) => prev + result.telemetry.newlyMintedMbzr);
-        setCirculatingPool((prev: number) => prev + result.telemetry.newlyMintedMbzr);
+        setTotalMinted((prev) => prev + result.telemetry.newlyMintedMbzr);
+        setCirculatingPool((prev) => prev + result.telemetry.newlyMintedMbzr);
         setMintInput('');
-      } else {
-        console.error('MINT REJECTED:', result.error);
       }
     } catch (error) {
       console.error('API BRIDGE FAULT', error);
     }
   };
 
+  // ACTION 3: Redeem mBZR (API Bridge)
   const executeRedeem = async (e: React.FormEvent) => {
     e.preventDefault();
     const mBzrAmount = parseFloat(redeemInput);
@@ -80,7 +120,7 @@ export default function AlphaTrackDashboard() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          sender: 'pi_test_node_01',
+          sender: pioneer.uid,
           amountMbzr: mBzrAmount,
           tierBasePenalty: currentTier.basePenalty,
           monthsElapsed: monthsElapsed
@@ -89,93 +129,169 @@ export default function AlphaTrackDashboard() {
 
       const result = await response.json();
       if (result.success) {
-        setCirculatingPool((prev: number) => prev - mBzrAmount);
-        setTotalMinted((prev: number) => prev - result.telemetry.meltBurnMbzr - result.telemetry.stakingYieldMbzr);
-        setStakedReserve((prev: number) => prev + result.telemetry.stakingYieldMbzr);
+        setCirculatingPool((prev) => prev - mBzrAmount);
+        setTotalMinted((prev) => prev - result.telemetry.meltBurnMbzr - result.telemetry.stakingYieldMbzr);
+        setStakedReserve((prev) => prev + result.telemetry.stakingYieldMbzr);
         setRedeemInput('');
-      } else {
-        console.error('REDEEM REJECTED:', result.error);
       }
     } catch (error) {
       console.error('API BRIDGE FAULT', error);
     }
   };
 
-  // 4. VIEWPORT RENDER (S23 Ultra 384px Safe)
-  return (
-    <PioneerAuthGate>
-      <main className="w-full max-w-[384px] mx-auto p-4 min-h-screen bg-zinc-950 text-zinc-100 font-mono overflow-x-hidden selection:bg-emerald-500/30 space-y-6">
-        
-        {/* TOP BAR / NAVIGATION SHIELD */}
-        <div className="flex items-center justify-between border-b border-zinc-800 pb-3 gap-2">
-          <div>
-            <h2 className="text-emerald-400 font-bold tracking-widest uppercase text-sm">NEO-SYNC ACTIVE</h2>
-            <p className="text-zinc-500 text-[11px] mt-0.5">Over-Mint Shield: <span className="text-emerald-500 font-bold">OPERATIONAL</span></p>
-          </div>
-          <button 
-            onClick={() => window.location.href = '/academy'}
-            className="px-2.5 py-1.5 bg-fuchsia-900/80 hover:bg-fuchsia-800 text-fuchsia-200 border border-fuchsia-500/50 text-[10px] font-bold uppercase rounded tracking-wider transition-colors shrink-0"
-          >
-            ACADEMY
-          </button>
-        </div>
+  // ==========================================================================
+  // 🛡️ VIEWPORT RENDER
+  // ==========================================================================
 
-        {/* PROOF OF RESERVE TELEMETRY */}
-        <div className="p-4 bg-zinc-900 border border-zinc-800 rounded-lg text-sm space-y-3">
-          <h3 className="text-xs text-zinc-400 uppercase tracking-widest border-b border-zinc-800 pb-2 mb-2">Proof of Reserve</h3>
-          <div className="flex justify-between">
-            <span className="text-zinc-500">Gold Mass:</span>
-            <span className="font-bold text-amber-400">{totalGoldReservedMg.toFixed(2)} mg</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-zinc-500">Vault Pi Collateral:</span>
-            <span className="font-bold text-blue-400">{currentVaultCollateralPi.toFixed(4)} Pi</span>
-          </div>
-          <div className="flex justify-between border-t border-zinc-800 pt-2 mt-2">
-            <span className="text-zinc-500">Circulating Pool:</span>
-            <span className="font-bold text-emerald-300">{circulatingPool.toFixed(2)} mBZR</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-zinc-500">Staked Reserve:</span>
-            <span className="font-bold text-purple-400">{stakedReserve.toFixed(2)} mBZR</span>
-          </div>
-        </div>
-
-        {/* 🛡️ GENESIS MINT PROTOCOL */}
-        <div className="bg-zinc-900/50 border border-zinc-800 p-4 rounded-lg">
-          <h4 className="text-xs text-zinc-400 uppercase tracking-widest mb-3">Genesis Mint</h4>
-          <form onSubmit={executeMint} className="space-y-3">
-            <input 
-              type="number" 
-              value={mintInput} 
-              onChange={(e) => setMintInput(e.target.value)} 
-              placeholder="Amount Pi"
-              className="w-full bg-zinc-950 border border-zinc-700 p-3 rounded text-emerald-300 focus:outline-none focus:border-emerald-500 transition-colors text-sm"
-            />
-            <button type="submit" className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-zinc-950 text-sm font-bold uppercase tracking-wider rounded transition-colors">
-              Execute Mint
-            </button>
-          </form>
-        </div>
-
-        {/* 🛡️ EARLY REDEMPTION PROTOCOL */}
-        <div className="bg-zinc-900/50 border border-zinc-800 p-4 rounded-lg">
-          <h4 className="text-xs text-zinc-400 uppercase tracking-widest mb-3">Early Redemption</h4>
-          <form onSubmit={executeRedeem} className="space-y-3">
-            <input 
-              type="number" 
-              value={redeemInput} 
-              onChange={(e) => setRedeemInput(e.target.value)} 
-              placeholder="Amount mBZR"
-              className="w-full bg-zinc-950 border border-zinc-700 p-3 rounded text-red-300 focus:outline-none focus:border-red-500 transition-colors text-sm"
-            />
-            <button type="submit" className="w-full py-3 bg-red-900/80 hover:bg-red-800 text-red-100 border border-red-700/50 text-sm font-bold uppercase tracking-wider rounded transition-colors">
-              Execute Redeem
-            </button>
-          </form>
-        </div>
-
+  if (!pioneer.isHydrated || pioneer.status === 'SYNCING') {
+    return (
+      <main className="max-w-[384px] mx-auto p-4 min-h-screen bg-zinc-950 flex flex-col items-center justify-center font-mono text-center">
+        <ShieldAlert className="w-8 h-8 text-amber-500 mb-4 animate-pulse" />
+        <h2 className="text-amber-400 font-bold tracking-widest text-sm mb-2">ACCESS DENIED</h2>
+        <p className="text-[10px] text-zinc-500 max-w-62.5">
+          Node status is SYNCING. Complete the Genesis Protocol in the Academy Hub before accessing Alpha Track.
+        </p>
+        <Link href="/academy" className="mt-6 px-4 py-2 border border-zinc-800 rounded text-[10px] text-zinc-400 hover:text-emerald-400">
+          Return to Hub
+        </Link>
       </main>
-    </PioneerAuthGate>
+    );
+  }
+
+  return (
+    <main className="max-w-[384px] mx-auto p-4 pb-24 min-h-screen bg-zinc-950 text-zinc-100 font-mono selection:bg-emerald-500/30 space-y-6">
+      
+      {/* 🛡️ MODULE HEADER */}
+      <div className="flex items-center justify-between border-b border-zinc-800 pb-3 gap-2 mt-2">
+        <div>
+          <h2 className="text-emerald-400 font-bold tracking-widest uppercase text-sm">ALPHA TRACK</h2>
+          <p className="text-zinc-500 text-[10px] mt-0.5 flex items-center gap-1">
+            <Network className="w-3 h-3 text-emerald-500" /> Bridge Online
+          </p>
+        </div>
+        <Link href="/academy" className="px-2.5 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-zinc-400 border border-zinc-800 text-[10px] font-bold uppercase rounded tracking-wider transition-colors shrink-0">
+          HUB
+        </Link>
+      </div>
+
+      {/* 🛡️ DYNAMIC MATRIX */}
+      {!isGuardian ? (
+        // ----------------------------------------------------------------------
+        // PHASE 1: GENESIS STAKING (Not Yet a Guardian)
+        // ----------------------------------------------------------------------
+        <div className="space-y-4">
+          <div className="p-4 bg-[#05140e] border border-emerald-500/30 rounded-lg shadow-[0_0_15px_rgba(0,210,138,0.05)]">
+            <h3 className="text-emerald-300 font-bold text-xs tracking-wider uppercase flex items-center gap-2 mb-4 border-b border-zinc-800/50 pb-2">
+              <Cpu className="w-4 h-4" /> Node Anchoring
+            </h3>
+            
+            <p className="text-[10px] text-zinc-400 mb-6 leading-relaxed">
+              To activate the Economic Engine, you must anchor your node. Staking <span className="text-emerald-400 font-bold">{GENESIS_STAKE_AMOUNT} Pi</span> via Soroban permanently upgrades your tier to <span className="text-cyan-400 font-bold">MESH_GUARDIAN</span>.
+            </p>
+
+            {stakeError && (
+              <div className="mb-4 p-3 bg-red-950/30 border border-red-900/50 rounded-lg text-[10px] text-red-400 flex items-start gap-2">
+                <ShieldAlert className="w-4 h-4 shrink-0 mt-0.5" /> <p>{stakeError}</p>
+              </div>
+            )}
+
+            <button
+              onClick={handleGenesisStake}
+              disabled={isStaking}
+              className="w-full py-4 bg-emerald-600 hover:bg-emerald-500 disabled:bg-zinc-800 disabled:text-zinc-500 text-zinc-950 font-bold text-xs uppercase tracking-wider rounded-xl flex items-center justify-center gap-2 transition-all shadow-[0_0_15px_rgba(16,185,129,0.2)] disabled:shadow-none"
+            >
+              {isStaking ? (
+                <><Loader2 className="w-4 h-4 animate-spin" /> EXECUTING...</>
+              ) : (
+                <><Zap className="w-4 h-4" /> AUTHORIZE STAKE ({GENESIS_STAKE_AMOUNT} Pi)</>
+              )}
+            </button>
+          </div>
+
+          {txLog.length > 0 && (
+            <div className="p-3 bg-black border border-zinc-800 rounded-lg font-mono text-[9px] text-emerald-500/80 space-y-1 mt-4 max-h-37.5 overflow-y-auto">
+              {txLog.map((log, i) => (
+                <div key={i} className="animate-in slide-in-from-bottom-2 fade-in duration-200">{log}</div>
+              ))}
+            </div>
+          )}
+        </div>
+      ) : (
+        // ----------------------------------------------------------------------
+        // PHASE 2: ECONOMIC ENGINE (Unlocked for Guardians)
+        // ----------------------------------------------------------------------
+        <div className="space-y-6 animate-in fade-in zoom-in-95 duration-500">
+          
+          <div className="p-3 bg-cyan-950/20 border border-cyan-900/50 rounded-lg flex items-center gap-3">
+            <CheckCircle2 className="w-5 h-5 text-cyan-400 shrink-0" />
+            <div>
+              <p className="text-[10px] text-cyan-400 font-bold uppercase tracking-widest">Node Anchored</p>
+              <p className="text-[9px] text-cyan-600">Economic Engine Unlocked.</p>
+            </div>
+          </div>
+
+          {/* PROTOCOL RESERVE TELEMETRY */}
+          <div className="p-4 bg-zinc-900 border border-zinc-800 rounded-lg text-sm space-y-3 shadow-inner">
+            <h3 className="text-xs text-zinc-400 uppercase tracking-widest border-b border-zinc-800 pb-2 mb-2 flex items-center gap-2">
+              <Activity className="w-4 h-4" /> Liquidity Matrix
+            </h3>
+            <div className="flex justify-between">
+              <span className="text-zinc-500 text-xs">Total Minted (mBZR):</span>
+              <span className="font-bold text-amber-400 text-xs">{totalMinted.toFixed(2)} mBZR</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-zinc-500 text-xs">Vault Collateral (Pi):</span>
+              <span className="font-bold text-blue-400 text-xs">{currentVaultCollateralPi.toFixed(4)} Pi</span>
+            </div>
+            <div className="flex justify-between border-t border-zinc-800 pt-2 mt-2">
+              <span className="text-zinc-500 text-xs">Circulating Pool:</span>
+              <span className="font-bold text-emerald-300 text-xs">{circulatingPool.toFixed(2)} mBZR</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-zinc-500 text-xs">Staked Reserve:</span>
+              <span className="font-bold text-purple-400 text-xs">{stakedReserve.toFixed(2)} mBZR</span>
+            </div>
+          </div>
+
+          {/* MINT PROTOCOL */}
+          <div className="bg-[#05140e] border border-emerald-900/50 p-4 rounded-lg">
+            <h4 className="text-[10px] text-emerald-500 uppercase tracking-widest mb-3">Genesis Mint</h4>
+            <form onSubmit={executeMint} className="space-y-3">
+              <input 
+                type="number" 
+                value={mintInput} 
+                onChange={(e) => setMintInput(e.target.value)} 
+                placeholder="Amount Pi"
+                className="w-full bg-zinc-950 border border-zinc-800 p-3 rounded text-emerald-300 focus:outline-none focus:border-emerald-500 transition-colors text-xs"
+              />
+              <button type="submit" className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-zinc-950 text-[10px] font-bold uppercase tracking-wider rounded transition-colors">
+                Execute Mint
+              </button>
+            </form>
+          </div>
+
+          {/* EARLY REDEMPTION PROTOCOL */}
+          <div className="bg-red-950/10 border border-red-900/30 p-4 rounded-lg">
+            <div className="flex justify-between items-end mb-3">
+              <h4 className="text-[10px] text-red-500 uppercase tracking-widest">Early Redemption</h4>
+              <span className="text-[9px] text-red-400">Penalty: {(activePenalty * 100).toFixed(1)}%</span>
+            </div>
+            <form onSubmit={executeRedeem} className="space-y-3">
+              <input 
+                type="number" 
+                value={redeemInput} 
+                onChange={(e) => setRedeemInput(e.target.value)} 
+                placeholder="Amount mBZR"
+                className="w-full bg-zinc-950 border border-zinc-800 p-3 rounded text-red-300 focus:outline-none focus:border-red-500 transition-colors text-xs"
+              />
+              <button type="submit" className="w-full py-3 bg-red-900/80 hover:bg-red-800 text-red-100 border border-red-700/50 text-[10px] font-bold uppercase tracking-wider rounded transition-colors">
+                Execute Redeem
+              </button>
+            </form>
+          </div>
+
+        </div>
+      )}
+    </main>
   );
 }

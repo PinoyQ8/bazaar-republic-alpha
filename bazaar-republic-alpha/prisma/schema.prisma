@@ -1,4 +1,4 @@
-// 🛡️ NEO PROTOCOL: SCHEMA VERSION 2.3 (Unified & Hardened)
+// 🛡️ NEO PROTOCOL: SCHEMA VERSION 2.4 (Unified & Hardened)
 generator client {
   provider      = "prisma-client-js"
   binaryTargets = ["native", "windows"]
@@ -7,7 +7,7 @@ generator client {
 
 datasource db {
   provider = "mongodb"
-  url      = env("MONGODB_URI")
+  url      = env("DATABASE_URL") // Ensure this matches your .env file
 }
 
 // ----------------------------------------------------------------------
@@ -50,6 +50,7 @@ enum PaymentStatus {
 enum LedgerTxType {
   GENESIS_MINT
   EARLY_REDEEM
+  SERVICE_SETTLEMENT // 🛡️ Added to support E-Network micro-settlements
 }
 
 // ----------------------------------------------------------------------
@@ -66,7 +67,7 @@ model PioneerNode {
   freezeReason          String?
   trustScore            Int        @default(0)
   stakedPi              Float      @default(0)
-  mbzrBalance           Float      @default(0) // 🛡️ MESH PATCH: Synthetic Gold State
+  mbzrBalance           Float      @default(0) // 🛡️ Synthetic Gold State
   signature             String?
   ledgerHeight          Int        @default(0)
   syncState             String     @default("Unknown")
@@ -83,7 +84,7 @@ model PioneerNode {
 }
 
 // ----------------------------------------------------------------------
-// 🛡️ COMMERCE ENGINE: Settlement Records
+// 🛡️ COMMERCE ENGINE: Legacy Settlement Records
 // ----------------------------------------------------------------------
 model Payment {
   id          String        @id @default(auto()) @map("_id") @db.ObjectId
@@ -100,35 +101,36 @@ model Payment {
 }
 
 // ----------------------------------------------------------------------
-// 🛡️ ECONOMIC ENGINE: Synthetic Asset Ledger (v2.3)
+// 🛡️ ECONOMIC ENGINE: Unified Synthetic Asset Ledger (v2.4)
 // ----------------------------------------------------------------------
 model MeshLedger {
-  id              String       @id @default(auto()) @map("_id") @db.ObjectId
-  walletId        String       // Maps to PioneerNode.uid
-  txSignature     String?      @unique // L1 Pi TxHash (Null for redemptions)
-  txType          LedgerTxType
-  piAmount        Float        @default(0) // Pi locked or unlocked
-  mbzrAmount      Float        @default(0) // mBZR minted or redeemed
-  penaltyApplied  Float        @default(0) // % penalty for early redeem
-  meltBurnAmount  Float        @default(0) // mBZR sent to burn address
-  yieldAmount     Float        @default(0) // mBZR redistributed to stakers
-  timestamp       DateTime     @default(now())
+  id             String       @id @default(auto()) @map("_id") @db.ObjectId
+  walletId       String       // Maps to PioneerNode.uid
+  txSignature    String?      @unique // L1 Pi TxHash (Null for redemptions & settlements)
+  txType         LedgerTxType // ENUM: GENESIS_MINT, EARLY_REDEEM, SERVICE_SETTLEMENT
+  piAmount       Float        @default(0) // Pi locked or unlocked
+  mbzrAmount     Float        @default(0) // mBZR minted, redeemed, or settled
+  penaltyApplied Float        @default(0) // % penalty for early redeem
+  meltBurnAmount Float        @default(0) // mBZR sent to burn address
+  yieldAmount    Float        @default(0) // mBZR redistributed to stakers
+  status         String       @default("CONFIRMED") // Micro-settlement status
+  createdAt      DateTime     @default(now())
 }
 
 // ----------------------------------------------------------------------
-// 🛡️ GOVERNANCE ENGINE: DAO Consensus (v2.3)
+// 🛡️ GOVERNANCE ENGINE: Internal Admin DAO
 // ----------------------------------------------------------------------
 model InternalProposal {
   id           String         @id @default(auto()) @map("_id") @db.ObjectId
   title        String
   description  String
   status       ProposalStatus @default(ACTIVE)
-  authorUid    String?        // 🛡️ MESH PATCH: Restored
-  votesFor     Int            @default(0) // 🛡️ MESH PATCH: Restored
-  votesAgainst Int            @default(0) // 🛡️ MESH PATCH: Restored
+  authorUid    String?        
+  votesFor     Int            @default(0) 
+  votesAgainst Int            @default(0) 
   createdAt    DateTime       @default(now())
-  updatedAt    DateTime       @updatedAt  // 🛡️ MESH PATCH: Restored
-  expiresAt    DateTime?      // 🛡️ MESH PATCH: Restored
+  updatedAt    DateTime       @updatedAt  
+  expiresAt    DateTime?      
   
   votes        VoteRecord[]
 }
@@ -137,11 +139,61 @@ model VoteRecord {
   id         String           @id @default(auto()) @map("_id") @db.ObjectId
   decision   VoteDecision
   proposalId String           @db.ObjectId
-  voterId    String           // 🛡️ MESH PATCH: Aligned to TS expectation
+  voterId    String           
   voterUid   String?          
   createdAt  DateTime         @default(now())
   
   proposal   InternalProposal @relation(fields: [proposalId], references: [id])
+}
+
+// ----------------------------------------------------------------------
+// 🛡️ PUBLIC DAO ENGINE: E-Network Proposals
+// ----------------------------------------------------------------------
+model DaoProposal {
+  id           String    @id @default(auto()) @map("_id") @db.ObjectId
+  title        String
+  description  String
+  category     String
+  proposerUid  String
+  status       String
+  votesFor     Float     @default(0)
+  votesAgainst Float     @default(0)
+  votesAbstain Float     @default(0)
+  expiresAt    DateTime
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  
+  votes        DaoVote[]
+}
+
+model DaoVote {
+  id          String      @id @default(auto()) @map("_id") @db.ObjectId
+  proposalId  String      @db.ObjectId
+  pioneerUid  String
+  choice      String
+  votingPower Float
+  createdAt   DateTime    @default(now())
+  
+  proposal    DaoProposal @relation(fields: [proposalId], references: [id])
+}
+
+// ----------------------------------------------------------------------
+// 🛡️ E-NETWORK MODULE: Service Provider Directory
+// ----------------------------------------------------------------------
+model ServiceProvider {
+  id               String   @id @default(auto()) @map("_id") @db.ObjectId
+  businessName     String
+  category         String
+  description      String
+  providerUid      String
+  sectorLocation   String
+  mbzrRate         Float
+  unitLabel        String
+  isVerified       Boolean  @default(false)
+  totalSettlements Int      @default(0)
+  rating           Float    @default(5.0)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 }
 
 // ----------------------------------------------------------------------
@@ -150,8 +202,8 @@ model VoteRecord {
 model SecurityCircle {
   id             String   @id @default(auto()) @map("_id") @db.ObjectId
   ownerUid       String   @unique
-  pioneerId      String?  @unique // 🛡️ MESH PATCH: Restored
-  linkedUsername String?          // 🛡️ MESH PATCH: Restored
+  pioneerId      String?  @unique
+  linkedUsername String?  
   nodes          String[] 
   createdAt      DateTime @default(now())
 }
@@ -160,6 +212,6 @@ model AcademyLog {
   id           String   @id @default(auto()) @map("_id") @db.ObjectId
   pioneerUid   String
   action       String
-  moduleLocked String?  // 🛡️ MESH PATCH: Restored
+  moduleLocked String?  
   createdAt    DateTime @default(now())
 }

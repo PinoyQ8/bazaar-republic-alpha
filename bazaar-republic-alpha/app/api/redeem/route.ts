@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma'; // 🛡️ Database Bridge
+import { db } from '../../lib/db'; // 🛡️ Strict relative path to prevent compiler ghosts
 
 // 🛡️ PROTOCOL CONSTANTS
 const MONTHLY_DECAY_RATE = 0.025; // 2.5% penalty decay per month
-const MAX_REDEEM_CAP = 1000000;   // 🛡️ ALPHA SAFETY VALVE (1,000 Pi equivalent)
+const MAX_REDEEM_CAP = 1000000;   // 🛡️ ALPHA SAFETY VALVE (1,000 Pi equivalent in mBZR)
 
 export async function POST(request: Request) {
   try {
@@ -42,25 +42,26 @@ export async function POST(request: Request) {
     const meltBurnMbzr = totalPenaltyMbzr * 0.5; 
     const stakingYieldMbzr = totalPenaltyMbzr * 0.5;
     const netMbzrToUser = amountMbzr - totalPenaltyMbzr;
+    const piReturned = netMbzrToUser / 1000; // Conversion back to Pi equivalent
 
-    // --- CRITICAL SECTION: DB STATE TRANSITION ---
-    await prisma.$transaction([
-      prisma.pioneerNode.update({
+    // --- CRITICAL SECTION: DB STATE TRANSITION ($transaction) ---
+    await db.$transaction([
+      db.pioneerNode.update({
         where: { uid: senderWallet },
         data: {
           mbzrBalance: { decrement: amountMbzr },
-          stakedPi: { decrement: amountMbzr / 1000 }, 
-          lastActivityTimestamp: new Date(),
+          stakedPi: { decrement: piReturned }, 
+          updatedAt: new Date(),
         },
       }),
-      prisma.meshLedger.create({
+      db.meshLedger.create({
         data: {
-          walletId: senderWallet,
+          walletId: senderWallet, // 🛡️ Aligned with your MeshLedger Prisma model definition
           txType: 'EARLY_REDEEM',
+          piAmount: piReturned,
           mbzrAmount: amountMbzr,
           penaltyApplied: activePenalty,
-          meltBurnAmount: meltBurnMbzr,
-          yieldAmount: stakingYieldMbzr,
+          status: 'CONFIRMED',
         },
       }),
     ]);
@@ -82,6 +83,7 @@ export async function POST(request: Request) {
         netMbzrToUser,
         meltBurnMbzr,
         stakingYieldMbzr,
+        piReturned,
         appliedPenaltyPercent: activePenalty * 100,
         timestamp: Date.now()
       }

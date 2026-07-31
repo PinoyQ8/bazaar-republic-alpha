@@ -5,11 +5,18 @@ import { createContext, useContext, useState, ReactNode, useMemo } from "react";
 import * as StellarSdk from "@stellar/stellar-sdk";
 import { signTransaction } from "@stellar/freighter-api";
 
+// ----------------------------------------------------------------------
+// 🛡️ SCHEMA v2.3: Type Alignment 
+// ----------------------------------------------------------------------
+export type NodeTier = "CITIZEN" | "NOVICE" | "ACADEMY_CORE" | "MESH_GUARDIAN" | "BAZAAR_FOUNDER";
+export type NodeStatus = "SYNCING" | "ACTIVE" | "FROZEN" | "SUSPENDED";
+
 // 🛡️ MESH INTERFACE: Hardened Contract
 export interface PioneerState {
   username: string | undefined;
   uid: string | undefined;
-  tier: string | undefined;
+  tier: NodeTier;        // 🛡️ SCHEMA v2.3 UPGRADE
+  status: NodeStatus;    // 🛡️ SCHEMA v2.3 UPGRADE
   role: string;
   trustScore: number;
   isAuthenticated: boolean;
@@ -20,7 +27,7 @@ export interface PioneerState {
 export interface AuthContextType {
   pioneer: PioneerState;
   setPioneer: React.Dispatch<React.SetStateAction<PioneerState>>;
-  login: (data: PioneerState) => void;
+  login: (data: Partial<PioneerState>) => void;
   logout: () => void;
   executeStakePayment: (amount: number) => Promise<void>; 
   isHydrated: boolean;
@@ -30,8 +37,15 @@ export interface AuthContextType {
 // 🛡️ STATIC FALLBACK
 const FALLBACK_AUTH: AuthContextType = {
   pioneer: { 
-    username: undefined, uid: undefined, tier: undefined, role: "CITIZEN", 
-    trustScore: 0, isAuthenticated: false, isHydrated: false, accessToken: null 
+    username: undefined, 
+    uid: undefined, 
+    tier: "CITIZEN", 
+    status: "SYNCING", 
+    role: "CITIZEN", 
+    trustScore: 0, 
+    isAuthenticated: false, 
+    isHydrated: false, 
+    accessToken: null 
   },
   setPioneer: () => {},
   login: () => {},
@@ -44,7 +58,7 @@ const FALLBACK_AUTH: AuthContextType = {
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  // 🛡️ PERSISTENT HYDRATION: Check localStorage immediately on mount to prevent amnesia
+  // 🛡️ PERSISTENT HYDRATION: Check localStorage immediately on mount
   const [pioneer, setPioneer] = useState<PioneerState>(() => {
     if (typeof window !== "undefined") {
       try {
@@ -54,9 +68,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           return {
             username: parsed.username,
             uid: parsed.uid,
-            tier: "TIER-1-NODE",
+            tier: parsed.tier || "CITIZEN",
+            status: parsed.status || "ACTIVE", // Defaults to ACTIVE if they were previously cached
             role: "PIONEER",
-            trustScore: 100,
+            trustScore: parsed.trustScore || 100,
             isAuthenticated: true,
             isHydrated: true,
             accessToken: "CACHED_SESSION_TOKEN"
@@ -66,33 +81,27 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         console.error("[MESH-AUTH] Failed to read cached pioneer session", e);
       }
     }
-    return {
-      username: undefined,
-      uid: undefined,
-      tier: undefined,
-      role: "CITIZEN",
-      trustScore: 0,
-      isAuthenticated: false,
-      isHydrated: true,
-      accessToken: null,
-    };
+    return FALLBACK_AUTH.pioneer;
   });
 
-  const login = (data: PioneerState) => {
-    setPioneer({ ...data, isHydrated: true });
+  const login = (data: Partial<PioneerState>) => {
+    setPioneer((prev) => ({ 
+      ...prev, 
+      ...data, 
+      isHydrated: true 
+    }));
   };
 
   const logout = (): void => {
-    setPioneer({
-      username: undefined,
-      uid: undefined,
-      tier: undefined,
-      role: "CITIZEN",
-      trustScore: 0,
-      isAuthenticated: false,
-      isHydrated: true,
-      accessToken: null,
-    });
+    // 🛡️ SCHEMA v2.3 PURGE
+    localStorage.removeItem("pi_auth_user");
+    localStorage.removeItem("mesh_pioneer_active");
+    localStorage.removeItem("mesh_pioneer_uid");
+    localStorage.removeItem("mesh_pioneer_username");
+    localStorage.removeItem("mesh_pioneer_status");
+    localStorage.removeItem("mesh_pioneer_tier");
+    
+    setPioneer(FALLBACK_AUTH.pioneer);
   };
 
   // 🛡️ SECTOR 1 PRODUCTION ENGINE: Soroban Smart Contract Fuel Staker
@@ -145,7 +154,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if ((response.status as string) === "SUCCESS" || response.status === "PENDING") {
         setPioneer((prev) => ({ 
           ...prev, 
-          tier: "TIER-5-ACTIVE", 
+          tier: "MESH_GUARDIAN", // 🛡️ Aligned with Schema v2.3 NodeTier
           trustScore: Math.min((prev.trustScore || 50) + 10, 100) 
         }));
       } else {
@@ -174,6 +183,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   );
 };
 
-// 🛡️ DUAL EXPORT BRIDGE: Satisfies both named and default compiler lookups
+// 🛡️ DUAL EXPORT BRIDGE
 export const useAuth = (): AuthContextType => useContext(AuthContext) ?? FALLBACK_AUTH;
 export default useAuth;
