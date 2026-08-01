@@ -1,4 +1,4 @@
-// 🛡️ NEO PROTOCOL: SCHEMA VERSION 2.4 (Unified & Hardened)
+// 🛡️ NEO PROTOCOL: SCHEMA VERSION 2.5 (Unified & Hardened)
 generator client {
   provider      = "prisma-client-js"
   binaryTargets = ["native", "windows"]
@@ -74,6 +74,19 @@ model PioneerNode {
   activePeers           Int        @default(0)
   protocol              String     @default("24")
   isUnderRemoteRescue   Boolean    @default(false)
+  
+  // 🛡️ SAFE HARBOR PROTOCOL (DORMANCY VAULT)
+  quarantineStatus      String     @default("NONE") // States: "NONE", "QUARANTINED", "ABANDONED"
+  migrationHash         String?                     // Cryptographic Bridge Key for banned nodes
+  quarantineDate        DateTime?                   // Timestamp triggering the 12-Month Lock
+  dormancyPiBalance     Float      @default(0)      // Isolated 1,000 Pi Collateral
+  dormancyMBzrBalance   Float      @default(0)      // Isolated mBZR utility balance
+
+  // ⚙️ 70/30 EPOCH YIELD MATRIX
+  lastEpochYield        Float      @default(0)      // Native Pi received in the last 30-Day Epoch
+  nextEpochEligible     DateTime?                   // Timestamp anchoring the node to the 30-Day rule
+  stakeWeight           Float      @default(0)      // Cached percentage of network weight for fast querying
+
   lastActivityTimestamp DateTime   @default(now())
   lastHeartbeat         DateTime   @default(now())
   createdAt             DateTime   @default(now())
@@ -214,4 +227,23 @@ model AcademyLog {
   action       String
   moduleLocked String?  
   createdAt    DateTime @default(now())
+}
+
+// ----------------------------------------------------------------------
+// ⚙️ E-NETWORK SETTLEMENT BUFFER (70/30 MATRIX)
+// ----------------------------------------------------------------------
+model EpochBuffer {
+  id                String   @id @default(auto()) @map("_id") @db.ObjectId
+  epochMonth        String   @unique // e.g., "2026-08"
+  status            String   @default("ACCUMULATING") // "ACCUMULATING", "DISTRIBUTED"
+  
+  // The aggregated Native Pi collected from smart contract fees
+  totalPiCollected  Float    @default(0)
+  
+  // The 70/30 Split Calculations (Executed at Month-End)
+  pioneerYieldShare Float    @default(0) // 70% of totalPiCollected
+  treasuryPolShare  Float    @default(0) // 30% of totalPiCollected
+  
+  createdAt         DateTime @default(now())
+  executedAt        DateTime? 
 }
