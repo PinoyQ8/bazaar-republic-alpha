@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { db } from '../../lib/db'; // 🛡️ Strict relative path to prevent compiler ghosts
 
 // 🛡️ PROTOCOL CONSTANTS
+const PI_TO_MBZR_RATIO = 1000;    // 1 Pi = 1,000 mBZR (Algorithmic Peg)
 const MONTHLY_DECAY_RATE = 0.025; // 2.5% penalty decay per month
 const MAX_REDEEM_CAP = 1000000;   // 🛡️ ALPHA SAFETY VALVE (1,000 Pi equivalent in mBZR)
 
@@ -38,11 +39,16 @@ export async function POST(request: Request) {
     const activePenalty = Math.max(0, tierBasePenalty - (monthsElapsed * MONTHLY_DECAY_RATE));
     const totalPenaltyMbzr = amountMbzr * activePenalty;
     
-    // 🛡️ 50/50 SPLIT
+    // 🛡️ 50/50 SPLIT OVERRIDE
     const meltBurnMbzr = totalPenaltyMbzr * 0.5; 
     const stakingYieldMbzr = totalPenaltyMbzr * 0.5;
     const netMbzrToUser = amountMbzr - totalPenaltyMbzr;
-    const piReturned = netMbzrToUser / 1000; // Conversion back to Pi equivalent
+    
+    // 🛡️ ALGORITHMIC PEG ROUTING
+    const piReturned = netMbzrToUser / PI_TO_MBZR_RATIO; 
+
+    // Generate internal synthetic signature for the burn event
+    const internalBurnSignature = `mesh_burn_${crypto.randomUUID()}`;
 
     // --- CRITICAL SECTION: DB STATE TRANSITION ($transaction) ---
     await db.$transaction([
@@ -56,11 +62,11 @@ export async function POST(request: Request) {
       }),
       db.meshLedger.create({
         data: {
-          walletId: senderWallet, // 🛡️ Aligned with your MeshLedger Prisma model definition
+          walletId: senderWallet, 
+          txSignature: internalBurnSignature, // 🛡️ Prevents Prisma constraint fracture
           txType: 'EARLY_REDEEM',
           piAmount: piReturned,
           mbzrAmount: amountMbzr,
-          penaltyApplied: activePenalty,
           status: 'CONFIRMED',
         },
       }),
@@ -78,7 +84,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       success: true,
       telemetry: {
-        txId: `redeem_${crypto.randomUUID()}`,
+        txId: internalBurnSignature,
         grossRedeemedMbzr: amountMbzr,
         netMbzrToUser,
         meltBurnMbzr,

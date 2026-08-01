@@ -3,6 +3,7 @@
 
 import { useEffect, useState } from "react";
 import PioneerAuthGate from "@/app/components/PioneerAuthGate";
+import EpochYieldTracker from '@/app/components/EpochYieldTracker';
 
 // Define the TS Matrix interface
 interface TelemetryData {
@@ -125,7 +126,7 @@ export default function DashboardPage() {
                 <span>{telemetry.vBase} / 20</span>
               </div>
               <div className="h-1.5 w-full bg-neutral-800 rounded overflow-hidden">
-                <div className="h-full bg-blue-500" style={{ width: '100%' }}></div>
+                <div className="h-full bg-blue-500 w-full"></div>
               </div>
             </div>
 
@@ -163,6 +164,13 @@ export default function DashboardPage() {
             </div>
           </div>
         </section>
+
+        {/* 🛡️ STEP 4.5: EPOCH YIELD TELEMETRY (30-Day Pi Distribution Engine) */}
+        <EpochYieldTracker 
+          stakeWeight={0.015} 
+          epochDaysRemaining={14} 
+          initialNetworkBufferPi={1420.50} 
+        />
 
         {/* 🛡️ STEP 5: THE GOVERNANCE GATE (Voting Power) */}
         <section className="p-3 border border-amber-900/80 bg-neutral-900/80 rounded-lg flex flex-col gap-3">

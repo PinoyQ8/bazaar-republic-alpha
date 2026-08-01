@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma'; // 🛡️ Database Bridge
+
 // 🛡️ THE PEG: Immutable Protocol Constants
-const PI_TO_MBZR_RATIO = 1000; // 1 Pi = 1 Gram (1,000 mg) Synthetic Gold
+const PI_TO_MBZR_RATIO = 1000; // 1 Pi = 1,000 mBZR (Algorithmic Peg)
 const MAX_MINT_CAP = 1000;     // 🛡️ ALPHA SAFETY VALVE
 
 export async function POST(request: Request) {
@@ -84,7 +85,6 @@ export async function POST(request: Request) {
         txId: `mint_${crypto.randomUUID()}`,
         l1DepositPi: lockedPiAmount,
         newlyMintedMbzr: mintedMbzr,
-        syntheticGoldEquivalentMg: mintedMbzr,
         overMintShieldStatus: 'SECURED',
         timestamp: Date.now()
       }
