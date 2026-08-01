@@ -27,10 +27,11 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className="dark">
+      {/* MESH UPDATE: select-none applied here to lock navigation/headers from being highlighted */}
       <body className="w-full min-h-dvh bg-neutral-950 text-neutral-100 flex flex-col items-center justify-start overflow-x-hidden select-none antialiased">
         
         {/* 🛡️ THE BRIDGE: Global Pi SDK Injection */}
-        {/* Note: Next.js auto-injects 'beforeInteractive' into <head> */}
+        {/* Next.js auto-injects 'beforeInteractive' into <head> */}
         <Script 
           src="https://sdk.minepi.com/pi-sdk.js" 
           strategy="beforeInteractive" 
@@ -42,8 +43,8 @@ export default function RootLayout({
             {/* 🛡️ S23 VIEWPORT SHELL (384x854) */}
             <div className="w-full max-w-[384px] min-h-dvh border-x border-neutral-900 bg-neutral-950/80 backdrop-blur-md flex flex-col relative shadow-2xl shadow-cyan-900/10">
               
-              {/* 🛡️ CORE PAYLOAD */}
-              <main className="flex-1 w-full px-4 pt-4 pb-24 transition-all duration-200">
+              {/* 🛡️ CORE PAYLOAD: select-auto re-enabled so Pioneers can copy Wallet Hashes/Data */}
+              <main className="flex-1 w-full px-4 pt-4 pb-24 transition-all duration-200 select-auto">
                 {children}
               </main>
 

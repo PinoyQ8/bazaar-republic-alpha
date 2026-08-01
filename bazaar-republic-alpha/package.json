@@ -1,13 +1,17 @@
 {
   "name": "bazaar-republic-alpha",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "type": "module",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "npx prisma generate && next build",
+    "dev": "next dev -H 0.0.0.0 -p 3000",
+    "dev:local": "next dev -H localhost -p 3000",
+    "dev:ipv4": "next dev -H 127.0.0.1 -p 3000",
+    "clean": "node -e \"fs.rmSync('.next', {recursive:true, force:true})\"",
+    "build": "npm run clean && npx prisma generate && next build",
     "start": "next start",
     "lint": "next lint",
+    "typecheck": "tsc --noEmit",
     "prepare": "husky"
   },
   "dependencies": {
@@ -38,8 +42,6 @@
     "pg": "^8.20.0",
     "react": "19.2.4",
     "react-dom": "19.2.4",
-    "stellar-base": "^13.1.0",
-    "stellar-sdk": "^13.3.0",
     "ws": "^8.20.1"
   },
   "devDependencies": {
@@ -50,7 +52,6 @@
     "@types/pg": "^8.20.0",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "@types/stellar-base": "^0.10.2",
     "@types/ws": "^8.18.1",
     "drizzle-kit": "^0.31.10",
     "eslint": "^9",
