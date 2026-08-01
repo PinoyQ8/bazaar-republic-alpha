@@ -1,7 +1,9 @@
 // lib/faucet.ts
-import * as StellarSdk from 'stellar-sdk';
+// 🛡️ MESH UPGRADE: Modern SDK Import
+import * as StellarSdk from '@stellar/stellar-sdk';
 
-const server = new StellarSdk.Horizon.Server('https://horizon-testnet.stellar.org');
+// 🛡️ PI NETWORK ALIGNMENT: Route to Pi Horizon instead of Stellar
+const server = new StellarSdk.Horizon.Server('https://api.testnet.minepi.com');
 const PI_TESTNET_PASSPHRASE = 'Pi Testnet';
 
 export async function executeFaucetTransfer(destinationPubKey: string, amount: string) {
