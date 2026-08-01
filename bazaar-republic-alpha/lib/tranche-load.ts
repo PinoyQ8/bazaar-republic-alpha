@@ -1,8 +1,11 @@
 // lib/tranche-load.ts
-import * as StellarSdk from 'stellar-sdk'; 
+// 🛡️ MESH UPGRADE: Modern SDK Import & Pi Network Alignment
+import * as StellarSdk from '@stellar/stellar-sdk';
 
-const server = new StellarSdk.Horizon.Server('https://horizon-testnet.stellar.org');
+const server = new StellarSdk.Horizon.Server('https://api.testnet.minepi.com');
 const PI_TESTNET_PASSPHRASE = 'Pi Testnet'; // 🛡️ MESH-LOCK: Network explicitly defined
+
+// ... remainder of your tranche-load logic remains unchanged
 
 export async function loadDistributorTranche(amount: string) {
   const secretKey = process.env.ISSUER_SECRET_KEY;
