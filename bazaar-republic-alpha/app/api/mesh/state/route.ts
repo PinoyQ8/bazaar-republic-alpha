@@ -2,11 +2,10 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { ethers } from "ethers";
-import { ChannelBuffer } from "@/mesh-engine/node/ChannelBuffer";
-import { SignedState } from "@/mesh-engine/crypto/MeshChannelClient";
+import { ChannelBuffer } from "../../../../mesh-engine/node/ChannelBuffer";
+import { SignedState } from "../../../../mesh-engine/crypto/MeshChannelClient";
 
 // Global singleton instance for the local node's active memory ledger
-// In a persistent production node, this maps to a localized caching layer or state store.
 const globalBuffer = new ChannelBuffer();
 
 export async function POST(req: NextRequest) {
@@ -18,7 +17,6 @@ export async function POST(req: NextRequest) {
       pioneerB_Address: string;
     };
 
-    // 1. Validate payload structure
     if (!signedState || !pioneerA_Address || !pioneerB_Address) {
       return NextResponse.json(
         { success: false, error: "Invalid payload structure. Missing state or addresses." },
@@ -26,7 +24,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Rehydrate BigInt/ethers deserialization values if passed via JSON
     const normalizedState: SignedState = {
       state: {
         channelId: signedState.state.channelId,
@@ -38,7 +35,6 @@ export async function POST(req: NextRequest) {
       sigB: signedState.sigB,
     };
 
-    // 2. Process through the ChannelBuffer defense matrix
     const accepted = globalBuffer.registerStateUpdate(
       normalizedState,
       pioneerA_Address,
@@ -52,7 +48,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 3. Acknowledge synchronization success back to the E-Network
     return NextResponse.json({
       success: true,
       message: `Channel state updated successfully to Nonce ${normalizedState.state.nonce}`,
@@ -82,7 +77,6 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ success: false, error: "Channel not found in active local buffer." }, { status: 404 });
   }
 
-  // Serialize BigInt safely for JSON transport
   return NextResponse.json({
     success: true,
     channelId,
