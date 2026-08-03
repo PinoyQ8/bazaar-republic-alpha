@@ -6,15 +6,15 @@ import * as StellarSdk from "@stellar/stellar-sdk";
 import { signTransaction } from "@stellar/freighter-api";
 
 // ----------------------------------------------------------------------
-// 🛡️ SCHEMA v2.3: Type Alignment 
+// 🛡️ SCHEMA v2.5: Type Alignment & Dev Bypass Ready
 // ----------------------------------------------------------------------
 export type NodeTier = "CITIZEN" | "NOVICE" | "ACADEMY_CORE" | "MESH_GUARDIAN" | "BAZAAR_FOUNDER";
 export type NodeStatus = "SYNCING" | "ACTIVE" | "FROZEN" | "SUSPENDED";
 
-// 🛡️ MESH INTERFACE: Hardened Contract
 export interface PioneerState {
   username: string | undefined;
   uid: string | undefined;
+  publicKey?: string; 
   tier: NodeTier;
   status: NodeStatus;
   role: string;
@@ -34,11 +34,11 @@ export interface AuthContextType {
   accessToken: string | null;
 }
 
-// 🛡️ STATIC FALLBACK
 const FALLBACK_AUTH: AuthContextType = {
   pioneer: { 
     username: undefined, 
     uid: undefined, 
+    publicKey: undefined, 
     tier: "CITIZEN", 
     status: "SYNCING", 
     role: "CITIZEN", 
@@ -58,10 +58,8 @@ const FALLBACK_AUTH: AuthContextType = {
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  // 1. SSR-SAFE INITIALIZATION
   const [pioneer, setPioneer] = useState<PioneerState>(FALLBACK_AUTH.pioneer);
 
-  // 2. CLIENT-SIDE HYDRATION SHIELD
   useEffect(() => {
     try {
       const cachedUser = localStorage.getItem("pi_auth_user");
@@ -70,6 +68,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setPioneer({
           username: parsed.username,
           uid: parsed.uid,
+          publicKey: parsed.publicKey,
           tier: parsed.tier || "CITIZEN",
           status: parsed.status || "ACTIVE",
           role: "PIONEER",
@@ -96,73 +95,60 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const logout = (): void => {
-    // 🛡️ SCHEMA v2.3 PURGE
     localStorage.removeItem("pi_auth_user");
     localStorage.removeItem("mesh_pioneer_active");
     localStorage.removeItem("mesh_pioneer_uid");
     localStorage.removeItem("mesh_pioneer_username");
     localStorage.removeItem("mesh_pioneer_status");
     localStorage.removeItem("mesh_pioneer_tier");
-    
     setPioneer({ ...FALLBACK_AUTH.pioneer, isHydrated: true });
   };
 
-  // 🛡️ SECTOR 1 PRODUCTION ENGINE: Soroban Smart Contract Fuel Staker
+  // 🛡️ SECTOR 1 ENGINE: Neo-Sync Execution
   const executeStakePayment = async (amount: number): Promise<void> => {
     try {
       const contractId = process.env.NEXT_PUBLIC_MESH_CONTRACT_ID;
-      if (!contractId || !pioneer.uid) {
-        throw new Error("Missing MESH contract ID or Pioneer identity credentials.");
+      const userPublicKey = pioneer?.publicKey || process.env.NEXT_PUBLIC_TESTNET_WALLET;
+
+      if (!contractId) throw new Error("Missing MESH contract ID.");
+      if (!userPublicKey || !StellarSdk.StrKey.isValidEd25519PublicKey(userPublicKey)) {
+        throw new Error("MESH-SCAN Panic: Pioneer wallet key is missing or invalid.");
       }
 
       const rpcUrl = process.env.NEXT_PUBLIC_PI_RPC_URL || "https://rpc.testnet.minepi.com";
       const networkPassphrase = process.env.NEXT_PUBLIC_PI_NETWORK_PASSPHRASE || "Pi Testnet";
-      
       const server = new StellarSdk.rpc.Server(rpcUrl);
       
-      const account = await server.getAccount(pioneer.uid);
+      console.log(`[MESH-BRIDGE] Fetching sequence for: ${userPublicKey}`);
+      const account = await server.getAccount(userPublicKey);
       const contract = new StellarSdk.Contract(contractId);
                  
+      // WASM ALIGNMENT: sync_node(node_id: String)
       const invokeOperation = contract.call(
-        "stake", 
-        StellarSdk.nativeToScVal(amount, { type: "i128" }),
-        StellarSdk.nativeToScVal(pioneer.uid, { type: "address" })
+        "sync_node", 
+        StellarSdk.nativeToScVal(userPublicKey, { type: "string" })
       );
 
-      const tx = new StellarSdk.TransactionBuilder(account, { 
-        fee: "100000",
-        networkPassphrase 
-      })
+      const tx = new StellarSdk.TransactionBuilder(account, { fee: "100000", networkPassphrase })
         .addOperation(invokeOperation)
         .setTimeout(30)
         .build();
 
       const simulatedTx = await server.simulateTransaction(tx);
       
-      // TYPE SHIELD: Strict check for simulation errors in v15+ SDK
       if ("error" in simulatedTx && simulatedTx.error) {
         throw new Error(`Soroban Simulation failed: ${simulatedTx.error}`);
       }
 
-      const assembledTx = StellarSdk.rpc.assembleTransaction(tx, simulatedTx);
-      const finalTx = assembledTx as unknown as StellarSdk.Transaction;
-
-      // 🛡️ FREIGHTER SIGNATURE REQUEST (Corrected Type Architecture)
-      const signResponse = await signTransaction(finalTx.toXDR(), { networkPassphrase });
+      // ==========================================
+      // 🛡️ DEV BYPASS: FREIGHTER WALLET MOCK
+      // ==========================================
+      const isDevMode = process.env.NODE_ENV === 'development';
       
-      if (signResponse.error) {
-        throw new Error(`Transaction signature rejected by user: ${signResponse.error}`);
-      }
-
-      if (!signResponse.signedTxXdr) {
-        throw new Error("Transaction signature failed: Freighter returned an empty payload.");
-      }
-
-      const signedTx = StellarSdk.TransactionBuilder.fromXDR(signResponse.signedTxXdr, networkPassphrase);
-      
-      const response = await server.sendTransaction(signedTx);
-
-      if ((response.status as string) === "SUCCESS" || response.status === "PENDING") {
+      if (isDevMode) {
+        console.warn("[MESH-BRIDGE] DEV MODE ACTIVE: Bypassing Freighter Signature.");
+        await new Promise(resolve => setTimeout(resolve, 800)); // Simulate network latency
+        
         setPioneer((prev) => {
           const newState = { 
             ...prev, 
@@ -172,8 +158,32 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           localStorage.setItem("pi_auth_user", JSON.stringify(newState));
           return newState;
         });
+        
+        console.log("[MESH-BRIDGE] Quantum tunnel secured. Neo-Sync node registered (MOCKED).");
+        return; // Exit function successfully here
+      }
+      // ==========================================
+
+      // The below will only run in Production where Freighter is expected
+      const assembledTx = StellarSdk.rpc.assembleTransaction(tx, simulatedTx);
+      const finalTx = assembledTx as unknown as StellarSdk.Transaction;
+
+      const signResponse = await signTransaction(finalTx.toXDR(), { networkPassphrase });
+      if (signResponse.error) throw new Error(`User rejected signature: ${signResponse.error}`);
+      if (!signResponse.signedTxXdr) throw new Error("Signature failed: Empty payload.");
+
+      const signedTx = StellarSdk.TransactionBuilder.fromXDR(signResponse.signedTxXdr, networkPassphrase);
+      const response = await server.sendTransaction(signedTx);
+
+      if ((response.status as string) === "SUCCESS" || response.status === "PENDING") {
+        setPioneer((prev) => {
+          const newState = { ...prev, tier: "MESH_GUARDIAN" as NodeTier, trustScore: Math.min((prev.trustScore || 50) + 10, 100) };
+          localStorage.setItem("pi_auth_user", JSON.stringify(newState));
+          return newState;
+        });
+        console.log("[MESH-BRIDGE] Quantum tunnel secured. Neo-Sync node registered on Testnet.");
       } else {
-        throw new Error(`Transaction broadcast failed with status: ${response.status}`);
+        throw new Error(`Broadcast failed: ${response.status}`);
       }
     } catch (error) {
       console.error("[MESH-SCAN] Execution Fracture in executeStakePayment:", error);
@@ -182,19 +192,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const contextValue = useMemo(() => ({
-    pioneer,
-    setPioneer,
-    login,
-    logout,
-    executeStakePayment, 
-    isHydrated: pioneer.isHydrated,
-    accessToken: pioneer.accessToken
+    pioneer, setPioneer, login, logout, executeStakePayment, 
+    isHydrated: pioneer.isHydrated, accessToken: pioneer.accessToken
   }), [pioneer]);
 
-  // Prevent rendering children until hydration is complete to stop UI flickering
-  if (!pioneer.isHydrated) {
-    return null; 
-  }
+  if (!pioneer.isHydrated) return null; 
 
   return (
     <AuthContext.Provider value={contextValue}>
@@ -203,6 +205,5 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   );
 };
 
-// 🛡️ DUAL EXPORT BRIDGE
 export const useAuth = (): AuthContextType => useContext(AuthContext) ?? FALLBACK_AUTH;
 export default useAuth;
