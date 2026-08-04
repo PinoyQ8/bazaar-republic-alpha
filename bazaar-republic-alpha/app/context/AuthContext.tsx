@@ -61,30 +61,49 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [pioneer, setPioneer] = useState<PioneerState>(FALLBACK_AUTH.pioneer);
 
   useEffect(() => {
-    try {
-      const cachedUser = localStorage.getItem("pi_auth_user");
-      if (cachedUser) {
-        const parsed = JSON.parse(cachedUser);
-        setPioneer({
-          username: parsed.username,
-          uid: parsed.uid,
-          publicKey: parsed.publicKey,
-          tier: parsed.tier || "CITIZEN",
-          status: parsed.status || "ACTIVE",
-          role: "PIONEER",
-          trustScore: parsed.trustScore || 100,
-          isAuthenticated: true,
-          isHydrated: true,
-          accessToken: "CACHED_SESSION_TOKEN"
-        });
-      } else {
-        setPioneer(prev => ({ ...prev, isHydrated: true }));
-      }
-    } catch (e) {
-      console.error("[MESH-AUTH] Failed to read cached pioneer session", e);
+  try {
+    const cachedUser = localStorage.getItem("pi_auth_user");
+    const neoActive = localStorage.getItem("mesh_pioneer_active");
+    const neoId = localStorage.getItem("mesh_pioneer_id");
+
+    if (cachedUser) {
+      const parsed = JSON.parse(cachedUser);
+      setPioneer({
+        username: parsed.username,
+        uid: parsed.uid,
+        publicKey: parsed.publicKey,
+        tier: parsed.tier || "CITIZEN",
+        status: parsed.status || "ACTIVE",
+        role: "PIONEER",
+        trustScore: parsed.trustScore || 100,
+        isAuthenticated: true,
+        isHydrated: true,
+        accessToken: "CACHED_SESSION_TOKEN"
+      });
+    } else if (neoActive === "true" && neoId) {
+      // 🛡️ MESH-BRIDGE OVERRIDE: Sync with Genesis Gate local RAM keys
+      const reconstructedState: PioneerState = {
+        username: neoId,
+        uid: neoId,
+        publicKey: undefined,
+        tier: "MESH_GUARDIAN",
+        status: "ACTIVE",
+        role: "PIONEER",
+        trustScore: 100,
+        isAuthenticated: true,
+        isHydrated: true,
+        accessToken: "NEO_SYNC_TOKEN"
+      };
+      localStorage.setItem("pi_auth_user", JSON.stringify(reconstructedState));
+      setPioneer(reconstructedState);
+    } else {
       setPioneer(prev => ({ ...prev, isHydrated: true }));
     }
-  }, []);
+  } catch (e) {
+    console.error("[MESH-AUTH] Failed to read cached pioneer session", e);
+    setPioneer(prev => ({ ...prev, isHydrated: true }));
+  }
+}, []);
 
   const login = (data: Partial<PioneerState>) => {
     setPioneer((prev) => {
@@ -95,14 +114,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const logout = (): void => {
-    localStorage.removeItem("pi_auth_user");
-    localStorage.removeItem("mesh_pioneer_active");
-    localStorage.removeItem("mesh_pioneer_uid");
-    localStorage.removeItem("mesh_pioneer_username");
-    localStorage.removeItem("mesh_pioneer_status");
-    localStorage.removeItem("mesh_pioneer_tier");
-    setPioneer({ ...FALLBACK_AUTH.pioneer, isHydrated: true });
-  };
+  localStorage.removeItem("pi_auth_user");
+  localStorage.removeItem("mesh_pioneer_active");
+  localStorage.removeItem("mesh_pioneer_id");
+  localStorage.removeItem("mesh_pioneer_ts");
+  localStorage.removeItem("mesh_pioneer_uid");
+  localStorage.removeItem("mesh_pioneer_status");
+  localStorage.removeItem("mesh_pioneer_tier");
+  setPioneer({ ...FALLBACK_AUTH.pioneer, isHydrated: true });
+};
 
   // 🛡️ SECTOR 1 ENGINE: Neo-Sync Execution
   const executeStakePayment = async (amount: number): Promise<void> => {
