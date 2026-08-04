@@ -18,95 +18,92 @@ export default function MasterDashboard() {
   const [pioneerId, setPioneerId] = useState<string | null>(null);
   
   const [meshData, setMeshData] = useState({
-    status: 'SYNCING...',
-    protocol: 'p--.-',
-    ledger: '-------'
-  });
+  status: "SYNCING...",
+  protocol: "p--.-",
+  ledger: "-------"
+});
 
-  useEffect(() => {
-    // Check for existing identity
-    const activeStatus = localStorage.getItem('mesh_pioneer_active');
-    const storedId = localStorage.getItem('mesh_pioneer_id');
-    
-    if (activeStatus === 'true' && storedId) {
-      setPioneerId(storedId);
-      setIsFirstTime(false);
-    }
-    
-    const syncMesh = async () => {
-      try {
-        const res = await fetch('/api/mesh-scan');
-        const data = await res.json();
-        if (data.status === 'MESH_ACTIVE') {
-          setMeshData({
-            status: 'SYNCED',
-            protocol: `p${data.telemetry.protocol_version}`,
-            ledger: data.telemetry.latest_ledger.toLocaleString()
-          });
-        } else {
-          setMeshData(prev => ({ ...prev, status: 'FAULT' }));
-        }
-      } catch (err) {
-        setMeshData(prev => ({ ...prev, status: 'OFFLINE' }));
-      } finally {
-        setIsInitializing(false);
+useEffect(() => {
+  const activeStatus = localStorage.getItem("mesh_pioneer_active");
+  const storedId = localStorage.getItem("mesh_pioneer_id");
+  
+  if (activeStatus === "true" && storedId) {
+    setPioneerId(storedId);
+    setIsFirstTime(false);
+  }
+  
+  const syncMesh = async () => {
+    try {
+      const res = await fetch("/api/mesh-scan");
+      const data = await res.json();
+      if (data.status === "MESH_ACTIVE") {
+        setMeshData({
+          status: "SYNCED",
+          protocol: `p${data.telemetry.protocol_version}`,
+          ledger: data.telemetry.latest_ledger.toLocaleString()
+        });
+      } else {
+        setMeshData(prev => ({ ...prev, status: "FAULT" }));
       }
-    };
+    } catch (err) {
+      setMeshData(prev => ({ ...prev, status: "OFFLINE" }));
+    } finally {
+      setIsInitializing(false);
+    }
+  };
 
-    syncMesh();
-  }, []);
+  syncMesh();
+}, []);
 
   // 2. THE CRYPTOGRAPHIC HANDSHAKE
   const completeOnboarding = async () => {
     setIsAuthenticating(true);
 
     try {
-      // A. DESKTOP / NITRO 5 BYPASS
-      // If we are not inside an iframe (Pi Sandbox), bypass the real SDK to prevent postMessage crashes during local dev.
+      // A. DESKTOP / WORKSTATION BYPASS
       const isOutsideSandbox = window.self === window.top;
       
-      if (process.env.NODE_ENV === 'development' && isOutsideSandbox) {
-        console.warn('[MESH-FAULT] Operating outside Pi Sandbox. Using Dev Node bypass.');
-        // Simulate a 1-second network delay for UI testing, then login
-        setTimeout(() => finalizeLogin('BazaarDevNode'), 1000);
+      if (process.env.NODE_ENV === "development" && isOutsideSandbox) {
+        console.warn("[MESH-FAULT] Operating outside Pi Sandbox. Using Dev Node bypass.");
+        setTimeout(() => finalizeLogin("BazaarDevNode"), 1000);
         return;
       }
 
       // B. STRICT SDK CHECK
-      if (typeof window === 'undefined' || !window.Pi) {
-        throw new Error('Pi SDK Missing. Ensure the SDK script is loaded in layout.tsx.');
+      if (typeof window === "undefined" || !window.Pi) {
+        throw new Error("Pi SDK Missing. Ensure the SDK script is loaded in layout.tsx.");
       }
 
-      // C. INITIALIZE PROTOCOL (This fixes your error)
-      console.log('[MESH-SYNC] Initializing Pi SDK Sandbox...');
+      // C. INITIALIZE PROTOCOL
+      console.log("[MESH-SYNC] Initializing Pi SDK Sandbox...");
       window.Pi.init({ 
         version: "2.0", 
-        sandbox: process.env.NODE_ENV !== 'production' 
+        sandbox: process.env.NODE_ENV !== "production" 
       });
 
       // D. EXECUTE CRYPTOGRAPHIC AUTH
       const onIncompletePaymentFound = (payment: any) => {
-        console.log('[MESH-SYNC] Incomplete payment detected:', payment);
+        console.log("[MESH-SYNC] Incomplete payment detected:", payment);
       };
 
       const authResult = await window.Pi.authenticate(
-        ['username', 'payments'],
+        ["username", "payments"],
         onIncompletePaymentFound
       );
 
-      console.log('[MESH-SYNC] Handshake accepted by:', authResult.user.username);
+      console.log("[MESH-SYNC] Handshake accepted by:", authResult.user.username);
       finalizeLogin(authResult.user.username);
 
     } catch (error) {
-      console.error('[MESH-FAULT] Authentication rejected or failed:', error);
+      console.error("[MESH-FAULT] Authentication rejected or failed:", error);
       setIsAuthenticating(false);
     }
   };
 
   const finalizeLogin = (username: string) => {
-    localStorage.setItem('mesh_pioneer_active', 'true');
-    localStorage.setItem('mesh_pioneer_id', username);
-    localStorage.setItem('mesh_pioneer_ts', Date.now().toString());
+    localStorage.setItem("mesh_pioneer_active", "true");
+    localStorage.setItem("mesh_pioneer_id", username);
+    localStorage.setItem("mesh_pioneer_ts", Date.now().toString());
     setPioneerId(username);
     setIsFirstTime(false);
     setIsAuthenticating(false);
@@ -114,14 +111,14 @@ export default function MasterDashboard() {
 
   // FLUSH RAM: Purge Identity & Reset Node
   const disconnectNode = () => {
-    console.log('[MESH-SYNC] Initiating Node Disconnect (Flush RAM)...');
-    localStorage.removeItem('mesh_pioneer_active');
-    localStorage.removeItem('mesh_pioneer_id');
-    localStorage.removeItem('mesh_pioneer_ts');
+    console.log("[MESH-SYNC] Initiating Node Disconnect (Flush RAM)...");
+    localStorage.removeItem("mesh_pioneer_active");
+    localStorage.removeItem("mesh_pioneer_id");
+    localStorage.removeItem("mesh_pioneer_ts");
     
     setPioneerId(null);
-    setOnboardingStep(1); // Reset Genesis Gate to Step 1
-    setIsFirstTime(true); // Route back to Track 1
+    setOnboardingStep(1); 
+    setIsFirstTime(true); 
   };
 
   // TRACK 0: INITIALIZATION SHIELD
@@ -228,30 +225,30 @@ export default function MasterDashboard() {
         </div>
       </header>
 
-      {/* Primary Pi Network Telemetry Card */}
-      <div className="p-4 bg-slate-900 border border-emerald-500/30 rounded-xl space-y-3 relative overflow-hidden">
+        {/* Primary Pi Network Telemetry Card */}
+      
         {/* Subtle background glow */}
-        <div className="absolute -top-4 -right-4 w-16 h-16 bg-emerald-500/10 blur-2xl rounded-full"></div>
         
-        <div className="flex justify-between items-center text-xs">
-          <span className="text-slate-400 flex items-center gap-1.5"><Activity className="w-3.5 h-3.5"/> NETWORK PROTOCOL</span>
-          <span className="text-emerald-400 font-bold">{meshData.protocol}</span>
-        </div>
-        <div className="flex justify-between items-center text-xs">
-          <span className="text-slate-400 flex items-center gap-1.5"><Database className="w-3.5 h-3.5"/> LATEST LEDGER</span>
-          <span className="text-slate-200 font-bold">{meshData.ledger}</span>
-        </div>
-        <div className="pt-2 border-t border-slate-800 flex justify-between items-center text-xs">
-          <span className="text-slate-400">VAULT SYNC</span>
-          <span className="text-cyan-400 font-bold">3,140.90 π</span>
-        </div>
-        <div className="flex justify-between items-center text-xs">
-          <span className="text-slate-400">PIONEER IDENTITY</span>
-          <span className="text-cyan-400 font-bold tracking-widest">
+        
+        
+           {"NETWORK PROTOCOL"}
+          {meshData.protocol}
+        
+        
+        
+           {"LATEST LEDGER"}
+          {meshData.ledger}
+        
+        
+        
+          {"VAULT SYNC"}
+          {"3,140.90 π"}
+        
+        
+        
+          {"PIONEER IDENTITY"}
+          
             @{pioneerId ? pioneerId.toUpperCase() : 'UNKNOWN_NODE'}
-          </span>
-        </div>
-      </div> {/* <-- THIS CLOSING TAG WAS MISSING */}
 
       {/* Quick Sector Shortcuts */}
       <div className="grid grid-cols-2 gap-2 text-xs">
