@@ -4,6 +4,7 @@
 import { useEffect, useState } from "react";
 import PioneerAuthGate from "@/app/components/PioneerAuthGate";
 import EpochYieldTracker from '@/app/components/EpochYieldTracker';
+import PioneerVaultCard from "@/app/dashboard/components/PioneerVaultCard";
 
 // Define the TS Matrix interface
 interface TelemetryData {
@@ -165,7 +166,14 @@ export default function DashboardPage() {
           </div>
         </section>
 
-        {/* 🛡️ STEP 4.5: EPOCH YIELD TELEMETRY (30-Day Pi Distribution Engine) */}
+        {/* 🛡️ STEP 4.5: PIONEER WALLET SECURITY & VAULT SHIELD */}
+        {session?.uid && (
+          <section className="mt-4">
+            <PioneerVaultCard pioneerId={session.uid} />
+          </section>
+        )}
+
+        {/* 🛡️ STEP 4.6: EPOCH YIELD TELEMETRY (30-Day Pi Distribution Engine) */}
         <EpochYieldTracker 
           stakeWeight={0.015} 
           epochDaysRemaining={14} 

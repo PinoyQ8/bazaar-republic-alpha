@@ -247,3 +247,15 @@ model EpochBuffer {
   createdAt         DateTime @default(now())
   executedAt        DateTime? 
 }
+
+model PioneerVault {
+  id               String   @id @default(cuid()) @map("_id")
+  pioneerId        String   @unique
+  walletAddress    String   @unique
+  vaultState       String   @default("Active")
+  lockTimestamp    BigInt?
+  masterNodes      String[]
+  unlockSigs       String[]
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
