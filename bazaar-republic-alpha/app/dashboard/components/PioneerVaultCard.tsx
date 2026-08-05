@@ -2,12 +2,14 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import GuardianModal from "./GuardianModal";
 
 export default function PioneerVaultCard({ pioneerId }: { pioneerId: string }) {
   const [vaultState, setVaultState] = useState("Loading...");
   const [lockTimestamp, setLockTimestamp] = useState<number | null>(null);
   const [feedback, setFeedback] = useState("Syncing with MESH...");
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isGuardianModalOpen, setIsGuardianModalOpen] = useState(false);
 
   // Fetch initial vault status
   useEffect(() => {
@@ -100,9 +102,28 @@ export default function PioneerVaultCard({ pioneerId }: { pioneerId: string }) {
         </button>
       </div>
 
+      {/* Guardian Multi-Sig Consensus Trigger */}
+      <button
+        onClick={() => setIsGuardianModalOpen(true)}
+        className="w-full py-2 bg-amber-950/40 border border-amber-600/60 text-amber-300 text-[10px] font-bold rounded hover:bg-amber-900/60 transition-colors uppercase tracking-wider"
+      >
+        Open 3/5 Guardian Circle
+      </button>
+
       <div className="p-2 bg-black/60 border border-neutral-800 rounded text-[10px] text-neutral-400 truncate">
         <span className="text-amber-500 font-bold">STATUS:</span> {feedback}
       </div>
+
+      {/* Guardian Multi-Sig Modal */}
+      <GuardianModal
+        pioneerId={pioneerId}
+        isOpen={isGuardianModalOpen}
+        onClose={() => setIsGuardianModalOpen(false)}
+        onSuccess={() => {
+          setVaultState("Active");
+          setFeedback("Consensus verified. Vault restored.");
+        }}
+      />
     </div>
   );
 }

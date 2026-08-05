@@ -1,7 +1,8 @@
+// Location: /app/dashboard/page.tsx (or master dashboard component path)
 'use client';
 
 import { useState, useEffect } from 'react';
-import { ShieldCheck, Zap, ArrowRight, Wallet, Activity, Database, Loader2, LogOut } from 'lucide-react';;
+import { ShieldCheck, Zap, ArrowRight, Wallet, Activity, Database, Loader2, LogOut } from 'lucide-react';
 
 // 1. MESH IDENTITY OVERRIDE: Tell TypeScript about the Pi SDK
 declare global {
@@ -18,42 +19,42 @@ export default function MasterDashboard() {
   const [pioneerId, setPioneerId] = useState<string | null>(null);
   
   const [meshData, setMeshData] = useState({
-  status: "SYNCING...",
-  protocol: "p--.-",
-  ledger: "-------"
-});
+    status: "SYNCING...",
+    protocol: "p--.-",
+    ledger: "-------"
+  });
 
-useEffect(() => {
-  const activeStatus = localStorage.getItem("mesh_pioneer_active");
-  const storedId = localStorage.getItem("mesh_pioneer_id");
-  
-  if (activeStatus === "true" && storedId) {
-    setPioneerId(storedId);
-    setIsFirstTime(false);
-  }
-  
-  const syncMesh = async () => {
-    try {
-      const res = await fetch("/api/mesh-scan");
-      const data = await res.json();
-      if (data.status === "MESH_ACTIVE") {
-        setMeshData({
-          status: "SYNCED",
-          protocol: `p${data.telemetry.protocol_version}`,
-          ledger: data.telemetry.latest_ledger.toLocaleString()
-        });
-      } else {
-        setMeshData(prev => ({ ...prev, status: "FAULT" }));
-      }
-    } catch (err) {
-      setMeshData(prev => ({ ...prev, status: "OFFLINE" }));
-    } finally {
-      setIsInitializing(false);
+  useEffect(() => {
+    const activeStatus = localStorage.getItem("mesh_pioneer_active");
+    const storedId = localStorage.getItem("mesh_pioneer_id");
+    
+    if (activeStatus === "true" && storedId) {
+      setPioneerId(storedId);
+      setIsFirstTime(false);
     }
-  };
+    
+    const syncMesh = async () => {
+      try {
+        const res = await fetch("/api/mesh-scan");
+        const data = await res.json();
+        if (data.status === "MESH_ACTIVE") {
+          setMeshData({
+            status: "SYNCED",
+            protocol: `p${data.telemetry.protocol_version}`,
+            ledger: data.telemetry.latest_ledger.toLocaleString()
+          });
+        } else {
+          setMeshData(prev => ({ ...prev, status: "FAULT" }));
+        }
+      } catch (err) {
+        setMeshData(prev => ({ ...prev, status: "OFFLINE" }));
+      } finally {
+        setIsInitializing(false);
+      }
+    };
 
-  syncMesh();
-}, []);
+    syncMesh();
+  }, []);
 
   // 2. THE CRYPTOGRAPHIC HANDSHAKE
   const completeOnboarding = async () => {
@@ -203,6 +204,7 @@ useEffect(() => {
   // TRACK 2: RETURNING PIONEER UI (Master Dashboard)
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 p-4 font-mono w-full max-w-[384px] mx-auto pb-24 space-y-4">
+      
       {/* Live Telemetry Header */}
       <header className="border-b border-cyan-500/20 pb-3 flex flex-col gap-2">
         <div className="flex justify-between items-center">
@@ -225,43 +227,38 @@ useEffect(() => {
         </div>
       </header>
 
-        {/* Primary Pi Network Telemetry Card */}
-      
-        {/* Subtle background glow */}
-        
-        
-        
-           {"NETWORK PROTOCOL"}
-          {meshData.protocol}
-        
-        
-        
-           {"LATEST LEDGER"}
-          {meshData.ledger}
-        
-        
-        
-          {"VAULT SYNC"}
-          {"3,140.90 π"}
-        
-        
-        
-          {"PIONEER IDENTITY"}
-          
-            @{pioneerId ? pioneerId.toUpperCase() : 'UNKNOWN_NODE'}
-
-      {/* Quick Sector Shortcuts */}
+      {/* Structured Telemetry Grid */}
       <div className="grid grid-cols-2 gap-2 text-xs">
-        {/* ... existing shortcut buttons ... */}
+        
+        {/* Network Protocol Card */}
+        <div className="p-3 bg-slate-900 border border-slate-800 rounded-lg flex flex-col gap-1">
+          <span className="text-[10px] text-slate-400 uppercase">NETWORK PROTOCOL</span>
+          <span className="text-cyan-400 font-bold font-mono text-sm">{meshData.protocol}</span>
+        </div>
+
+        {/* Latest Ledger Card */}
+        <div className="p-3 bg-slate-900 border border-slate-800 rounded-lg flex flex-col gap-1">
+          <span className="text-[10px] text-slate-400 uppercase">LATEST LEDGER</span>
+          <span className="text-emerald-400 font-bold font-mono text-xs">{meshData.ledger}</span>
+        </div>
+
+        {/* Vault Sync Card */}
+        <div className="p-3 bg-slate-900 border border-slate-800 rounded-lg flex flex-col gap-1">
+          <span className="text-[10px] text-slate-400 uppercase">VAULT SYNC</span>
+          <span className="text-amber-400 font-bold font-mono text-xs">3,140.90 π</span>
+        </div>
+
+        {/* Pioneer Identity Card */}
+        <div className="p-3 bg-slate-900 border border-slate-800 rounded-lg flex flex-col gap-1">
+          <span className="text-[10px] text-slate-400 uppercase">PIONEER IDENTITY</span>
+          <span className="text-slate-100 font-bold font-mono text-xs truncate">
+            @{pioneerId ? pioneerId.toUpperCase() : 'UNKNOWN_NODE'}
+          </span>
+        </div>
+
       </div>
 
-      {/* Disconnect / Flush RAM Button */}
-      <button
-        onClick={disconnectNode}
-        className="w-full mt-4 py-3 border border-red-500/30 text-red-400 hover:bg-red-500/10 font-bold text-xs rounded-xl flex items-center justify-center gap-2 transition-all"
-      >
-        <LogOut className="w-4 h-4" /> DISCONNECT NODE
-      </button>
+      {/* Quick Sector Shortcuts */}
       <div className="grid grid-cols-2 gap-2 text-xs">
         <div className="p-3 bg-slate-900 border border-slate-800 hover:border-cyan-500/50 cursor-pointer transition-colors rounded-lg flex flex-col gap-1">
           <Zap className="w-4 h-4 text-cyan-400" />
@@ -274,6 +271,15 @@ useEffect(() => {
           <span className="text-[10px] text-slate-400">Bridge Ready</span>
         </div>
       </div>
+
+      {/* Disconnect / Flush RAM Button */}
+      <button
+        onClick={disconnectNode}
+        className="w-full mt-2 py-3 border border-red-500/30 text-red-400 hover:bg-red-500/10 font-bold text-xs rounded-xl flex items-center justify-center gap-2 transition-all"
+      >
+        <LogOut className="w-4 h-4" /> DISCONNECT NODE
+      </button>
+
     </div>
   );
 }

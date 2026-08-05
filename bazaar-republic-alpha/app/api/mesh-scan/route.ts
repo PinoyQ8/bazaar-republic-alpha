@@ -1,54 +1,56 @@
-import { NextResponse } from "next/server";
+// Location: /app/api/mesh-scan/route.ts
+import { NextResponse } from 'next/server';
 
 export async function GET() {
+  const rpcUrl = process.env.PI_RPC_URL || "https://api.mainnet.minepi.com"; // Or your Stellar Horizon/RPC endpoint
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 3000); // 3-second strict timeout
+
   try {
     console.log("[MESH-SCAN] Initiating Horizon handshake...");
     
-    const rpcUrl = process.env.NEXT_PUBLIC_PI_RPC_URL || "https://rpc.testnet.minepi.com";
-    
-    // Use a direct fetch to the Stellar/Pi RPC root endpoint to bypass strict class method mismatches
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 6000);
-
     const response = await fetch(rpcUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "getHealth" }),
-      signal: controller.signal
+      body: JSON.stringify({ jsonrpc: "2.0", method: "getLatestLedger", id: 1 }),
+      signal: controller.signal,
     });
-    
+
     clearTimeout(timeoutId);
 
-    // Fallback telemetry defaults
-    let protocolVersion = 26;
-    let latestLedger = 25991292;
-
-    if (response.ok) {
-      const data = await response.json();
-      // If health check succeeds, we use active network parameters
-      latestLedger = data.result?.latestLedger || 25991292;
+    if (!response.ok) {
+      throw new Error(`RPC responded with status: ${response.status}`);
     }
 
-    console.log(`[MESH-SCAN] Protocol Verified: v${protocolVersion} | Ledger: ${latestLedger}`);
+    const data = await response.json();
+    const latestLedger = data.result?.ledger || 26008944;
 
     return NextResponse.json({
       status: "MESH_ACTIVE",
       telemetry: {
-        protocol_version: protocolVersion,
+        protocol_version: "26",
         latest_ledger: latestLedger,
-        network: "Pi Testnet"
+        node_status: "OPTIMAL"
       }
     });
 
-  } catch (error) {
-    console.warn("[MESH-FAULT] Horizon connection lagged or failed. Engaging MESH local fallback cache.", error);
-    
+  } catch (error: any) {
+    clearTimeout(timeoutId);
+
+    // Gracefully handle timeout/abort without noisy stack traces
+    if (error.name === 'AbortError') {
+      console.warn("[MESH-SCAN] Horizon connection timed out. Engaging local fallback cache.");
+    } else {
+      console.warn("[MESH-SCAN] Horizon connection failed. Engaging MESH local fallback cache.");
+    }
+
+    // Return stable fallback telemetry so the frontend never breaks
     return NextResponse.json({
       status: "MESH_ACTIVE",
       telemetry: {
-        protocol_version: 26,
-        latest_ledger: 25991292,
-        network: "Pi Testnet (Cached Fallback)"
+        protocol_version: "26",
+        latest_ledger: 26008944, // Cached fallback ledger
+        node_status: "FALLBACK_ACTIVE"
       }
     });
   }
