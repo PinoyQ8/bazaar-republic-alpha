@@ -30,22 +30,25 @@ export default function PioneerAuthGate({ children, requiredTier, onLinkEstablis
       return;
     }
 
-    // 🛡️ The Buffer Shield: Wait 800ms for Pi Browser storage resolution
+   // 🛡️ The Buffer Shield: Wait 800ms for Pi Browser storage resolution
     const scanTimer = setTimeout(() => {
-      const session = localStorage.getItem("pioneer_session");
-      const status = localStorage.getItem("MESH_PROVIDER_STATUS");
+      // Pull all possible Neo-Sync and SDK storage keys
       const authData = localStorage.getItem("pi_auth_user");
+      const neoActive = localStorage.getItem("mesh_pioneer_active");
+      
       let pioneerId = "verified_pioneer";
+      let isPiAuthValid = false;
 
       if (authData) {
         try {
           const parsed = JSON.parse(authData);
           if (parsed.uid) pioneerId = parsed.uid;
+          if (parsed.isAuthenticated) isPiAuthValid = true; // 🛡️ Anchor check
         } catch (e) {}
       }
 
-      // Adjudication Logic
-      if (session === "ACTIVE" || status === "VERIFIED_ACTIVE") {
+      // 🛡️ ADJUDICATION: Now checks for the actual AuthContext output
+      if (isPiAuthValid || neoActive === "true") {
         setIsAuthorized(true);
         if (onLinkEstablished) onLinkEstablished(pioneerId);
       } else {
@@ -54,7 +57,7 @@ export default function PioneerAuthGate({ children, requiredTier, onLinkEstablis
       }
       
       setIsScanning(false); // Drop the loading shield
-    }, 800); 
+    }, 800);
 
     // Cleanup timer to prevent memory leaks if node disconnects early
     return () => clearTimeout(scanTimer);
