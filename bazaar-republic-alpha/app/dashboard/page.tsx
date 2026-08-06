@@ -192,7 +192,6 @@ export default function DashboardPage() {
             <span className="text-lg font-bold text-amber-400">{telemetry.votingPower} VP</span>
           </div>
           <div className="grid grid-cols-2 gap-2">
-            {/* 🛡️ ROUTER LINK INJECTED HERE */}
             <Link 
               href="/dashboard/proposals" 
               className="py-2 bg-amber-600 hover:bg-amber-500 text-neutral-900 text-xs font-bold rounded transition-colors uppercase tracking-wider text-center"
