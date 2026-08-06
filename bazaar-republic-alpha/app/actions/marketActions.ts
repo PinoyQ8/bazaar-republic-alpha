@@ -27,8 +27,8 @@ export async function executeMarketTransaction(
     }
 
     // 2. ⚖️ CALCULATE TRUSTSCORE (TS) ALGORITHMS
-    const buyerTS = buyer.trust_score || 0;
-    const merchantTS = merchant.trust_score || 0;
+     const buyerTS = buyer.trustScore || 0;     // 🛡️ Fixed to camelCase
+     const merchantTS = merchant.trustScore || 0; // 🛡️ Fixed to camelCase
 
     // Buyer Discount: e.g., TS 100 = 10% discount | TS 50 = 5% discount
     const activeDiscount = MAX_DISCOUNT * (buyerTS / 100);
@@ -44,7 +44,7 @@ export async function executeMarketTransaction(
 
     // 4. 🛑 ATOMIC BALANCE CHECK (Does the buyer have enough?)
     // This assumes your PioneerNode schema tracks mBZR balances in a field called 'mbzr_balance'
-    if ((buyer.mbzr_balance || 0) < buyerPays) {
+    if ((buyer.mbzrBalance || 0) < buyerPays) {
       return { success: false, message: "INSUFFICIENT_FUNDS: Buyer lacks required mBZR." };
     }
 

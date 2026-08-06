@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { unlockPremiumTier, commitModuleSignature } from "../actions/academyActions";
+import { unlockPremiumTier, commitModuleSignature } from "@/app/actions/academyActions";
 
 export default function AcademyHUD({ pioneerId, currentTier, initialFuel }: { pioneerId: string, currentTier: string, initialFuel: number }) {
   const [tier, setTier] = useState(currentTier);

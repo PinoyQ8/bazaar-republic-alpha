@@ -1,8 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { commitModuleSignature } from "@/app/actions/academyActions";
-
+import { unlockPremiumTier, commitModuleSignature } from "@/app/actions/academyActions";
 interface AcademyModule {
   id: string;
   title: string;
