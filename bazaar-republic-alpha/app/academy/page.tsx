@@ -1,8 +1,9 @@
+// Location: /app/academy/page.tsx
 'use client';
 
 import Link from 'next/link';
 import React, { useState } from 'react';
-import { useAuth } from '@/app/context/AuthContext';
+import { useAuth } from '@/context/AuthContext';
 import { Loader2, AlertTriangle, ShieldCheck, Lock, Unlock } from 'lucide-react';
 
 export default function AcademyDashboard() {
@@ -11,11 +12,11 @@ export default function AcademyDashboard() {
   const [error, setError] = useState<string | null>(null);
 
   // 🛡️ GATE LOGIC: Are they fully active on Schema v2.3?
-  const isActive = pioneer.status === 'ACTIVE' || pioneer.status === 'FROZEN' || pioneer.status === 'SUSPENDED';
+  const isActive = pioneer?.status === 'ACTIVE' || pioneer?.status === 'FROZEN' || pioneer?.status === 'SUSPENDED';
 
-  // 🛡️ GENESIS UPGRADE PIPELINE
+  // 🛡️ GENESIS UPGRADE PIPELINE (Database only, NO Wallet Bind)
   const handleGenesisUpgrade = async () => {
-    if (!pioneer.uid) {
+    if (!pioneer?.uid) {
       setError('MESH_ERROR: Node Identity Missing. Reboot session.');
       return;
     }
@@ -38,7 +39,11 @@ export default function AcademyDashboard() {
       login({ status: data.status, tier: data.tier });
       
       const cachedUser = JSON.parse(localStorage.getItem('pi_auth_user') || '{}');
-      localStorage.setItem('pi_auth_user', JSON.stringify({ ...cachedUser, status: data.status, tier: data.tier }));
+      localStorage.setItem('pi_auth_user', JSON.stringify({ 
+        ...cachedUser, 
+        status: data.status, 
+        tier: data.tier 
+      }));
       localStorage.setItem('mesh_pioneer_status', data.status);
       localStorage.setItem('mesh_pioneer_tier', data.tier);
 
@@ -51,7 +56,7 @@ export default function AcademyDashboard() {
   };
 
   // 🛡️ PRE-FLIGHT RENDER BLOCK
-  if (!pioneer.isHydrated) {
+  if (!pioneer?.isHydrated) {
     return (
       <main className="max-w-[384px] mx-auto p-4 min-h-screen bg-zinc-950 flex items-center justify-center font-mono">
         <p className="text-emerald-500 text-xs animate-pulse tracking-widest uppercase">Verifying Master TS...</p>
@@ -63,7 +68,7 @@ export default function AcademyDashboard() {
     <main className="max-w-[384px] mx-auto p-4 pb-24 min-h-screen bg-zinc-950 text-zinc-100 font-mono selection:bg-emerald-500/30">
       
       {/* 🛡️ ACADEMY HEADER */}
-      <div className="mb-6 border-b border-zinc-800 pb-4">
+      <div className="mb-6 border-b border-zinc-800 pb-4 mt-2">
         <div className="flex justify-between items-end">
           <div>
             <h1 className="text-emerald-400 font-bold tracking-widest uppercase text-sm">MESH ACADEMY</h1>
@@ -87,14 +92,14 @@ export default function AcademyDashboard() {
       <div className="mt-6 space-y-4">
         
         {/* 🛡️ MODULE 01: GENESIS GATE (Mandatory) */}
-        <div className={`p-4 border rounded-lg transition-all ${isActive ? 'bg-zinc-900/30 border-emerald-900/30' : 'bg-[#05140e] border-emerald-500/50 shadow-[0_0_15px_rgba(0,210,138,0.1)]'}`}>
+        <div className={`p-4 border rounded-lg transition-all ${isActive ? 'bg-zinc-900/30 border-emerald-900/30' : 'bg-emerald-950/20 border-emerald-500/50 shadow-[0_0_15px_rgba(0,210,138,0.1)]'}`}>
           <div className="flex justify-between items-start mb-2">
             <h4 className="text-emerald-400 font-bold text-sm tracking-wider uppercase">01. Genesis Protocol</h4>
             {isActive ? <ShieldCheck className="w-4 h-4 text-emerald-500" /> : <AlertTriangle className="w-4 h-4 text-amber-500" />}
           </div>
           
           <p className="text-[10px] text-emerald-500/70 mb-4 leading-relaxed">
-            {isActive ? "Identity anchored to the MESH Ledger." : "Acknowledge the Republic Mandate to activate your node."}
+            {isActive ? "Identity anchored to the MESH Ledger." : "Acknowledge the Republic Mandate to activate your node. No wallet passphrase required."}
           </p>
 
           {error && <p className="text-[10px] text-red-400 mb-2">{error}</p>}
