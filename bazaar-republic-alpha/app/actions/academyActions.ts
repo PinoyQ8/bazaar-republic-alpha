@@ -1,8 +1,10 @@
+// Location: app/actions/academyActions.ts
 "use server";
 
 import mongoose from "mongoose";
 import { PioneerNode } from "@/models/PioneerNode";
 import { AcademyLedger } from "@/models/AcademyLedger";
+import { revalidatePath } from "next/cache"; // 🛡️ ADJUDICATOR CACHE SYNC
 
 /**
  * 🛡️ MONGODB CONNECTION GATEWAY
@@ -174,6 +176,11 @@ export async function commitModuleSignature(
       `[MESH-BRIDGE] ✅ Module ${moduleId} locked. +${MODULE_YIELD} Fuel | TS: ${newTS}/100 -> ${pioneerId}. Hash: ${generatedHash}`
     );
 
+    // 8. 🔄 PURGE CACHE (Forces UI synchronization)
+    revalidatePath("/academy");
+    revalidatePath("/academy/module-01");
+    revalidatePath("/dashboard");
+
     return {
       success: true,
       message: "LOGIC GATE CLEARED: YIELD SECURED & SIGNATURE LOGGED.",
@@ -230,6 +237,9 @@ export async function unlockPremiumTier(pioneerId: string) {
     console.log(
       `[MESH-BRIDGE] ✅ Node ${pioneerId} upgraded to Pioneer+. -${TIER_COST} Fuel deducted.`
     );
+
+    revalidatePath("/academy");
+
     return {
       success: true,
       message: "UPGRADE_SUCCESS: Pioneer+ Curriculum Unlocked",
