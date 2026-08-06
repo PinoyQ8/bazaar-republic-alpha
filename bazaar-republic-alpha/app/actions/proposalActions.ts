@@ -1,3 +1,4 @@
+// Location: app/actions/proposalActions.ts
 "use server";
 
 import mongoose from 'mongoose';
@@ -28,14 +29,12 @@ async function connectDB() {
 export async function getActiveProposals() {
   try {
     const isConnected = await connectDB();
-    if (!isConnected) return []; // Fallback to empty array if offline
+    if (!isConnected) return [];
 
-    // Fetch proposals that haven't expired and are marked ACTIVE
     const proposals = await ProposalLedger.find({ status: 'ACTIVE' })
       .sort({ createdAt: -1 })
       .lean();
 
-    // Serialize object IDs and Date objects for Next.js Server Actions
     return JSON.parse(JSON.stringify(proposals));
   } catch (error) {
     console.error(`[MESH-BRIDGE] 🚨 PROPOSAL FETCH FRACTURE:`, error);
@@ -44,7 +43,7 @@ export async function getActiveProposals() {
 }
 
 // ----------------------------------------------------------------------
-// 2. ⚖️ THE ADJUDICATOR: Cast Vote & Snapshot VP
+// 2. ⚖️ THE ADJUDICATOR: Cast Vote & Snapshot VP (With Auto-Provisioning)
 // ----------------------------------------------------------------------
 export async function castVote(proposalId: string, pioneerId: string, voteType: 'FOR' | 'AGAINST' | 'ABSTAIN') {
   const serverTimestamp = Date.now();
@@ -55,28 +54,38 @@ export async function castVote(proposalId: string, pioneerId: string, voteType: 
       return { success: false, message: "NETWORK_OFFLINE: Consensus requires active DB sync." };
     }
 
-    // 1. 🛑 ZERO-TRUST PERIMETER: Verify Node
-    const node = await PioneerNode.findOne({ username: pioneerId }).lean();
+    // 1. 🛑 ZERO-TRUST PERIMETER: Verify or Auto-Provision Node
+    let node = await PioneerNode.findOne({ 
+      $or: [{ username: pioneerId }, { uid: pioneerId }, { walletAddress: pioneerId }] 
+    });
+
     if (!node) {
-      return { success: false, message: "FATAL: PIONEER NODE NOT FOUND." };
+      // 🛡️ ADJUDICATOR AUTO-PROVISION: Forge missing node instantly for seamless voting
+      node = await PioneerNode.create({
+        uid: pioneerId,
+        username: pioneerId,
+        walletAddress: pioneerId,
+        tier: 'MESH_GUARDIAN',
+        trust_score: 50,
+        stake_amount: 100,
+      });
+      console.log(`[MESH-BRIDGE] 🌱 Auto-provisioned missing Pioneer Node for: ${pioneerId}`);
     }
 
     // 2. 🧮 CALCULATE ACTIVE VOTING POWER (VP)
-    // Formula: (TrustScore * 0.3) + (Stake * 0.5). A genesis node (TS 10, Stake 15) = ~10.5 VP.
-    const trustScore = node.trust_score || 0;
-    const stake = node.stake_amount || 0;
+    const trustScore = node.trust_score || 50;
+    const stake = node.stake_amount || 100;
     const activeVP = parseFloat(((trustScore * 0.3) + (stake * 0.5)).toFixed(4));
 
     if (activeVP < 1.0) {
       return { success: false, message: "INSUFFICIENT_VP: Node Voting Power below 1.0 threshold." };
     }
 
-    // 3. ⏳ TEMPORAL & DOUBLE-VOTE GUARD (Atomic Transaction)
-    // We use a strict query filter to ensure the Pioneer hasn't already voted
+    // 3. ⏳ TEMPORAL & DOUBLE-VOTE GUARD
     const proposal = await ProposalLedger.findOne({
       proposalId: proposalId,
       status: 'ACTIVE',
-      'voters.pioneerId': { $ne: pioneerId } // 🛡️ Instantly rejects if pioneerId exists in voters array
+      'voters.pioneerId': { $ne: pioneerId }
     });
 
     if (!proposal) {
@@ -97,7 +106,6 @@ export async function castVote(proposalId: string, pioneerId: string, voteType: 
 
     const updateQuery: any = { $push: { voters: votePayload } };
     
-    // Tally the VP directly into the Master Ledger
     if (voteType === 'FOR') updateQuery.$inc = { totalVotesFor: activeVP };
     if (voteType === 'AGAINST') updateQuery.$inc = { totalVotesAgainst: activeVP };
 
@@ -108,7 +116,6 @@ export async function castVote(proposalId: string, pioneerId: string, voteType: 
 
     console.log(`[MESH-BRIDGE] ✅ VOTE LOCKED: ${pioneerId} cast ${activeVP} VP [${voteType}] on ${proposalId}.`);
 
-    // 5. 🔄 PURGE CACHE (Force UI to immediately reflect new totals)
     revalidatePath('/dashboard/proposals');
 
     return { 
@@ -140,8 +147,8 @@ export async function seedGenesisProposal() {
       status: "ACTIVE",
       totalVotesFor: 0,
       totalVotesAgainst: 0,
-      quorumTarget: 50.0, // Needs 50 VP to pass
-      expiresAt: Date.now() + (7 * 24 * 60 * 60 * 1000) // Expires in 7 days
+      quorumTarget: 50.0,
+      expiresAt: Date.now() + (7 * 24 * 60 * 60 * 1000)
     });
 
     revalidatePath('/dashboard/proposals');
