@@ -2,6 +2,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link"; // 🛡️ INJECTED ROUTER
 import { useAuth } from "@/context/AuthContext";
 import PioneerAuthGate from "@/app/components/PioneerAuthGate";
 import EpochYieldTracker from '@/app/components/EpochYieldTracker';
@@ -52,8 +53,8 @@ export default function DashboardPage() {
         setTelemetry({
           ts: vaultData.vault?.trust_score || 50,
           tier: vaultData.vault?.node_tier || vaultData.node_tier || "Genesis",
-          vBase: 20, // Live formula mapping pending smart contract hook
-          uShield: 35, // Live formula mapping pending smart contract hook
+          vBase: 20, 
+          uShield: 35, 
           cFlow: vaultData.vault?.activeFuel || vaultData.activeFuel || 15,
           pSlash: 0,
           votingPower: (vaultData.vault?.trust_score || 50) * 1.5,
@@ -117,8 +118,6 @@ export default function DashboardPage() {
 
         {/* 🛡️ TS CORE ANCHOR & MATRIX */}
         <section className="p-3 border border-amber-900/80 bg-neutral-900/60 rounded-lg space-y-4 shadow-[0_0_15px_rgba(217,119,6,0.15)]">
-          
-          {/* Hero Row */}
           <div className="flex justify-between items-center border-b border-neutral-800 pb-3">
             <div>
               <p className="text-[10px] text-neutral-500 uppercase tracking-widest">TrustScore</p>
@@ -132,9 +131,7 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Telemetry Bars */}
           <div className="space-y-3">
-            {/* V_base */}
             <div>
               <div className="flex justify-between text-[10px] mb-1 text-neutral-300">
                 <span>Identity (V_base)</span>
@@ -144,8 +141,6 @@ export default function DashboardPage() {
                 <div className="h-full bg-blue-500" style={{ width: `${(telemetry.vBase / 20) * 100}%` }}></div>
               </div>
             </div>
-
-            {/* U_shield */}
             <div>
               <div className="flex justify-between text-[10px] mb-1 text-neutral-300">
                 <span>Uptime (U_shield)</span>
@@ -155,8 +150,6 @@ export default function DashboardPage() {
                 <div className="h-full bg-emerald-500" style={{ width: `${(telemetry.uShield / 40) * 100}%` }}></div>
               </div>
             </div>
-
-            {/* C_flow */}
             <div>
               <div className="flex justify-between text-[10px] mb-1 text-neutral-300">
                 <span>Velocity (C_flow)</span>
@@ -166,8 +159,6 @@ export default function DashboardPage() {
                 <div className="h-full bg-cyan-500" style={{ width: `${Math.min((telemetry.cFlow / 100) * 100, 100)}%` }}></div>
               </div>
             </div>
-
-            {/* P_slash */}
             <div>
               <div className="flex justify-between text-[10px] mb-1">
                 <span className="text-red-400">Penalties (P_slash)</span>
@@ -201,10 +192,17 @@ export default function DashboardPage() {
             <span className="text-lg font-bold text-amber-400">{telemetry.votingPower} VP</span>
           </div>
           <div className="grid grid-cols-2 gap-2">
-            <button className="py-2 bg-amber-600 hover:bg-amber-500 text-neutral-900 text-xs font-bold rounded transition-colors uppercase tracking-wider">
+            {/* 🛡️ ROUTER LINK INJECTED HERE */}
+            <Link 
+              href="/dashboard/proposals" 
+              className="py-2 bg-amber-600 hover:bg-amber-500 text-neutral-900 text-xs font-bold rounded transition-colors uppercase tracking-wider text-center"
+            >
               Vote Pool
-            </button>
-            <button className="py-2 bg-neutral-800 text-neutral-500 text-xs font-bold rounded cursor-not-allowed uppercase tracking-wider">
+            </Link>
+            <button 
+              disabled 
+              className="py-2 bg-neutral-800 text-neutral-500 text-xs font-bold rounded cursor-not-allowed uppercase tracking-wider"
+            >
               Cooldown
             </button>
           </div>
