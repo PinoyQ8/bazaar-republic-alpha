@@ -1,3 +1,4 @@
+// Location: app/alpha-track/page.tsx
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -41,7 +42,7 @@ export default function AlphaTrackModule() {
   const [redeemInput, setRedeemInput] = useState<string>('');
   const [activePenalty, setActivePenalty] = useState<number>(0.40);
 
-  // Computed Values (Gold Mass completely purged)
+  // Computed Values
   const currentVaultCollateralPi = totalMinted / PI_TO_MBZR_RATIO;
   const isGuardian = pioneer.tier === 'MESH_GUARDIAN' || pioneer.tier === 'BAZAAR_FOUNDER';
 
@@ -56,7 +57,6 @@ export default function AlphaTrackModule() {
   // 🛡️ SECTOR 1 ACTIONS
   // ==========================================================================
 
-  // ACTION 1: Anchor Node (Soroban Stake)
   const handleGenesisStake = async () => {
     if (!pioneer.uid) {
       setStakeError('MESH_ERROR: Node Identity Missing.');
@@ -81,7 +81,6 @@ export default function AlphaTrackModule() {
     }
   };
 
-  // ACTION 2: Mint mBZR (API Bridge)
   const executeMint = async (e: React.FormEvent) => {
     e.preventDefault();
     const piAmount = parseFloat(mintInput);
@@ -103,13 +102,14 @@ export default function AlphaTrackModule() {
         setTotalMinted((prev) => prev + result.telemetry.newlyMintedMbzr);
         setCirculatingPool((prev) => prev + result.telemetry.newlyMintedMbzr);
         setMintInput('');
+      } else {
+        alert(`[MESH-REJECT] ${result.error || 'Transaction rejected by network firewall.'}`);
       }
     } catch (error) {
       console.error('API BRIDGE FAULT', error);
     }
   };
 
-  // ACTION 3: Redeem mBZR (API Bridge)
   const executeRedeem = async (e: React.FormEvent) => {
     e.preventDefault();
     const mBzrAmount = parseFloat(redeemInput);
@@ -161,7 +161,7 @@ export default function AlphaTrackModule() {
   return (
     <main className="max-w-[384px] mx-auto p-4 pb-24 min-h-screen bg-zinc-950 text-zinc-100 font-mono selection:bg-emerald-500/30 space-y-6">
       
-      {/* 🛡️ MODULE HEADER */}
+      {/* MODULE HEADER */}
       <div className="flex items-center justify-between border-b border-zinc-800 pb-3 gap-2 mt-2">
         <div>
           <h2 className="text-emerald-400 font-bold tracking-widest uppercase text-sm">ALPHA TRACK</h2>
@@ -174,11 +174,8 @@ export default function AlphaTrackModule() {
         </Link>
       </div>
 
-      {/* 🛡️ DYNAMIC MATRIX */}
+      {/* DYNAMIC MATRIX */}
       {!isGuardian ? (
-        // ----------------------------------------------------------------------
-        // PHASE 1: GENESIS STAKING (Not Yet a Guardian)
-        // ----------------------------------------------------------------------
         <div className="space-y-4">
           <div className="p-4 bg-[#05140e] border border-emerald-500/30 rounded-lg shadow-[0_0_15px_rgba(0,210,138,0.05)]">
             <h3 className="text-emerald-300 font-bold text-xs tracking-wider uppercase flex items-center gap-2 mb-4 border-b border-zinc-800/50 pb-2">
@@ -217,9 +214,6 @@ export default function AlphaTrackModule() {
           )}
         </div>
       ) : (
-        // ----------------------------------------------------------------------
-        // PHASE 2: ECONOMIC ENGINE (Unlocked for Guardians)
-        // ----------------------------------------------------------------------
         <div className="space-y-6 animate-in fade-in zoom-in-95 duration-500">
           
           <div className="p-3 bg-cyan-950/20 border border-cyan-900/50 rounded-lg flex items-center gap-3">
@@ -253,36 +247,73 @@ export default function AlphaTrackModule() {
             </div>
           </div>
 
-          {/* MINT PROTOCOL */}
-          <div className="bg-[#05140e] border border-emerald-900/50 p-4 rounded-lg">
-            <h4 className="text-[10px] text-emerald-500 uppercase tracking-widest mb-3">Genesis Mint</h4>
+          {/* MINT PROTOCOL & SIMULATION PRESETS */}
+          <div className="bg-[#05140e] border border-emerald-900/50 p-4 rounded-lg space-y-3">
+            <h4 className="text-[10px] text-emerald-500 uppercase tracking-widest">Genesis Mint & Security Test</h4>
+            
+            {/* SIMULATION PRESETS */}
+            <div className="p-2 bg-zinc-950/60 border border-emerald-900/30 rounded space-y-1.5">
+              <div className="flex justify-between items-center text-[9px] text-zinc-400">
+                <span className="uppercase font-bold">Shield Simulation Presets:</span>
+                <span className="text-emerald-400">TEST GATE</span>
+              </div>
+              <div className="grid grid-cols-3 gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setMintInput("100")}
+                  className="py-1 px-1 bg-emerald-950/40 hover:bg-emerald-900/50 border border-emerald-800/50 rounded text-[9px] text-emerald-300 font-mono transition-colors text-center"
+                >
+                  100 Pi <span className="block text-[7px] text-emerald-500/70">Normal</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMintInput("1000")}
+                  className="py-1 px-1 bg-amber-950/40 hover:bg-amber-900/50 border border-amber-800/50 rounded text-[9px] text-amber-300 font-mono transition-colors text-center"
+                >
+                  1000 Pi <span className="block text-[7px] text-amber-500/70">Max Cap</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMintInput("1001")}
+                  className="py-1 px-1 bg-red-950/40 hover:bg-red-900/50 border border-red-800/50 rounded text-[9px] text-red-300 font-mono transition-colors text-center"
+                >
+                  1001 Pi <span className="block text-[7px] text-red-500/70">Overflow</span>
+                </button>
+              </div>
+            </div>
+
             <form onSubmit={executeMint} className="space-y-3">
               <input 
                 type="number" 
+                step="any"
                 value={mintInput} 
                 onChange={(e) => setMintInput(e.target.value)} 
-                placeholder="Amount Pi"
-                className="w-full bg-zinc-950 border border-zinc-800 p-3 rounded text-emerald-300 focus:outline-none focus:border-emerald-500 transition-colors text-xs"
+                placeholder="Amount Pi (Max 1000)"
+                className="w-full bg-zinc-950 border border-zinc-800 p-3 rounded text-emerald-300 focus:outline-none focus:border-emerald-500 transition-colors text-xs font-mono"
               />
-              <button type="submit" className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-zinc-950 text-[10px] font-bold uppercase tracking-wider rounded transition-colors">
+              <button type="submit" className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-zinc-950 text-[10px] font-bold uppercase tracking-wider rounded transition-colors shadow-[0_0_10px_rgba(16,185,129,0.15)]">
                 Execute Mint
               </button>
             </form>
           </div>
 
           {/* EARLY REDEMPTION PROTOCOL */}
-          <div className="bg-red-950/10 border border-red-900/30 p-4 rounded-lg">
-            <div className="flex justify-between items-end mb-3">
+          <div className="bg-red-950/10 border border-red-900/30 p-4 rounded-lg space-y-3">
+            <div className="flex justify-between items-end">
               <h4 className="text-[10px] text-red-500 uppercase tracking-widest">Early Redemption</h4>
-              <span className="text-[9px] text-red-400">Penalty: {(activePenalty * 100).toFixed(1)}%</span>
+              <span className="text-[9px] text-red-400">Yield Penalty: {(activePenalty * 100).toFixed(1)}%</span>
             </div>
+            <p className="text-[9px] text-zinc-500 leading-tight">
+              *Note: Principal Pi collateral is <span className="text-zinc-300 font-bold">100% protected</span>. Penalties apply exclusively to early accumulated dividend yields.
+            </p>
             <form onSubmit={executeRedeem} className="space-y-3">
               <input 
                 type="number" 
+                step="any"
                 value={redeemInput} 
                 onChange={(e) => setRedeemInput(e.target.value)} 
                 placeholder="Amount mBZR"
-                className="w-full bg-zinc-950 border border-zinc-800 p-3 rounded text-red-300 focus:outline-none focus:border-red-500 transition-colors text-xs"
+                className="w-full bg-zinc-950 border border-zinc-800 p-3 rounded text-red-300 focus:outline-none focus:border-red-500 transition-colors text-xs font-mono"
               />
               <button type="submit" className="w-full py-3 bg-red-900/80 hover:bg-red-800 text-red-100 border border-red-700/50 text-[10px] font-bold uppercase tracking-wider rounded transition-colors">
                 Execute Redeem
