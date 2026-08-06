@@ -1,5 +1,7 @@
+// Location: /app/api/academy/genesis-upgrade/route.ts
 import { NextResponse } from 'next/server';
-import { db } from '../../../lib/db'; // 🛡️ Ensure this points to your Prisma singleton
+import { db } from '../../../lib/db';
+import { Tier } from '@prisma/client'; // 🛡️ INJECT PRISMA ENUM TYPES
 
 export async function POST(request: Request) {
   try {
@@ -26,7 +28,7 @@ export async function POST(request: Request) {
       );
     }
 
-    // 3. Prevent Redundant Processing
+    // 3. Prevent Redundant Processing (Idempotency)
     if (pioneerNode.status === 'ACTIVE') {
       return NextResponse.json(
         { 
@@ -38,12 +40,13 @@ export async function POST(request: Request) {
       );
     }
 
-    // 4. Execute Ledger Upgrade Transaction
+    // 4. Execute Ledger Upgrade Transaction (Status & Tier Sync)
     const updatedNode = await db.pioneerNode.update({
       where: { uid: uid },
       data: {
         status: 'ACTIVE',
-        updatedAt: new Date(),
+        tier: Tier.ACADEMY_CORE, // 🛡️ ADJUDICATOR FIX: Use valid enum token & ensure comma below
+        updatedAt: new Date(),   // 🛡️ Comma separator restored
       },
     });
 
@@ -56,7 +59,7 @@ export async function POST(request: Request) {
       },
     });
 
-    // 6. Return synchronized state to the client
+    // 6. Return synchronized state to the client UI cache
     return NextResponse.json({
       message: 'Genesis protocol complete. Node is now ACTIVE.',
       status: updatedNode.status,
