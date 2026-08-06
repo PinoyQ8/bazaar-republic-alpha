@@ -15,14 +15,15 @@
     "incremental": true,
     "plugins": [{ "name": "next" }],
     "paths": {
-  "@/context/*": ["./app/context/*"],
-  "@/app/*": ["./app/*"],
-  "@/lib/*": ["./lib/*"],
-  "@/models/*": ["./models/*"],
-  "@/services/*": ["./services/*"],
-  "@/prisma/*": ["./prisma/*"], 
-  "@/*": ["./*"]
-}
+      "@/actions/*": ["./actions/*", "./app/actions/*"],
+      "@/context/*": ["./app/context/*"],
+      "@/app/*": ["./app/*"],
+      "@/lib/*": ["./lib/*"],
+      "@/models/*": ["./models/*"],
+      "@/services/*": ["./services/*"],
+      "@/prisma/*": ["./prisma/*"],
+      "@/*": ["./*"]
+    }
   },
   "include": [
     "next-env.d.ts",
