@@ -1,8 +1,9 @@
+// Location: /app/academy/dao-architecture/page.tsx
 "use client";
 
 import React from "react";
 import Link from "next/link";
-import { useAuth } from "@/app/context/AuthContext";
+import { useAuth } from "@/context/AuthContext";
 import { MESH_VERSION, MESH_STATUS } from "@/app/config/meshVersion";
 import { Activity } from "lucide-react";
 
@@ -19,7 +20,7 @@ export default function DaoArchitectureModule() {
   const { pioneer } = useAuth();
 
   // 🛡️ PRE-FLIGHT RENDER BLOCK
-  if (!pioneer.isHydrated) {
+  if (!pioneer?.isHydrated) {
     return (
       <main className="max-w-[384px] mx-auto p-4 min-h-screen bg-zinc-950 flex items-center justify-center font-mono">
         <p className="text-emerald-500 text-xs animate-pulse tracking-widest uppercase">Decentralizing Data...</p>
@@ -31,7 +32,7 @@ export default function DaoArchitectureModule() {
     <main className="max-w-[384px] mx-auto p-4 pb-24 min-h-screen bg-zinc-950 text-zinc-100 font-mono selection:bg-emerald-500/30">
       
       {/* 🛡️ MODULE HEADER */}
-      <div className="mb-6 border-b border-zinc-800 pb-4 flex items-center justify-between">
+      <div className="mb-6 border-b border-zinc-800 pb-4 flex items-center justify-between mt-2">
         <div>
           <h2 className="text-emerald-400 font-bold tracking-widest uppercase text-sm">DAO ARCHITECTURE</h2>
           <p className="text-zinc-500 text-xs mt-1">
@@ -44,26 +45,26 @@ export default function DaoArchitectureModule() {
       </div>
 
       {/* 🛡️ LIVE NODE METADATA (Dynamic Reflection) */}
-      <div className="p-4 bg-[#05140e] border border-emerald-500/30 rounded-lg mb-6 shadow-[0_0_15px_rgba(0,210,138,0.05)]">
+      <div className="p-4 bg-emerald-950/20 border border-emerald-500/30 rounded-lg mb-6 shadow-[0_0_15px_rgba(0,210,138,0.05)]">
         <h3 className="text-[10px] text-emerald-500/70 uppercase tracking-widest mb-3 flex items-center gap-2">
           <Activity className="w-3 h-3" /> Live Node Metadata
         </h3>
         <div className="grid grid-cols-2 gap-4">
           <div>
             <p className="text-[10px] text-zinc-500 uppercase mb-1">Identity</p>
-            <p className="text-xs font-bold text-zinc-300 truncate">@{pioneer.username || 'Unknown'}</p>
+            <p className="text-xs font-bold text-zinc-300 truncate">@{pioneer?.username || 'Unknown'}</p>
           </div>
           <div>
             <p className="text-[10px] text-zinc-500 uppercase mb-1">Current Tier</p>
-            <p className="text-xs font-bold text-emerald-400">{pioneer.tier}</p>
+            <p className="text-xs font-bold text-emerald-400">{pioneer?.tier}</p>
           </div>
           <div>
             <p className="text-[10px] text-zinc-500 uppercase mb-1">Trust Score</p>
-            <p className="text-xs font-bold text-cyan-400">{pioneer.trustScore}/100</p>
+            <p className="text-xs font-bold text-cyan-400">{pioneer?.trustScore || 50}/100</p>
           </div>
           <div>
             <p className="text-[10px] text-zinc-500 uppercase mb-1">Node Status</p>
-            <p className="text-xs font-bold text-emerald-400">{pioneer.status}</p>
+            <p className="text-xs font-bold text-emerald-400">{pioneer?.status}</p>
           </div>
         </div>
       </div>
@@ -77,25 +78,25 @@ export default function DaoArchitectureModule() {
           <div className="space-y-3">
             {GOVERNANCE_TIERS.map((item, idx) => {
               // 🛡️ DYNAMIC HIGHLIGHT: Illuminates the Pioneer's exact tier
-              const isCurrentTier = pioneer.tier === item.tier;
+              const isCurrentTier = pioneer?.tier === item.tier;
 
               return (
                 <div 
                   key={idx} 
-                  className={`flex justify-between items-center text-xs p-2 rounded border transition-all ${
+                  className={`flex justify-between items-center text-xs p-2.5 rounded border transition-all ${
                     isCurrentTier 
                       ? 'bg-emerald-950/40 border-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.2)]' 
-                      : 'bg-black/20 border-zinc-800/50 opacity-60'
+                      : 'bg-black/20 border-zinc-800/50 text-zinc-400'
                   }`}
                 >
-                  <span className={`font-medium ${isCurrentTier ? 'text-emerald-400 font-bold' : 'text-emerald-600'}`}>
+                  <span className={`font-medium ${isCurrentTier ? 'text-emerald-400 font-bold' : 'text-zinc-400'}`}>
                     {item.tier}
                   </span>
                   <div className="text-right">
-                    <div className={isCurrentTier ? 'text-zinc-100 font-bold' : 'text-zinc-400'}>
+                    <div className={isCurrentTier ? 'text-zinc-100 font-bold' : 'text-zinc-300'}>
                       {item.weight}
                     </div>
-                    <div className={isCurrentTier ? 'text-zinc-400 text-[9px]' : 'text-zinc-600 text-[9px]'}>
+                    <div className={isCurrentTier ? 'text-zinc-400 text-[9px]' : 'text-zinc-500 text-[9px]'}>
                       {item.role}
                     </div>
                   </div>
@@ -137,7 +138,7 @@ export default function DaoArchitectureModule() {
           </button>
         </Link>
         <Link href="/academy" className="block w-full">
-          <button className="w-full py-3 bg-zinc-950 border border-zinc-800 hover:border-zinc-700 text-zinc-500 text-xs font-bold uppercase tracking-wider rounded transition-all">
+          <button className="w-full py-3 bg-zinc-950 border border-zinc-800 hover:border-zinc-700 text-zinc-400 text-xs font-bold uppercase tracking-wider rounded transition-all">
             Return to Hub
           </button>
         </Link>
