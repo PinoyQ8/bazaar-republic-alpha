@@ -1,3 +1,4 @@
+// Location: app/components/PioneerAuthGate.tsx
 "use client";
 
 import { useEffect, useState, ReactNode } from "react";
@@ -16,7 +17,7 @@ export default function PioneerAuthGate({
   const [loading, setLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
 
-  // 1. Ensure component is safely mounted on client before accessing DOM/Window
+  // 1. Ensure component is safely mounted on client
   useEffect(() => {
     setMounted(true);
   }, []);
@@ -27,22 +28,33 @@ export default function PioneerAuthGate({
 
     let isMounted = true;
 
-    // 🛡️ Synchronous query bypass check once mounted
-    const searchParams = new URLSearchParams(window.location.search);
-    const hasBypass = searchParams.get("bypass") === "true" || window.location.search.includes("FORCE_SYNC");
-
-    if (hasBypass) {
-      console.warn("[MESH] Force bypass query detected. Authorizing workspace.");
+    // 🛡️ THE NUCLEAR X570 BYPASS
+    // Instantly unlock the gate if developing on localhost
+    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    
+    if (isLocal) {
+      console.warn("[MESH] ☢️ Nuclear Localhost Bypass Active. Gate Unlocked.");
       setIsAuthenticated(true);
       setLoading(false);
-      if (onLinkEstablished) onLinkEstablished("local_x570_node");
+      
+      // Auto-inject a dummy identity for the Academy actions to use
+      if (onLinkEstablished) onLinkEstablished("X570_Bazaar_Founder");
+      
+      // Seed local storage so other components don't starve
+      if (!localStorage.getItem("pi_auth_user")) {
+        localStorage.setItem("pi_auth_user", JSON.stringify({
+          uid: "PinoyQ8_Dev",
+          username: "PinoyQ8_Dev",
+          status: "ACTIVE",
+          tier: "Founder"
+        }));
+      }
       return;
     }
 
-    // 🛡️ 3-second maximum safeguard timer against SDK hanging
+    // 🛡️ STANDARD PI SDK LOGIC (Executes only on Production/Vercel)
     const authTimeout = setTimeout(() => {
       if (isMounted && loading) {
-        console.warn("[MESH-ALERT] Auth timeout reached. Releasing lock.");
         setLoading(false);
       }
     }, 3000);
@@ -53,12 +65,9 @@ export default function PioneerAuthGate({
         
         if (isMounted && authResult?.user?.uid) {
           setIsAuthenticated(true);
-          if (onLinkEstablished) {
-            onLinkEstablished(authResult.user.uid);
-          }
+          if (onLinkEstablished) onLinkEstablished(authResult.user.uid);
         }
       } catch (error) {
-        console.error("[MESH-ALERT] Authentication failed:", error);
         if (isMounted) setIsAuthenticated(false);
       } finally {
         if (isMounted) {
@@ -76,21 +85,22 @@ export default function PioneerAuthGate({
     };
   }, [mounted, onLinkEstablished]);
 
-  // Render minimal fallback while waiting for initial React mounting
+  // Render minimal fallback while waiting
   if (!mounted || loading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[50vh] space-y-4">
-        <div className="w-10 h-10 border-4 border-amber-500 border-t-transparent rounded-full animate-spin"></div>
-        <p className="text-amber-500 font-mono text-xs tracking-wider animate-pulse">
-          AUTHENTICATING PIONEER IDENTITY...
+        <div className="w-10 h-10 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+        <p className="text-emerald-500 font-mono text-xs tracking-wider animate-pulse">
+          FORGING MESH IDENTITY...
         </p>
       </div>
     );
   }
 
+  // Render Access Denied for actual Production if SDK fails
   if (!isAuthenticated) {
     return (
-      <div className="p-6 border border-red-800 bg-red-950/20 rounded-lg text-center space-y-4">
+      <div className="p-6 border border-red-800 bg-red-950/20 rounded-lg text-center space-y-4 m-4 shadow-[0_0_15px_rgba(185,28,28,0.2)]">
         <h3 className="text-red-500 text-lg font-bold">ACCESS DENIED: MESH GATEWAY LOCKED</h3>
         <p className="text-neutral-400 text-sm">
           Please open this application inside the Pi Browser node to authenticate your Pioneer credentials.

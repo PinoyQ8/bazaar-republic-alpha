@@ -1,24 +1,34 @@
-import mongoose, { Schema, Document } from "mongoose";
+// Location: models/PioneerNode.ts
+import mongoose, { Schema, Document, Model } from "mongoose";
 
-// 1. UPDATE THE INTERFACE (If you are using TypeScript interfaces in your model)
 export interface IPioneerNode extends Document {
   uid: string;
-  activeNodeCount: number;
-  uptimeStats: number;
-  referralCount: number;
-  activeFuel: number;   // ◄ INJECTED: Economic Balance
-  trust_score: number;  // ◄ INJECTED: Reputation Modulator
+  username: string;
+  tier: "CITIZEN" | "NOVICE" | "ACADEMY_CORE" | "MESH_GUARDIAN" | "BAZAAR_FOUNDER";
+  trustScore: number;
+  stakedAmount: number; // Max Cap: 1000 Pi
+  unlockedTranche: number; // 1 to 5 (Each tranche = 200 Pi)
+  status: "SYNCING" | "ACTIVE" | "FROZEN" | "SUSPENDED";
+  createdAt: Date;
 }
 
-// 2. UPDATE THE SCHEMA DEFINITION
-const PioneerNodeSchema: Schema = new Schema({
+const PioneerNodeSchema = new Schema<IPioneerNode>({
   uid: { type: String, required: true, unique: true },
-  activeNodeCount: { type: Number, default: 0 },
-  uptimeStats: { type: Number, default: 0 },
-  referralCount: { type: Number, default: 0 },
-  // 🛡️ MESH-MARKET ECONOMIC FIELDS INJECTED BELOW
-  activeFuel: { type: Number, default: 0 },
-  trust_score: { type: Number, default: 0 }
+  username: { type: String, required: true },
+  tier: { 
+    type: String, 
+    enum: ["CITIZEN", "NOVICE", "ACADEMY_CORE", "MESH_GUARDIAN", "BAZAAR_FOUNDER"], 
+    default: "CITIZEN" 
+  },
+  trustScore: { type: Number, default: 0, min: 0, max: 100 },
+  stakedAmount: { type: Number, default: 0, max: 1000 },
+  unlockedTranche: { type: Number, default: 1, min: 1, max: 5 },
+  status: { type: String, default: "SYNCING" },
+  createdAt: { type: Date, default: Date.now }
 });
 
-export const PioneerNode = mongoose.models.PioneerNode || mongoose.model<IPioneerNode>("PioneerNode", PioneerNodeSchema);
+// 🛡️ DUAL EXPORT: Satisfies both named ({ PioneerNode }) and default imports instantly
+export const PioneerNode: Model<IPioneerNode> = 
+  mongoose.models.PioneerNode || mongoose.model<IPioneerNode>("PioneerNode", PioneerNodeSchema);
+
+export default PioneerNode;

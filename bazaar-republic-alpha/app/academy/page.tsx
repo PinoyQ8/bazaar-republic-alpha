@@ -1,10 +1,11 @@
-// Location: /app/academy/page.tsx
+// Location: app/academy/page.tsx
 'use client';
 
 import Link from 'next/link';
 import React, { useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { Loader2, AlertTriangle, ShieldCheck, Lock, Unlock } from 'lucide-react';
+import PioneerAuthGate from '@/app/components/PioneerAuthGate';
 
 export default function AcademyDashboard() {
   const { pioneer, login } = useAuth();
@@ -55,113 +56,108 @@ export default function AcademyDashboard() {
     }
   };
 
-  // 🛡️ PRE-FLIGHT RENDER BLOCK
-  if (!pioneer?.isHydrated) {
-    return (
-      <main className="max-w-[384px] mx-auto p-4 min-h-screen bg-zinc-950 flex items-center justify-center font-mono">
-        <p className="text-emerald-500 text-xs animate-pulse tracking-widest uppercase">Verifying Master TS...</p>
-      </main>
-    );
-  }
-
   return (
-    <main className="max-w-[384px] mx-auto p-4 pb-24 min-h-screen bg-zinc-950 text-zinc-100 font-mono selection:bg-emerald-500/30">
-      
-      {/* 🛡️ ACADEMY HEADER */}
-      <div className="mb-6 border-b border-zinc-800 pb-4 mt-2">
-        <div className="flex justify-between items-end">
-          <div>
-            <h1 className="text-emerald-400 font-bold tracking-widest uppercase text-sm">MESH ACADEMY</h1>
-            <div className="flex items-center gap-2 mt-2">
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-              </span>
-              <p className="text-[10px] text-zinc-500 uppercase tracking-widest">System Online</p>
-            </div>
-          </div>
-          <div className="text-right flex flex-col gap-1">
-            <span className="text-[10px] text-zinc-500 tracking-widest">NODE STATUS</span>
-            <span className={`text-xs font-bold ${isActive ? 'text-emerald-500' : 'text-amber-500'}`}>
-              [{pioneer.status}]
-            </span>
-          </div>
-        </div>
-      </div>
-      
-      <div className="mt-6 space-y-4">
+    <PioneerAuthGate>
+      <main className="w-full max-w-sm mx-auto p-4 pb-24 min-h-screen text-slate-100 font-mono selection:bg-emerald-500/30">
         
-        {/* 🛡️ MODULE 01: GENESIS GATE (Mandatory) */}
-        <div className={`p-4 border rounded-lg transition-all ${isActive ? 'bg-zinc-900/30 border-emerald-900/30' : 'bg-emerald-950/20 border-emerald-500/50 shadow-[0_0_15px_rgba(0,210,138,0.1)]'}`}>
-          <div className="flex justify-between items-start mb-2">
-            <h4 className="text-emerald-400 font-bold text-sm tracking-wider uppercase">01. Genesis Protocol</h4>
-            {isActive ? <ShieldCheck className="w-4 h-4 text-emerald-500" /> : <AlertTriangle className="w-4 h-4 text-amber-500" />}
-          </div>
-          
-          <p className="text-[10px] text-emerald-500/70 mb-4 leading-relaxed">
-            {isActive ? "Identity anchored to the MESH Ledger." : "Acknowledge the Republic Mandate to activate your node. No wallet passphrase required."}
-          </p>
-
-          {error && <p className="text-[10px] text-red-400 mb-2">{error}</p>}
-
-          {!isActive ? (
-            <button 
-              onClick={handleGenesisUpgrade}
-              disabled={isUpgrading}
-              className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 disabled:bg-zinc-800 disabled:text-zinc-500 text-zinc-950 text-[10px] font-bold uppercase tracking-wider rounded transition-colors flex justify-center items-center gap-2"
-            >
-              {isUpgrading ? <><Loader2 className="w-3 h-3 animate-spin" /> SYNCHRONIZING...</> : "ACKNOWLEDGE & UPGRADE"}
-            </button>
-          ) : (
-            <div className="w-full py-2 bg-emerald-950/30 text-emerald-500 border border-emerald-900/50 text-center text-[10px] font-bold uppercase tracking-wider rounded flex items-center justify-center gap-2">
-               GENESIS COMPLETED
+        {/* 🛡️ ACADEMY HEADER */}
+        <div className="mb-6 border-b border-slate-800 pb-4 mt-2">
+          <div className="flex justify-between items-end">
+            <div>
+              <h1 className="text-emerald-400 font-bold tracking-widest uppercase text-sm">MESH ACADEMY</h1>
+              <div className="flex items-center gap-2 mt-2">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                </span>
+                <p className="text-[10px] text-slate-500 uppercase tracking-widest">System Online</p>
+              </div>
             </div>
-          )}
-        </div>
-
-        {/* 🛡️ MODULE 02: DAO ARCHITECTURE (Locked until ACTIVE) */}
-        <div className={`p-4 border rounded-lg transition-all ${isActive ? 'bg-zinc-900/50 border-zinc-800 hover:border-zinc-700' : 'bg-zinc-950 border-zinc-900 opacity-50 cursor-not-allowed'}`}>
-          <div className="flex justify-between items-start mb-2">
-            <h4 className={`${isActive ? 'text-emerald-300' : 'text-zinc-600'} font-bold text-sm tracking-wider uppercase`}>02. DAO Architecture</h4>
-            {isActive ? <Unlock className="w-4 h-4 text-zinc-500" /> : <Lock className="w-4 h-4 text-zinc-700" />}
+            <div className="text-right flex flex-col gap-1">
+              <span className="text-[10px] text-slate-500 tracking-widest">NODE STATUS</span>
+              <span className={`text-xs font-bold ${isActive ? 'text-emerald-500' : 'text-amber-500'}`}>
+                [{pioneer?.status || 'SYNCING'}]
+              </span>
+            </div>
           </div>
-          <p className="text-[10px] text-zinc-500 mb-4">Constitutional data & 5-Tier governance.</p>
-          
-          {isActive ? (
-            <Link href="/academy/dao-architecture" className="block w-full">
-              <button className="w-full py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-100 text-[10px] font-bold uppercase tracking-wider rounded transition-colors">
-                Enter Matrix
-              </button>
-            </Link>
-          ) : (
-            <button disabled className="w-full py-2 bg-zinc-900 text-zinc-700 text-[10px] font-bold uppercase tracking-wider rounded">
-              LOCKED
-            </button>
-          )}
         </div>
+        
+        <div className="mt-6 space-y-4">
+          
+          {/* 🛡️ MODULE 01: GENESIS GATE (Mandatory) */}
+          <div className={`p-4 border rounded-lg transition-all ${isActive ? 'bg-slate-900/30 border-emerald-900/30' : 'bg-emerald-950/20 border-emerald-500/50 shadow-[0_0_15px_rgba(0,210,138,0.1)]'}`}>
+            <div className="flex justify-between items-start mb-2">
+              <h4 className="text-emerald-400 font-bold text-sm tracking-wider uppercase">01. Genesis Protocol</h4>
+              {isActive ? <ShieldCheck className="w-4 h-4 text-emerald-500" /> : <AlertTriangle className="w-4 h-4 text-amber-500" />}
+            </div>
+            
+            <p className="text-[10px] text-emerald-500/70 mb-4 leading-relaxed">
+              {isActive ? "Identity anchored to the MESH Ledger. Module clearance available." : "Acknowledge the Republic Mandate to activate your node. No wallet passphrase required."}
+            </p>
 
-        {/* 🛡️ MODULE 03: ALPHA TRACK (Locked until ACTIVE) */}
-        <div className={`p-4 border rounded-lg transition-all ${isActive ? 'bg-zinc-900/50 border-zinc-800 hover:border-zinc-700' : 'bg-zinc-950 border-zinc-900 opacity-50 cursor-not-allowed'}`}>
-          <div className="flex justify-between items-start mb-2">
-            <h4 className={`${isActive ? 'text-emerald-300' : 'text-zinc-600'} font-bold text-sm tracking-wider uppercase`}>03. Alpha Track</h4>
-            {isActive ? <Unlock className="w-4 h-4 text-zinc-500" /> : <Lock className="w-4 h-4 text-zinc-700" />}
+            {error && <p className="text-[10px] text-red-400 mb-2">[MESH FAULT] {error}</p>}
+
+            {!isActive ? (
+              <button 
+                onClick={handleGenesisUpgrade}
+                disabled={isUpgrading}
+                className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-800 disabled:text-slate-500 text-slate-950 text-[10px] font-bold uppercase tracking-wider rounded transition-colors flex justify-center items-center gap-2"
+              >
+                {isUpgrading ? <><Loader2 className="w-3 h-3 animate-spin" /> SYNCHRONIZING...</> : "ACKNOWLEDGE & UPGRADE"}
+              </button>
+            ) : (
+              <Link href="/academy/module-01" className="block w-full">
+                <button className="w-full py-3 bg-emerald-950/40 text-emerald-400 border border-emerald-800 hover:bg-emerald-900/50 text-center text-[10px] font-bold uppercase tracking-wider rounded flex items-center justify-center gap-2 transition-colors">
+                   ENTER MODULE 01
+                </button>
+              </Link>
+            )}
           </div>
-          <p className="text-[10px] text-zinc-500 mb-4 leading-relaxed">Genesis Minting & Ledger Payloads.</p>
-          
-          {isActive ? (
-            <Link href="/alpha-track" className="block w-full">
-              <button className="w-full py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-100 text-[10px] font-bold uppercase tracking-wider rounded transition-colors">
-                Access Alpha
-              </button>
-            </Link>
-          ) : (
-            <button disabled className="w-full py-2 bg-zinc-900 text-zinc-700 text-[10px] font-bold uppercase tracking-wider rounded">
-              LOCKED
-            </button>
-          )}
-        </div>
 
-      </div>
-    </main>
+          {/* 🛡️ MODULE 02: DAO ARCHITECTURE */}
+          <div className={`p-4 border rounded-lg transition-all ${isActive ? 'bg-slate-900/50 border-slate-800 hover:border-slate-700' : 'bg-slate-950 border-slate-900 opacity-50 cursor-not-allowed'}`}>
+            <div className="flex justify-between items-start mb-2">
+              <h4 className={`${isActive ? 'text-emerald-300' : 'text-slate-600'} font-bold text-sm tracking-wider uppercase`}>02. DAO Architecture</h4>
+              {isActive ? <Unlock className="w-4 h-4 text-slate-500" /> : <Lock className="w-4 h-4 text-slate-700" />}
+            </div>
+            <p className="text-[10px] text-slate-500 mb-4">Constitutional data & 5-Tier governance.</p>
+            
+            {isActive ? (
+              <Link href="/academy/module-02" className="block w-full">
+                <button className="w-full py-2 bg-slate-800 hover:bg-slate-700 text-slate-100 text-[10px] font-bold uppercase tracking-wider rounded transition-colors">
+                  Enter Matrix
+                </button>
+              </Link>
+            ) : (
+              <button disabled className="w-full py-2 bg-slate-900 text-slate-700 text-[10px] font-bold uppercase tracking-wider rounded">
+                LOCKED
+              </button>
+            )}
+          </div>
+
+          {/* 🛡️ MODULE 03: ALPHA TRACK */}
+          <div className={`p-4 border rounded-lg transition-all ${isActive ? 'bg-slate-900/50 border-slate-800 hover:border-slate-700' : 'bg-slate-950 border-slate-900 opacity-50 cursor-not-allowed'}`}>
+            <div className="flex justify-between items-start mb-2">
+              <h4 className={`${isActive ? 'text-emerald-300' : 'text-slate-600'} font-bold text-sm tracking-wider uppercase`}>03. Alpha Track</h4>
+              {isActive ? <Unlock className="w-4 h-4 text-slate-500" /> : <Lock className="w-4 h-4 text-slate-700" />}
+            </div>
+            <p className="text-[10px] text-slate-500 mb-4 leading-relaxed">Genesis Minting & Ledger Payloads.</p>
+            
+            {isActive ? (
+              <Link href="/alpha-track" className="block w-full">
+                <button className="w-full py-2 bg-slate-800 hover:bg-slate-700 text-slate-100 text-[10px] font-bold uppercase tracking-wider rounded transition-colors">
+                  Access Alpha
+                </button>
+              </Link>
+            ) : (
+              <button disabled className="w-full py-2 bg-slate-900 text-slate-700 text-[10px] font-bold uppercase tracking-wider rounded">
+                LOCKED
+              </button>
+            )}
+          </div>
+
+        </div>
+      </main>
+    </PioneerAuthGate>
   );
 }
