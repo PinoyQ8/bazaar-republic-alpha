@@ -4,7 +4,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/app/context/AuthContext';
-import { ArrowLeft, Cpu, Zap, ShieldAlert, Loader2, Network, CheckCircle2, Activity } from 'lucide-react';
+import { ArrowLeft, Cpu, Zap, ShieldAlert, Loader2, Network, CheckCircle2, Activity, Clock, RotateCcw } from 'lucide-react';
 
 // 🛡️ ECONOMIC CONSTANTS (Pure Algorithmic Peg)
 const PI_TO_MBZR_RATIO = 1000;
@@ -52,6 +52,15 @@ export default function AlphaTrackModule() {
   }, [currentTier, monthsElapsed]);
 
   const addLog = (message: string) => setTxLog((prev) => [...prev, `> ${message}`]);
+
+  // 🛡️ TIMELAPSE ACCELERATION CONTROLS
+  const advanceTime = (monthsDelta: number) => {
+    setMonthsElapsed((prev) => Math.max(0, prev + monthsDelta));
+  };
+
+  const resetTime = () => {
+    setMonthsElapsed(0);
+  };
 
   // ==========================================================================
   // 🛡️ SECTOR 1 ACTIONS
@@ -297,14 +306,68 @@ export default function AlphaTrackModule() {
             </form>
           </div>
 
+          {/* 🛡️ TIMELAPSE SIMULATION CONSOLE */}
+          <div className="bg-zinc-900 border border-zinc-800 p-4 rounded-lg space-y-3">
+            <div className="flex justify-between items-center border-b border-zinc-800 pb-2">
+              <h4 className="text-[10px] text-cyan-400 uppercase tracking-widest flex items-center gap-1.5 font-bold">
+                <Clock className="w-3.5 h-3.5" /> Timelapse Simulator
+              </h4>
+              <button 
+                onClick={resetTime}
+                className="text-[9px] text-zinc-500 hover:text-cyan-300 flex items-center gap-1 transition-colors"
+                title="Reset Elapsed Time to Zero"
+              >
+                <RotateCcw className="w-3 h-3" /> Reset
+              </button>
+            </div>
+
+            <div className="flex justify-between items-center text-xs">
+              <span className="text-zinc-400">Time Elapsed:</span>
+              <span className="font-bold text-cyan-300">
+                {monthsElapsed.toFixed(1)} Months (~{(monthsElapsed / 12).toFixed(2)} Years)
+              </span>
+            </div>
+
+            <div className="grid grid-cols-4 gap-1.5 pt-1">
+              <button
+                type="button"
+                onClick={() => advanceTime(0.033)}
+                className="py-1.5 bg-zinc-950 hover:bg-cyan-950/40 border border-zinc-800 hover:border-cyan-800 rounded text-[9px] text-cyan-400 font-mono transition-colors text-center"
+              >
+                +1 Day
+              </button>
+              <button
+                type="button"
+                onClick={() => advanceTime(0.25)}
+                className="py-1.5 bg-zinc-950 hover:bg-cyan-950/40 border border-zinc-800 hover:border-cyan-800 rounded text-[9px] text-cyan-400 font-mono transition-colors text-center"
+              >
+                +1 Week
+              </button>
+              <button
+                type="button"
+                onClick={() => advanceTime(1)}
+                className="py-1.5 bg-zinc-950 hover:bg-cyan-950/40 border border-zinc-800 hover:border-cyan-800 rounded text-[9px] text-cyan-400 font-mono transition-colors text-center"
+              >
+                +1 Month
+              </button>
+              <button
+                type="button"
+                onClick={() => advanceTime(12)}
+                className="py-1.5 bg-zinc-950 hover:bg-cyan-950/40 border border-zinc-800 hover:border-cyan-800 rounded text-[9px] text-cyan-400 font-mono transition-colors text-center"
+              >
+                +1 Year
+              </button>
+            </div>
+          </div>
+
           {/* EARLY REDEMPTION PROTOCOL */}
           <div className="bg-red-950/10 border border-red-900/30 p-4 rounded-lg space-y-3">
             <div className="flex justify-between items-end">
               <h4 className="text-[10px] text-red-500 uppercase tracking-widest">Early Redemption</h4>
-              <span className="text-[9px] text-red-400">Yield Penalty: {(activePenalty * 100).toFixed(1)}%</span>
+              <span className="text-[9px] text-red-400 font-bold">Yield Penalty: {(activePenalty * 100).toFixed(1)}%</span>
             </div>
             <p className="text-[9px] text-zinc-500 leading-tight">
-              *Note: Principal Pi collateral is <span className="text-zinc-300 font-bold">100% protected</span>. Penalties apply exclusively to early accumulated dividend yields.
+              *Note: Principal Pi collateral is <span className="text-zinc-300 font-bold">100% protected</span>. Penalties apply exclusively to early accumulated dividend yields and decay over elapsed simulation time.
             </p>
             <form onSubmit={executeRedeem} className="space-y-3">
               <input 

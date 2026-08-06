@@ -56,7 +56,8 @@ export async function POST(request: Request) {
           lastActivityTimestamp: new Date(),
         },
         create: {
-          uid: senderWallet,
+          uid: senderWallet, // Fallback unique identifier if new
+          walletAddress: senderWallet,
           stakedPi: lockedPiAmount,
           mbzrBalance: mintedMbzr,
         }
