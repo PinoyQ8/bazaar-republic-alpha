@@ -1,12 +1,12 @@
+// Location: app/dashboard/proposals/page.tsx
 "use client";
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
-// 🛡️ MESH: Import the Server Actions directly, bypassing standard API routes
+// 🛡️ MESH: Import Server Actions directly
 import { getActiveProposals, castVote, seedGenesisProposal } from "@/app/actions/proposalActions";
 
-// Mapped exactly to our forged /models/ProposalLedger.ts
 interface MESHProposal {
   proposalId: string;
   title: string;
@@ -30,7 +30,6 @@ export default function ProposalsMatrix() {
 
   useEffect(() => {
     const storedAuth = localStorage.getItem("pi_auth_user");
-    // Fallback for local testing if Pi Auth isn't active
     const authData = storedAuth ? JSON.parse(storedAuth) : { username: "PinoyQ8_Dev", uid: "PinoyQ8_Dev" };
     
     setSession(authData);
@@ -39,7 +38,6 @@ export default function ProposalsMatrix() {
 
   const fetchLedger = async (currentUid: string) => {
     try {
-      // 🛡️ Call the Server Action directly
       const activeProposals = await getActiveProposals();
       setProposals(activeProposals);
     } catch (error) {
@@ -54,12 +52,11 @@ export default function ProposalsMatrix() {
     setVotingOn(proposalId);
     
     try {
-      // 🛡️ Cryptographic Adjudicator Hook
       const res = await castVote(proposalId, session.uid, voteDirection);
       
       if (res.success) {
         console.log(`[MESH] VP Bound: ${voteDirection} | ${res.message}`);
-        await fetchLedger(session.uid); // Resync UI with new VP math
+        await fetchLedger(session.uid);
       } else {
         alert(`[ADJUDICATOR HALT]: ${res.message}`);
       }
@@ -86,119 +83,114 @@ export default function ProposalsMatrix() {
   }
 
   return (
-          <div className="w-full max-w-full overflow-x-hidden space-y-4 p-2 min-h-screen bg-black text-neutral-300 font-mono flex flex-col">
-        
-        {/* HEADER BLOCK */}
-        <header className="border-b border-amber-900/60 pb-3 space-y-2">
-          <div className="flex items-center justify-between">
-            <h1 className="text-lg font-bold tracking-tight text-amber-500 uppercase">
-              The Vote Pool
-            </h1>
+    <div className="w-full max-w-full overflow-x-hidden space-y-4 p-2 min-h-screen bg-black text-neutral-300 font-mono flex flex-col pb-24">
+      
+      {/* HEADER BLOCK */}
+      <header className="border-b border-amber-900/60 pb-3 space-y-2 mt-2">
+        <div className="flex items-center justify-between">
+          <h1 className="text-lg font-bold tracking-tight text-amber-500 uppercase">
+            The Vote Pool
+          </h1>
+          <button 
+            onClick={() => router.push('/dashboard')}
+            className="text-xs px-2.5 py-1 bg-neutral-900 hover:bg-neutral-800 border border-neutral-700 rounded text-neutral-400 hover:text-amber-400 transition-colors"
+          >
+            DASHBOARD
+          </button>
+        </div>
+        <div className="flex justify-between text-[10px] text-neutral-500 uppercase tracking-widest">
+          <span>80% VP Supermajority Required</span>
+          <span className="text-amber-600">ID: {session?.uid.slice(0, 12)}...</span>
+        </div>
+      </header>
+
+      {/* PROPOSAL MATRIX */}
+      <div className="space-y-4 grow">
+        {proposals.length === 0 ? (
+          <div className="p-6 bg-neutral-900/60 border border-amber-900/30 rounded-lg flex flex-col items-center justify-center text-center space-y-4 shadow-[0_0_15px_rgba(0,0,0,0.5)]">
+            <span className="text-neutral-500 text-xs uppercase tracking-widest">No active logic drafts in the E-Network.</span>
+            
             <button 
-              onClick={() => router.push('/dashboard')}
-              className="text-xs px-2 py-1 bg-neutral-900 border border-neutral-700 rounded text-neutral-400 hover:text-amber-400"
+              onClick={handleSeed}
+              className="px-4 py-2 border border-amber-900 bg-amber-950/30 text-amber-500 text-[10px] uppercase tracking-widest rounded hover:bg-amber-900/50 transition-all shadow-[0_0_10px_rgba(217,119,6,0.1)]"
             >
-              DASHBOARD
+              Initialize Genesis Motion
             </button>
           </div>
-          <div className="flex justify-between text-[10px] text-neutral-500 uppercase tracking-widest">
-            <span>80% VP Supermajority Required</span>
-            <span className="text-amber-600">ID: {session?.uid.slice(0, 12)}...</span>
-          </div>
-        </header>
+        ) : (
+          proposals.map((prop) => {
+            const isProcessing = votingOn === prop.proposalId;
+            const totalVP = prop.totalVotesFor + prop.totalVotesAgainst;
+            const approvalRate = totalVP > 0 ? (prop.totalVotesFor / totalVP) * 100 : 0;
+            const hoursLeft = Math.max(0, Math.floor((prop.expiresAt - Date.now()) / (1000 * 60 * 60)));
+            const hasVoted = prop.voters?.some(v => v.pioneerId === session?.uid);
 
-        {/* PROPOSAL MATRIX */}
-        <div className="space-y-4 grow">
-          {proposals.length === 0 ? (
-            <div className="p-6 bg-neutral-900/60 border border-amber-900/30 rounded flex flex-col items-center justify-center text-center space-y-4 shadow-[0_0_15px_rgba(0,0,0,0.5)]">
-              <span className="text-neutral-500 text-xs uppercase tracking-widest">No active logic drafts in the E-Network.</span>
-              
-              {/* 🛡️ GENESIS SEED BUTTON (Testing Only) */}
-              <button 
-                onClick={handleSeed}
-                className="px-4 py-2 border border-amber-900 bg-amber-950/30 text-amber-500 text-[10px] uppercase tracking-widest rounded hover:bg-amber-900/50 transition-all"
-              >
-                Initialize Genesis Motion
-              </button>
-            </div>
-          ) : (
-            proposals.map((prop) => {
-              const isProcessing = votingOn === prop.proposalId;
-              const totalVP = prop.totalVotesFor + prop.totalVotesAgainst;
-              const approvalRate = totalVP > 0 ? (prop.totalVotesFor / totalVP) * 100 : 0;
-              
-              // Timer calculation based on immutable ledger expiresAt
-              const hoursLeft = Math.max(0, Math.floor((prop.expiresAt - Date.now()) / (1000 * 60 * 60)));
-
-              // 🛡️ Security Check: Did this specific UID already vote?
-              const hasVoted = prop.voters?.some(v => v.pioneerId === session?.uid);
-
-              return (
-                <div key={prop.proposalId} className="p-3 bg-neutral-900/60 border border-amber-900/50 rounded-lg space-y-3 shadow-[0_0_10px_rgba(0,0,0,0.3)]">
-                  
-                  <div className="flex justify-between items-start">
-                    <div className="space-y-1">
-                      <h3 className="text-sm font-bold text-amber-400 uppercase leading-tight">{prop.title}</h3>
-                      <div className="flex space-x-2 text-[9px] mt-1">
-                        <span className="px-1.5 py-0.5 bg-neutral-800 text-neutral-400 rounded border border-neutral-700">
-                          ORIGIN: {prop.proposerId}
-                        </span>
-                        <span className="px-1.5 py-0.5 bg-blue-900/30 text-blue-400 rounded border border-blue-900/50">
-                          T-MINUS: {hoursLeft}H
-                        </span>
-                      </div>
+            return (
+              <div key={prop.proposalId} className="p-3 bg-neutral-900/60 border border-amber-900/50 rounded-lg space-y-3 shadow-[0_0_10px_rgba(0,0,0,0.3)]">
+                
+                <div className="flex justify-between items-start">
+                  <div className="space-y-1">
+                    <h3 className="text-sm font-bold text-amber-400 uppercase leading-tight">{prop.title}</h3>
+                    <div className="flex space-x-2 text-[9px] mt-1">
+                      <span className="px-1.5 py-0.5 bg-neutral-800 text-neutral-400 rounded border border-neutral-700">
+                        ORIGIN: {prop.proposerId}
+                      </span>
+                      <span className="px-1.5 py-0.5 bg-blue-900/30 text-blue-400 rounded border border-blue-900/50">
+                        T-MINUS: {hoursLeft}H
+                      </span>
                     </div>
                   </div>
-
-                  <p className="text-xs text-neutral-400 line-clamp-3 bg-black/40 p-2 rounded border border-neutral-800 leading-relaxed">
-                    {prop.description}
-                  </p>
-
-                  {/* VP Progress Shield */}
-                  <div className="space-y-1 pt-1">
-                    <div className="flex justify-between text-[10px] text-neutral-500 uppercase tracking-widest">
-                      <span>Approval: {approvalRate.toFixed(1)}%</span>
-                      <span>Total VP: {totalVP.toFixed(2)} / {prop.quorumTarget}</span>
-                    </div>
-                    <div className="h-1.5 w-full bg-neutral-800 rounded overflow-hidden flex relative">
-                      <div className="h-full bg-emerald-500 transition-all duration-500" style={{ width: `${approvalRate}%` }}></div>
-                      <div className="h-full bg-red-500 transition-all duration-500" style={{ width: `${100 - approvalRate}%` }}></div>
-                      {/* Hard-coded 80% Supermajority Line */}
-                      <div className="absolute top-0 bottom-0 w-0.5 bg-amber-500 shadow-[0_0_5px_rgba(245,158,11,0.8)]" style={{ left: '80%' }}></div>
-                    </div>
-                  </div>
-
-                  {/* Adjudicator Action Gate */}
-                  <div className="pt-2 border-t border-amber-900/40">
-                    {hasVoted ? (
-                      <div className="w-full text-center py-2 text-xs font-bold bg-neutral-800/50 text-neutral-500 rounded border border-neutral-800 uppercase tracking-widest">
-                        VP Locked in Ledger
-                      </div>
-                    ) : (
-                      <div className="grid grid-cols-2 gap-2">
-                        <button 
-                          onClick={() => handleVote(prop.proposalId, 'AGAINST')}
-                          disabled={isProcessing}
-                          className="py-2 text-xs bg-red-950/30 hover:bg-red-900/50 text-red-400 border border-red-900/50 rounded font-bold transition-all disabled:opacity-50 tracking-wider flex items-center justify-center"
-                        >
-                          {isProcessing ? 'SYNCING...' : 'REJECT'}
-                        </button>
-                        <button 
-                          onClick={() => handleVote(prop.proposalId, 'FOR')}
-                          disabled={isProcessing}
-                          className="py-2 text-xs bg-emerald-950/30 hover:bg-emerald-900/50 text-emerald-400 border border-emerald-900/50 rounded font-bold transition-all disabled:opacity-50 tracking-wider flex items-center justify-center"
-                        >
-                          {isProcessing ? 'SYNCING...' : 'APPROVE'}
-                        </button>
-                      </div>
-                    )}
-                  </div>
-
                 </div>
-              );
-            })
-          )}
-        </div>
+
+                <p className="text-xs text-neutral-400 line-clamp-3 bg-black/40 p-2 rounded border border-neutral-800 leading-relaxed">
+                  {prop.description}
+                </p>
+
+                {/* VP Progress Shield */}
+                <div className="space-y-1 pt-1">
+                  <div className="flex justify-between text-[10px] text-neutral-500 uppercase tracking-widest">
+                    <span>Approval: {approvalRate.toFixed(1)}%</span>
+                    <span>Total VP: {totalVP.toFixed(2)} / {prop.quorumTarget}</span>
+                  </div>
+                  <div className="h-1.5 w-full bg-neutral-800 rounded overflow-hidden flex relative">
+                    <div className="h-full bg-emerald-500 transition-all duration-500" style={{ width: `${approvalRate}%` }}></div>
+                    <div className="h-full bg-red-500 transition-all duration-500" style={{ width: `${100 - approvalRate}%` }}></div>
+                    {/* Hard-coded 80% Supermajority Line */}
+                    <div className="absolute top-0 bottom-0 w-0.5 bg-amber-500 shadow-[0_0_5px_rgba(245,158,11,0.8)]" style={{ left: '80%' }}></div>
+                  </div>
+                </div>
+
+                {/* Adjudicator Action Gate */}
+                <div className="pt-2 border-t border-amber-900/40">
+                  {hasVoted ? (
+                    <div className="w-full text-center py-2 text-xs font-bold bg-neutral-800/50 text-neutral-500 rounded border border-neutral-800 uppercase tracking-widest">
+                      VP Locked in Ledger
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-2">
+                      <button 
+                        onClick={() => handleVote(prop.proposalId, 'AGAINST')}
+                        disabled={isProcessing}
+                        className="py-2 text-xs bg-red-950/30 hover:bg-red-900/50 text-red-400 border border-red-900/50 rounded font-bold transition-all disabled:opacity-50 tracking-wider flex items-center justify-center"
+                      >
+                        {isProcessing ? 'SYNCING...' : 'REJECT'}
+                      </button>
+                      <button 
+                        onClick={() => handleVote(prop.proposalId, 'FOR')}
+                        disabled={isProcessing}
+                        className="py-2 text-xs bg-emerald-950/30 hover:bg-emerald-900/50 text-emerald-400 border border-emerald-900/50 rounded font-bold transition-all disabled:opacity-50 tracking-wider flex items-center justify-center"
+                      >
+                        {isProcessing ? 'SYNCING...' : 'APPROVE'}
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+              </div>
+            );
+          })
+        )}
       </div>
-      );
+    </div>
+  );
 }
