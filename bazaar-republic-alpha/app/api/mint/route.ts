@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma'; // 🛡️ Database Bridge
 
 // 🛡️ THE PEG: Immutable Protocol Constants
 const PI_TO_MBZR_RATIO = 1000; // 1 Pi = 1,000 mBZR (Algorithmic Peg)
-const MAX_MINT_CAP = 1000;     // 🛡️ ALPHA SAFETY VALVE
+const MAX_MINT_CAP = 1000;    // 🛡️ ALPHA SAFETY VALVE
 
 export async function POST(request: Request) {
   try {
@@ -46,33 +46,50 @@ export async function POST(request: Request) {
     // 3. SYNTHETIC ASSET GENERATION
     const mintedMbzr = lockedPiAmount * PI_TO_MBZR_RATIO;
 
-    // --- CRITICAL SECTION: DB STATE TRANSITION ---
-    await prisma.$transaction([
-      prisma.pioneerNode.upsert({
-        where: { uid: senderWallet },
-        update: {
-          stakedPi: { increment: lockedPiAmount },
-          mbzrBalance: { increment: mintedMbzr },
-          lastActivityTimestamp: new Date(),
-        },
-        create: {
-          uid: senderWallet, // Fallback unique identifier if new
-          walletAddress: senderWallet,
-          stakedPi: lockedPiAmount,
-          mbzrBalance: mintedMbzr,
-        }
-      }),
-      prisma.meshLedger.create({
-        data: {
-          walletId: senderWallet,
-          txSignature: l1TxSignature,
-          txType: 'GENESIS_MINT',
-          piAmount: lockedPiAmount,
-          mbzrAmount: mintedMbzr,
-        },
-      }),
-    ]);
-    // ---------------------------------------------
+    // --- CRITICAL SECTION: DB STATE TRANSITION (CLEAN UPSERT) ---
+    let retries = 3;
+    let success = false;
+
+    while (retries > 0 && !success) {
+      try {
+        await prisma.$transaction([
+          prisma.pioneerNode.upsert({
+            where: { uid: senderWallet },
+            update: {
+              stakedPi: { increment: lockedPiAmount },
+              mbzrBalance: { increment: mintedMbzr },
+              lastActivityTimestamp: new Date(),
+            },
+            create: {
+              uid: senderWallet,
+              walletAddress: senderWallet,
+              username: `pioneer_${senderWallet.slice(0, 8)}`, // Fallback unique placeholder to prevent key collision
+              stakedPi: lockedPiAmount,
+              mbzrBalance: mintedMbzr,
+              trustScore: 10,
+              tier: "CITIZEN",
+              status: "ACTIVE",
+            }
+          }),
+          prisma.meshLedger.create({
+            data: {
+              walletId: senderWallet,
+              txSignature: l1TxSignature,
+              txType: 'GENESIS_MINT',
+              piAmount: lockedPiAmount,
+              mbzrAmount: mintedMbzr,
+            },
+          }),
+        ]);
+        success = true;
+      } catch (dbError: any) {
+        retries--;
+        console.warn(`[MESH-RETRY] Database operation failed. Retries left: ${retries}. Error: ${dbError.message}`);
+        if (retries === 0) throw dbError;
+        await new Promise((res) => setTimeout(res, 1000));
+      }
+    }
+    // -----------------------------------------------------------------
 
     console.log(`[MESH-SYNC] Genesis Mint Authorized.`);
     console.log(` > Node: ${senderWallet}`);
@@ -91,10 +108,10 @@ export async function POST(request: Request) {
       }
     }, { status: 200 });
 
-  } catch (error) {
+  } catch (error: any) {
     console.error("[MESH-FRACTURE] API Route Terminated:", error);
     return NextResponse.json(
-      { success: false, error: 'SERVER-LOGIC-FAULT: Genesis ingestion pipeline failed.' },
+      { success: false, error: `SERVER-LOGIC-FAULT: ${error.message || 'Genesis ingestion pipeline failed.'}` },
       { status: 500 }
     );
   }
