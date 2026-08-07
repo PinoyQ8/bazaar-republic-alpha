@@ -13,7 +13,7 @@ export default async function AcademyLayout({
   if (!isLocalDev) {
     // 🛡️ THE DOUBLE-LOCK: Server-side Vault Check (Executes ONLY in Vercel/Production)
     const cookieStore = await cookies();
-    const session = cookieStore.get("mesh_session_token");
+    const session = cookieStore.get("mesh_session");
 
     if (!session) {
       redirect("/");
