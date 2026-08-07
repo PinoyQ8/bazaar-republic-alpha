@@ -1,13 +1,12 @@
-// 🛡️ NEO PROTOCOL: SCHEMA VERSION 2.5 (Unified & Hardened)
+// 🛡️ NEO PROTOCOL: SCHEMA VERSION 2.6 (Unified & Performance-Indexed)
 generator client {
   provider      = "prisma-client-js"
-  binaryTargets = ["native", "windows"]
-  // 🛡️ MESH ANCHOR: No custom output. Strictly bound to @prisma/client
+  binaryTargets = ["native", "windows", "rhel-openssl-3.0.x"]
 }
 
 datasource db {
   provider = "mongodb"
-  url      = env("DATABASE_URL") // Ensure this matches your .env file
+  url      = env("MONGODB_URI") // 🛡️ Directly maps to your active Vercel variable
 }
 
 // ----------------------------------------------------------------------
@@ -94,6 +93,9 @@ model PioneerNode {
 
   // RELATIONS
   paymentsMade Payment[] @relation("PaymentsMade")
+
+  @@index([status, trustScore])
+  @@index([quarantineStatus])
 }
 
 // ----------------------------------------------------------------------
@@ -128,6 +130,9 @@ model MeshLedger {
   yieldAmount    Float        @default(0) // mBZR redistributed to stakers
   status         String       @default("CONFIRMED") // Micro-settlement status
   createdAt      DateTime     @default(now())
+
+  @@index([walletId])
+  @@index([txType])
 }
 
 // ----------------------------------------------------------------------
@@ -188,6 +193,8 @@ model DaoVote {
   createdAt   DateTime    @default(now())
   
   proposal    DaoProposal @relation(fields: [proposalId], references: [id])
+
+  @@index([proposalId, pioneerUid])
 }
 
 // ----------------------------------------------------------------------
@@ -207,6 +214,8 @@ model ServiceProvider {
   rating           Float    @default(5.0)
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
+
+  @@index([category, isVerified])
 }
 
 // ----------------------------------------------------------------------
@@ -233,29 +242,26 @@ model AcademyLog {
 // ⚙️ E-NETWORK SETTLEMENT BUFFER (70/30 MATRIX)
 // ----------------------------------------------------------------------
 model EpochBuffer {
-  id                String   @id @default(auto()) @map("_id") @db.ObjectId
-  epochMonth        String   @unique // e.g., "2026-08"
-  status            String   @default("ACCUMULATING") // "ACCUMULATING", "DISTRIBUTED"
+  id                String    @id @default(auto()) @map("_id") @db.ObjectId
+  epochMonth        String    @unique // e.g., "2026-08"
+  status            String    @default("ACCUMULATING") // "ACCUMULATING", "DISTRIBUTED"
   
-  // The aggregated Native Pi collected from smart contract fees
-  totalPiCollected  Float    @default(0)
+  totalPiCollected  Float     @default(0)
+  pioneerYieldShare Float     @default(0) // 70% of totalPiCollected
+  treasuryPolShare  Float     @default(0) // 30% of totalPiCollected
   
-  // The 70/30 Split Calculations (Executed at Month-End)
-  pioneerYieldShare Float    @default(0) // 70% of totalPiCollected
-  treasuryPolShare  Float    @default(0) // 30% of totalPiCollected
-  
-  createdAt         DateTime @default(now())
+  createdAt         DateTime  @default(now())
   executedAt        DateTime? 
 }
 
 model PioneerVault {
-  id               String   @id @default(cuid()) @map("_id")
-  pioneerId        String   @unique
-  walletAddress    String   @unique
-  vaultState       String   @default("Active")
-  lockTimestamp    BigInt?
-  masterNodes      String[]
-  unlockSigs       String[]
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  pioneerId     String   @unique
+  walletAddress String   @unique
+  vaultState    String   @default("Active")
+  lockTimestamp Float?   // 🛡️ Updated to Float to avoid BigInt JSON serialization errors
+  masterNodes   String[]
+  unlockSigs    String[]
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 }
