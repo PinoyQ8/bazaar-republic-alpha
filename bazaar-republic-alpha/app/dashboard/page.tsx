@@ -2,15 +2,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link"; // 🛡️ INJECTED ROUTER
+import Link from "next/link"; 
 import { useAuth } from "@/context/AuthContext";
 import PioneerAuthGate from "@/app/components/PioneerAuthGate";
 import EpochYieldTracker from '@/app/components/EpochYieldTracker';
 import PioneerVaultCard from "@/app/dashboard/components/PioneerVaultCard";
-import MasterMeshSwitch from "@/app/components/MasterMeshSwitch";
-import { useMeshCurrency } from "@/app/hooks/useMeshCurrency"; // 🛡️ Inject Currency Hook
+import MasterMeshSwitch from "@/app/components/MasterMeshSwitch"; // 🛡️ MESH SWITCH IMPORTED
+import { useMeshCurrency } from "@/app/hooks/useMeshCurrency";
 
-// Merged TS Matrix & Live Soroban Telemetry Interface
 interface TelemetryData {
   ts: number;
   tier: string;
@@ -28,11 +27,11 @@ export default function DashboardPage() {
   const { pioneer } = useAuth();
   const [telemetry, setTelemetry] = useState<TelemetryData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  // 🛡️ INITIALIZE DYNAMIC CURRENCY
+  
+  // 🛡️ DYNAMIC CURRENCY
   const { text: piText, symbol: piSymbol } = useMeshCurrency();
 
   useEffect(() => {
-    // 🛡️ ZERO-TRUST PERIMETER: Wait for AuthContext to resolve
     if (!pioneer) {
       setIsLoading(false);
       return;
@@ -40,7 +39,6 @@ export default function DashboardPage() {
 
     const fetchLiveTelemetry = async () => {
       try {
-        // 🚀 FIRE PARALLEL NETWORK REQUESTS to Prisma & Soroban
         const [scanRes, vaultRes] = await Promise.all([
           fetch("/api/mesh-scan"),
           fetch(`/api/mesh/pioneer-vault?pioneerId=${pioneer.uid}`)
@@ -53,7 +51,6 @@ export default function DashboardPage() {
         const scanData = await scanRes.json();
         const vaultData = await vaultRes.json();
 
-        // 🧠 Fuse the live data streams into the TS Matrix
         setTelemetry({
           ts: vaultData.vault?.trust_score || 50,
           tier: vaultData.vault?.node_tier || vaultData.node_tier || "Genesis",
@@ -77,7 +74,6 @@ export default function DashboardPage() {
     fetchLiveTelemetry();
   }, [pioneer]);
 
-  // 🛡️ LOADING HUD SHIELD
   if (isLoading) {
     return (
       <div className="min-h-screen bg-black text-amber-500 font-mono flex flex-col items-center justify-center space-y-4">
@@ -87,7 +83,6 @@ export default function DashboardPage() {
     );
   }
 
-  // 🛡️ FALLBACK HUD (If Node Desyncs)
   if (!telemetry) {
     return (
       <div className="min-h-screen bg-black text-red-500 font-mono flex flex-col items-center justify-center space-y-4 p-4 text-center">
@@ -99,7 +94,6 @@ export default function DashboardPage() {
 
   return (
     <PioneerAuthGate>
-      {/* 🛡️ MAIN VIEWPORT OUTER SHIELD (S23 Ultra 384px Safe) */}
       <div className="w-full max-w-sm mx-auto overflow-x-hidden space-y-4 p-2 bg-black min-h-screen font-mono pb-24">
         
         {/* HEADER BLOCK */}
@@ -119,6 +113,11 @@ export default function DashboardPage() {
             </p>
           </div>
         </header>
+
+        {/* 🎛️ INJECTED MASTER MESH SWITCH */}
+        <div className="w-full py-1">
+          <MasterMeshSwitch />
+        </div>
 
         {/* 🛡️ TS CORE ANCHOR & MATRIX */}
         <section className="p-3 border border-amber-900/80 bg-neutral-900/60 rounded-lg space-y-4 shadow-[0_0_15px_rgba(217,119,6,0.15)]">
