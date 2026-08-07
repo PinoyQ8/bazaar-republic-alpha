@@ -1,15 +1,16 @@
+// Location: app/components/MainNavigation.tsx
 "use client";
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-// 🛡️ MESH UPGRADE: Injecting React State for the Mobile Node
 import React, { useState } from "react";
 import BazaarLogo from "./BazaarLogo";
+import MasterMeshSwitch from "./MasterMeshSwitch"; // 🛡️ Import the Master Control Grid
 
 export default function MainNavigation() {
   const pathname = usePathname();
-  // 🛡️ THE S23 STATE CONTROLLER: Tracks if the mobile menu is active
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isSwitchOpen, setIsSwitchOpen] = useState(false); // 🎛️ Toggles the control modal/drawer on desktop
 
   const navLinks = [
     { name: "REPUBLIC", path: "/" },
@@ -17,20 +18,20 @@ export default function MainNavigation() {
     { name: "GOVERNANCE", path: "/governance" },
   ];
 
-  // 🛡️ TOUCH BYPASS: Closes the menu automatically after a Pioneer clicks a link
   const handleLinkClick = () => {
     setIsMobileMenuOpen(false);
+    setIsSwitchOpen(false);
   };
 
   return (
-    <nav className="sticky top-0 z-50 w-full border-b border-blue-900/30 bg-slate-950/80 backdrop-blur-md">
+    <nav className="sticky top-0 z-50 w-full border-b border-blue-900/30 bg-slate-950/80 backdrop-blur-md font-mono">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-20">
           
           {/* 🛡️ LEFT: The Identity Anchor */}
           <Link href="/" className="flex items-center gap-4 group transition-transform active:scale-95" onClick={handleLinkClick}>
             <BazaarLogo size="sm" />
-            <span className="font-mono font-bold text-xl tracking-widest text-slate-100 group-hover:text-blue-400 transition-colors">
+            <span className="font-bold text-xl tracking-widest text-slate-100 group-hover:text-blue-400 transition-colors">
               BAZAAR<span className="text-blue-600">.DAO</span>
             </span>
           </Link>
@@ -43,7 +44,7 @@ export default function MainNavigation() {
                 <Link
                   key={link.name}
                   href={link.path}
-                  className={`font-mono text-sm tracking-widest transition-all ${
+                  className={`text-sm tracking-widest transition-all ${
                     isActive 
                       ? "text-blue-400 border-b-2 border-blue-500 pb-1" 
                       : "text-slate-400 hover:text-slate-200"
@@ -56,10 +57,28 @@ export default function MainNavigation() {
           </div>
 
           <div className="flex items-center gap-4">
+            {/* 🛡️ DESKTOP CONTROL BUTTON: Toggles the Master Switch Panel */}
+            <div className="hidden md:block relative">
+              <button
+                onClick={() => setIsSwitchOpen(!isSwitchOpen)}
+                className="px-3 py-1.5 bg-blue-950/40 border border-blue-800 text-blue-400 text-[10px] font-bold uppercase tracking-wider rounded hover:bg-blue-900/40 transition-colors flex items-center gap-1.5"
+              >
+                <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+                MESH GRID
+              </button>
+
+              {/* Desktop Floating Control Panel */}
+              {isSwitchOpen && (
+                <div className="absolute right-0 mt-2 z-50">
+                  <MasterMeshSwitch />
+                </div>
+              )}
+            </div>
+
             {/* 🛡️ NETWORK STATUS: Visible on all devices */}
             <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-900 border border-slate-800">
               <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-              <span className="text-[10px] font-mono text-slate-400 uppercase tracking-widest">
+              <span className="text-[10px] text-slate-400 uppercase tracking-widest">
                 mBZR Active
               </span>
             </div>
@@ -72,7 +91,6 @@ export default function MainNavigation() {
               aria-expanded={isMobileMenuOpen}
             >
               <span className="sr-only">Open Main Menu</span>
-              {/* SVG logic changes from a 'Hamburger' to an 'X' when open */}
               {!isMobileMenuOpen ? (
                 <svg className="block h-6 w-6" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" aria-hidden="true">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
@@ -98,7 +116,7 @@ export default function MainNavigation() {
                   key={link.name}
                   href={link.path}
                   onClick={handleLinkClick}
-                  className={`block px-3 py-4 rounded-md font-mono text-base tracking-widest transition-all ${
+                  className={`block px-3 py-4 rounded-md text-base tracking-widest transition-all ${
                     isActive
                       ? "bg-blue-900/20 text-blue-400 border-l-2 border-blue-500"
                       : "text-slate-400 hover:bg-slate-900 hover:text-slate-200"
@@ -109,12 +127,18 @@ export default function MainNavigation() {
               );
             })}
             
+            {/* 🎛️ EMBEDDED MASTER MESH SWITCH FOR S23 MOBILE NODES */}
+            <div className="mt-4 pt-4 border-t border-slate-800 px-2">
+              <p className="text-[10px] text-slate-500 uppercase tracking-widest mb-2 px-1">Terminal Matrix Controls</p>
+              <MasterMeshSwitch />
+            </div>
+
             {/* Mobile-only network indicator */}
-            <div className="sm:hidden mt-4 pt-4 border-t border-slate-800 px-3">
+            <div className="mt-4 pt-4 border-t border-slate-800 px-3">
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                <span className="text-xs font-mono text-slate-400 uppercase tracking-widest">
-                  mBZR Testnet Active
+                <span className="text-xs text-slate-400 uppercase tracking-widest">
+                  mBZR Active Node
                 </span>
               </div>
             </div>
