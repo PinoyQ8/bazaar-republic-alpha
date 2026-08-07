@@ -7,6 +7,8 @@ import { useAuth } from "@/context/AuthContext";
 import PioneerAuthGate from "@/app/components/PioneerAuthGate";
 import EpochYieldTracker from '@/app/components/EpochYieldTracker';
 import PioneerVaultCard from "@/app/dashboard/components/PioneerVaultCard";
+import MasterMeshSwitch from "@/app/components/MasterMeshSwitch";
+import { useMeshCurrency } from "@/app/hooks/useMeshCurrency"; // 🛡️ Inject Currency Hook
 
 // Merged TS Matrix & Live Soroban Telemetry Interface
 interface TelemetryData {
@@ -26,6 +28,8 @@ export default function DashboardPage() {
   const { pioneer } = useAuth();
   const [telemetry, setTelemetry] = useState<TelemetryData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  // 🛡️ INITIALIZE DYNAMIC CURRENCY
+  const { text: piText, symbol: piSymbol } = useMeshCurrency();
 
   useEffect(() => {
     // 🛡️ ZERO-TRUST PERIMETER: Wait for AuthContext to resolve
