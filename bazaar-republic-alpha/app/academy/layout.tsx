@@ -1,27 +1,15 @@
 // Location: app/academy/layout.tsx
-import { cookies } from "next/headers";
-import { redirect } from "next/navigation";
+import React from "react";
 
 export default async function AcademyLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  // ☢️ NUCLEAR SERVER-SIDE BYPASS FOR X570 WORKSTATION
-  const isLocalDev = process.env.NODE_ENV === 'development';
-
-  if (!isLocalDev) {
-    // 🛡️ THE DOUBLE-LOCK: Server-side Vault Check (Executes ONLY in Vercel/Production)
-    const cookieStore = await cookies();
-    const session = cookieStore.get("mesh_session");
-
-    if (!session) {
-      redirect("/");
-    }
-  }
+  // 🛡️ MESH ANCHOR: Server-side cookie check purged.
+  // Security is now fully delegated to the fortified PioneerAuthGate (Master TS) on the client side.
 
   return (
-    // 🚨 CRITICAL FIX: Removed "flex" to prevent side-by-side row crushing
     <div className="min-h-screen bg-slate-950 font-mono">
       
       {/* 🚀 THE MISSION THEATER (100% Mobile Width) */}
