@@ -5,6 +5,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/app/context/AuthContext';
 import { ArrowLeft, Cpu, Zap, ShieldAlert, Loader2, Network, CheckCircle2, Activity, Clock, RotateCcw } from 'lucide-react';
+import { useMeshCurrency } from "@/app/hooks/useMeshCurrency"; // 🛡️ INJECTED CURRENCY HOOK
 
 // 🛡️ ECONOMIC CONSTANTS (Pure Algorithmic Peg)
 const PI_TO_MBZR_RATIO = 1000;
@@ -26,6 +27,9 @@ const MILESTONE_TIERS: MilestoneTier[] = [
 export default function AlphaTrackModule() {
   const { pioneer, executeStakePayment } = useAuth();
   
+  // 🛡️ INITIALIZE DYNAMIC CURRENCY
+  const { text: piText, symbol: piSymbol } = useMeshCurrency();
+
   // 🛡️ PHASE 1 STATE: Soroban Staking
   const [isStaking, setIsStaking] = useState(false);
   const [txLog, setTxLog] = useState<string[]>([]);
@@ -75,7 +79,7 @@ export default function AlphaTrackModule() {
     setStakeError(null);
     setTxLog([]);
     addLog('INITIATING SOROBAN SMART CONTRACT...');
-    addLog(`Target Payload: ${GENESIS_STAKE_AMOUNT} Pi`);
+    addLog(`Target Payload: ${GENESIS_STAKE_AMOUNT} ${piText}`);
 
     try {
       await executeStakePayment(GENESIS_STAKE_AMOUNT);
@@ -192,7 +196,7 @@ export default function AlphaTrackModule() {
             </h3>
             
             <p className="text-[10px] text-zinc-400 mb-6 leading-relaxed">
-              To activate the Economic Engine, you must anchor your node. Staking <span className="text-emerald-400 font-bold">{GENESIS_STAKE_AMOUNT} Pi</span> via Soroban permanently upgrades your tier to <span className="text-cyan-400 font-bold">MESH_GUARDIAN</span>.
+              To activate the Economic Engine, you must anchor your node. Staking <span className="text-emerald-400 font-bold">{GENESIS_STAKE_AMOUNT} {piText}</span> via Soroban permanently upgrades your tier to <span className="text-cyan-400 font-bold">MESH_GUARDIAN</span>.
             </p>
 
             {stakeError && (
@@ -209,7 +213,7 @@ export default function AlphaTrackModule() {
               {isStaking ? (
                 <><Loader2 className="w-4 h-4 animate-spin" /> EXECUTING...</>
               ) : (
-                <><Zap className="w-4 h-4" /> AUTHORIZE STAKE ({GENESIS_STAKE_AMOUNT} Pi)</>
+                <><Zap className="w-4 h-4" /> AUTHORIZE STAKE ({GENESIS_STAKE_AMOUNT} {piText})</>
               )}
             </button>
           </div>
@@ -243,8 +247,8 @@ export default function AlphaTrackModule() {
               <span className="font-bold text-amber-400 text-xs">{totalMinted.toFixed(2)} mBZR</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-zinc-500 text-xs">Vault Collateral (Pi):</span>
-              <span className="font-bold text-blue-400 text-xs">{currentVaultCollateralPi.toFixed(4)} Pi</span>
+              <span className="text-zinc-500 text-xs">Vault Collateral ({piText}):</span>
+              <span className="font-bold text-blue-400 text-xs">{currentVaultCollateralPi.toFixed(4)} {piSymbol}</span>
             </div>
             <div className="flex justify-between border-t border-zinc-800 pt-2 mt-2">
               <span className="text-zinc-500 text-xs">Circulating Pool:</span>
@@ -272,21 +276,21 @@ export default function AlphaTrackModule() {
                   onClick={() => setMintInput("100")}
                   className="py-1 px-1 bg-emerald-950/40 hover:bg-emerald-900/50 border border-emerald-800/50 rounded text-[9px] text-emerald-300 font-mono transition-colors text-center"
                 >
-                  100 Pi <span className="block text-[7px] text-emerald-500/70">Normal</span>
+                  100 {piText} <span className="block text-[7px] text-emerald-500/70">Normal</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => setMintInput("1000")}
                   className="py-1 px-1 bg-amber-950/40 hover:bg-amber-900/50 border border-amber-800/50 rounded text-[9px] text-amber-300 font-mono transition-colors text-center"
                 >
-                  1000 Pi <span className="block text-[7px] text-amber-500/70">Max Cap</span>
+                  1000 {piText} <span className="block text-[7px] text-amber-500/70">Max Cap</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => setMintInput("1001")}
                   className="py-1 px-1 bg-red-950/40 hover:bg-red-900/50 border border-red-800/50 rounded text-[9px] text-red-300 font-mono transition-colors text-center"
                 >
-                  1001 Pi <span className="block text-[7px] text-red-500/70">Overflow</span>
+                  1001 {piText} <span className="block text-[7px] text-red-500/70">Overflow</span>
                 </button>
               </div>
             </div>
@@ -297,7 +301,7 @@ export default function AlphaTrackModule() {
                 step="any"
                 value={mintInput} 
                 onChange={(e) => setMintInput(e.target.value)} 
-                placeholder="Amount Pi (Max 1000)"
+                placeholder={`Amount ${piText} (Max 1000)`}
                 className="w-full bg-zinc-950 border border-zinc-800 p-3 rounded text-emerald-300 focus:outline-none focus:border-emerald-500 transition-colors text-xs font-mono"
               />
               <button type="submit" className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-zinc-950 text-[10px] font-bold uppercase tracking-wider rounded transition-colors shadow-[0_0_10px_rgba(16,185,129,0.15)]">
@@ -367,7 +371,7 @@ export default function AlphaTrackModule() {
               <span className="text-[9px] text-red-400 font-bold">Yield Penalty: {(activePenalty * 100).toFixed(1)}%</span>
             </div>
             <p className="text-[9px] text-zinc-500 leading-tight">
-              *Note: Principal Pi collateral is <span className="text-zinc-300 font-bold">100% protected</span>. Penalties apply exclusively to early accumulated dividend yields and decay over elapsed simulation time.
+              *Note: Principal {piText} collateral is <span className="text-zinc-300 font-bold">100% protected</span>. Penalties apply exclusively to early accumulated dividend yields and decay over elapsed simulation time.
             </p>
             <form onSubmit={executeRedeem} className="space-y-3">
               <input 
