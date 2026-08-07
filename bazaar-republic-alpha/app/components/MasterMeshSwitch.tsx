@@ -3,17 +3,28 @@
 
 import React, { useState, useEffect } from "react";
 import { getMasterMeshConfig, DeploymentMode, NetworkMode } from "@/app/utils/meshConfig";
-import { Server, Cpu, RefreshCw, ShieldCheck } from "lucide-react";
+import { Server, Cpu, RefreshCw, ShieldCheck, Lock } from "lucide-react";
 
 export default function MasterMeshSwitch() {
   const [config, setConfig] = useState(getMasterMeshConfig());
   const [isSwapping, setIsSwapping] = useState(false);
+  const [hasClearance, setHasClearance] = useState(false);
 
   useEffect(() => {
     setConfig(getMasterMeshConfig());
+    
+    // 🛡️ SECURITY ADJUDICATION: Verify active Pioneer session clearance
+    const pioneerActive = localStorage.getItem("mesh_pioneer_active");
+    const pioneerId = localStorage.getItem("mesh_pioneer_id");
+    
+    if (pioneerActive === "true" && pioneerId) {
+      setHasClearance(true);
+    }
   }, []);
 
   const handleSwitch = (targetDeployment?: DeploymentMode, targetNetwork?: NetworkMode) => {
+    if (!hasClearance) return;
+    
     setIsSwapping(true);
 
     if (targetDeployment) {
@@ -29,11 +40,28 @@ export default function MasterMeshSwitch() {
     }, 500);
   };
 
+  // 🔒 LOCKDOWN VIEW: Deny access if security clearance is absent
+  if (!hasClearance) {
+    return (
+      <div className="p-4 bg-slate-950 border border-red-900/50 rounded-lg font-mono text-slate-400 shadow-2xl max-w-md w-full">
+        <div className="flex items-center justify-between border-b border-red-900/30 pb-2">
+          <span className="text-[10px] text-red-400 uppercase tracking-widest flex items-center gap-1.5 font-bold">
+            <Lock className="w-4 h-4 text-red-500 animate-pulse" /> SECURITY LOCKDOWN: LEVEL-1 REQUIRED
+          </span>
+        </div>
+        <p className="text-[11px] text-slate-500 mt-3 leading-relaxed">
+          Access to the Master MESH Control Grid is restricted. Authenticate your Pioneer identity via the Genesis Gate to acquire node clearance.
+        </p>
+      </div>
+    );
+  }
+
+  // 🔓 AUTHORIZED VIEW: Fully operational control grid
   return (
-    <div className="p-4 bg-slate-900/90 border border-slate-800 rounded-lg font-mono text-slate-100 shadow-2xl max-w-md w-full">
+    <div className="p-4 bg-slate-900/90 border border-blue-900/50 rounded-lg font-mono text-slate-100 shadow-2xl max-w-md w-full">
       <div className="flex items-center justify-between mb-4 border-b border-slate-800 pb-2">
-        <span className="text-[10px] text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
-          <ShieldCheck className="w-4 h-4 text-blue-400" /> Master MESH Control Grid
+        <span className="text-[10px] text-emerald-400 uppercase tracking-widest flex items-center gap-1.5 font-bold">
+          <ShieldCheck className="w-4 h-4 text-emerald-400" /> CLEARANCE GRANTED: MASTER OPERATOR
         </span>
         {isSwapping && <RefreshCw className="w-3.5 h-3.5 text-amber-400 animate-spin" />}
       </div>
