@@ -7,15 +7,6 @@ const globalForPrisma = global as unknown as { prisma: PrismaClient };
 const prisma = globalForPrisma.prisma || new PrismaClient();
 if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
 
-// Helper to safely serialize BigInt timestamps for JSON transport
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function serializeVault(vault: any) {
-  return {
-    ...vault,
-    lockTimestamp: vault.lockTimestamp ? Number(vault.lockTimestamp) : null,
-  };
-}
-
 // GET: Retrieve or lazily initialize Pioneer Vault status
 export async function GET(req: NextRequest) {
   try {
@@ -42,7 +33,7 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    return NextResponse.json({ status: "success", vault: serializeVault(vault) });
+    return NextResponse.json({ status: "success", vault });
   } catch (error) {
     console.error("[MESH API ERROR] GET /api/mesh/pioneer-vault:", error);
     return NextResponse.json({ status: "error", message: "Database query failed" }, { status: 500 });
@@ -62,11 +53,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Assign timestamp if entering a locked or pending state
-    const timestamp =
-      targetState === "PendingLock" || targetState === "Locked"
-        ? BigInt(Math.floor(Date.now() / 1000))
-        : null;
+    // 🛡️ CORRECT (BigInt purged, natively returning a number/Float)
+const timestamp =
+  targetState === "PendingLock" || targetState === "Locked"
+    ? Math.floor(Date.now() / 1000)
+    : null;
 
     const updatedVault = await prisma.pioneerVault.update({
       where: { pioneerId },
@@ -80,7 +71,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       status: "success",
       message: `Pioneer vault state transitioned to: ${targetState}`,
-      vault: serializeVault(updatedVault),
+      vault: updatedVault,
     });
   } catch (error) {
     console.error("[MESH API ERROR] POST /api/mesh/pioneer-vault:", error);
