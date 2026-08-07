@@ -1,7 +1,9 @@
+// Location: /app/components/EpochYieldTracker.tsx
 'use client';
 
 import React, { useState, useEffect } from 'react';
 import { Timer, Pickaxe, Coins, ShieldCheck, Activity } from 'lucide-react';
+import { useMeshCurrency } from "@/app/hooks/useMeshCurrency"; // 🛡️ INJECTED CURRENCY HOOK
 
 interface EpochTelemetryProps {
   stakeWeight: number; // e.g., 0.02 for 2% of the total network stake
@@ -15,13 +17,16 @@ export default function EpochYieldTracker({
   initialNetworkBufferPi = 1420.50 
 }: EpochTelemetryProps) {
   
+  // 🛡️ INITIALIZE DYNAMIC CURRENCY
+  const { text: piText, symbol: piSymbol } = useMeshCurrency();
+
   // 🛡️ MESH PATCH: Live Buffer State
   const [networkBuffer, setNetworkBuffer] = useState<number>(initialNetworkBufferPi);
 
   // ⚙️ ALGORITHM: Simulate real-time micro-transactions hitting the E-Network
   useEffect(() => {
     const trafficSimulation = setInterval(() => {
-      // Increment network buffer by a tiny fraction of Pi to simulate global directory usage
+      // Increment network buffer by a tiny fraction of currency to simulate global directory usage
       const simulatedTxnFee = Math.random() * 0.005; 
       setNetworkBuffer((prev) => prev + simulatedTxnFee);
     }, 4500); // Ticks every 4.5 seconds
@@ -42,7 +47,7 @@ export default function EpochYieldTracker({
           <h2 className="text-emerald-400 font-bold uppercase tracking-widest text-xs flex items-center gap-2">
             <Activity className="w-4 h-4" /> 30-Day Epoch Yield
           </h2>
-          <p className="text-[10px] text-zinc-500 uppercase mt-1">Pending Pi Network Distribution</p>
+          <p className="text-[10px] text-zinc-500 uppercase mt-1">Pending {piText} Network Distribution</p>
         </div>
         <div className="flex items-center gap-2 bg-emerald-950/30 border border-emerald-900/50 px-2.5 py-1 rounded">
           <Timer className="w-3 h-3 text-emerald-400 animate-pulse" />
@@ -61,7 +66,7 @@ export default function EpochYieldTracker({
             <Coins className="w-3 h-3 text-cyan-400" /> Total E-Network Buffer
           </span>
           <p className="text-lg font-bold text-cyan-400">
-            {networkBuffer.toLocaleString(undefined, { minimumFractionDigits: 4, maximumFractionDigits: 4 })} <span className="text-xs text-zinc-400 font-normal">Pi</span>
+            {networkBuffer.toLocaleString(undefined, { minimumFractionDigits: 4, maximumFractionDigits: 4 })} <span className="text-xs text-zinc-400 font-normal">{piSymbol}</span>
           </p>
           <div className="w-full bg-zinc-900 h-1 mt-2 rounded overflow-hidden">
             <div className="bg-cyan-500 h-full w-full animate-pulse opacity-50"></div>
@@ -77,7 +82,7 @@ export default function EpochYieldTracker({
             <Pickaxe className="w-3 h-3 text-purple-400" /> Your Pending Yield (70% Split)
           </span>
           <p className="text-2xl font-bold text-purple-400 z-10 transition-all duration-300">
-            {pioneerPendingYield.toLocaleString(undefined, { minimumFractionDigits: 6, maximumFractionDigits: 6 })} <span className="text-xs text-zinc-400 font-normal">Pi</span>
+            {pioneerPendingYield.toLocaleString(undefined, { minimumFractionDigits: 6, maximumFractionDigits: 6 })} <span className="text-xs text-zinc-400 font-normal">{piSymbol}</span>
           </p>
           <p className="text-[9px] text-zinc-500 uppercase mt-1 z-10 flex items-center gap-1">
             <ShieldCheck className="w-3 h-3 text-emerald-500" /> Stake Weight: {(stakeWeight * 100).toFixed(2)}%
@@ -89,7 +94,7 @@ export default function EpochYieldTracker({
       {/* WARNING FOOTER */}
       <div className="pt-2">
         <p className="text-[9px] text-zinc-600 uppercase leading-relaxed">
-          * Yield is calculated from native Pi smart contract fees generated within the E-Network. Unstaking before the 30-Day Snapshot forfeits pending yield to the remaining active Pioneers.
+          * Yield is calculated from native {piText} smart contract fees generated within the E-Network. Unstaking before the 30-Day Snapshot forfeits pending yield to the remaining active Pioneers.
         </p>
       </div>
 
