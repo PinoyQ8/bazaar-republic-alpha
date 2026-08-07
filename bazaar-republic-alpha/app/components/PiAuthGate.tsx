@@ -33,21 +33,24 @@ export default function PiAuthGate({ clientId }: PiAuthGateProps) {
     window.location.assign(authUrl.toString());
   };
 
+  // 🛡️ CORRECTED: Disable ONLY if redirecting, missing, or still using the generic placeholder text
+  const isInvalid = !clientId || clientId === "YOUR_CLIENT_ID_HERE";
+
   return (
     <div className="w-full space-y-3">
       <button
         onClick={handlePiSignIn}
-        disabled={isRedirecting || !clientId || clientId === "YOUR_CLIENT_ID_HERE"}
-        className="w-full py-3 bg-purple-600 hover:bg-purple-500 disabled:bg-slate-800 disabled:text-slate-500 text-white font-mono text-xs font-bold uppercase tracking-wider rounded border border-purple-500/50 transition-all shadow-[0_0_15px_rgba(147,51,234,0.3)] flex items-center justify-center gap-2"
+        disabled={isRedirecting || isInvalid}
+        className="w-full py-3 bg-purple-600 hover:bg-purple-500 disabled:bg-slate-800 disabled:text-slate-500 text-white font-mono text-xs font-bold uppercase tracking-wider rounded border border-purple-500/50 transition-all shadow-[0_0_15px_rgba(147,51,234,0.3)] flex items-center justify-center gap-2 cursor-pointer disabled:cursor-not-allowed"
       >
         <KeyRound className="w-4 h-4" />
         {isRedirecting ? "CONNECTING..." : "Sign In with Pi (Web)"}
       </button>
 
-      {(!clientId || clientId === "YOUR_CLIENT_ID_HERE") && (
+      {isInvalid && (
         <div className="flex items-center gap-2 text-[10px] text-amber-500 bg-amber-950/30 p-2 rounded border border-amber-900/50">
           <AlertTriangle className="w-3 h-3 shrink-0" />
-          <p>Dev Alert: Replace "YOUR_CLIENT_ID_HERE" in PioneerAuthGate with your actual Portal Client ID.</p>
+          <p>Dev Alert: Replace placeholder with your actual Portal Client ID.</p>
         </div>
       )}
     </div>

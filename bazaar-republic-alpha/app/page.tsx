@@ -31,75 +31,64 @@ export default function MasterDashboard() {
   });
 
   useEffect(() => {
-    const activeStatus = localStorage.getItem("mesh_pioneer_active");
-    const storedId = localStorage.getItem("mesh_pioneer_id");
-    
-    if (activeStatus === "true" && storedId) {
-      setPioneerId(storedId);
-      setIsFirstTime(false);
-    }
-    
-    const syncMesh = async () => {
-      try {
-        const res = await fetch("/api/mesh-scan");
-        const data = await res.json();
-        if (data.status === "MESH_ACTIVE") {
-          setMeshData({
-            status: "SYNCED",
-            protocol: `p${data.telemetry.protocol_version}`,
-            ledger: data.telemetry.latest_ledger.toLocaleString()
-          });
-        } else {
-          setMeshData(prev => ({ ...prev, status: "FAULT" }));
-        }
-      } catch (err) {
-        setMeshData(prev => ({ ...prev, status: "OFFLINE" }));
-      } finally {
-        setIsInitializing(false);
-      }
-    };
+  // 1. Define the fetch logic
+  const syncMeshTelemetry = async () => {
+    try {
+      // The exact line you found (Line 44)
+      const res = await fetch("/api/mesh-scan");
+      
+      // If you are also fetching the vault data here, add it below:
+      // const vaultRes = await fetch(`/api/mesh/pioneer-vault?pioneerId=${pioneerId}`);
+      
+      // Add your state update logic here (e.g., setData(await res.json()))
 
-    syncMesh();
-  }, []);
+    } catch (error) {
+      console.error("[MESH FAULT] RPC Sync Failed:", error);
+    }
+  };
+
+  // 2. Execute the initial handshake immediately when the dashboard loads
+  syncMeshTelemetry();
+
+  // 3. The 15-Second Shield: Lock the network stream to prevent RPC timeouts
+  const telemetryLoop = setInterval(syncMeshTelemetry, 15000);
+
+  // 4. The Cleanup Protocol: Destroy the loop instantly if the Pioneer navigates away
+  return () => {
+    clearInterval(telemetryLoop);
+  };
+}, []); // <-- Ensure this array contains any variables used inside the effect (like pioneerId)
 
   // 2. THE CRYPTOGRAPHIC HANDSHAKE
   const completeOnboarding = async () => {
     setIsAuthenticating(true);
 
     try {
-      const isOutsideSandbox = window.self === window.top;
-      
-      if (process.env.NODE_ENV === "development" || !window.Pi) {
-  console.warn("[MESH-FAULT] Operating outside Pi Sandbox. Using Dev Node bypass.");
-  // 👇 ONLY PUT // IN FRONT OF THESE SPECIFIC LINES:
-  // login({ uid: "PinoyQ8_Dev", username: "PinoyQ8_Dev", status: "ACTIVE" });
-  // return; 
-}
+      // 🛡️ DETECT DESKTOP BROWSER VS PI BROWSER SANDBOX
+      const isPiBrowser = typeof window !== "undefined" && window.Pi && /PiBrowser/i.test(navigator.userAgent);
 
-      if (typeof window === "undefined" || !window.Pi) {
-        throw new Error("Pi SDK Missing. Ensure the SDK script is loaded in layout.tsx.");
+      if (!isPiBrowser) {
+        console.warn("[MESH-BRIDGE] ⚠️ Detected standard desktop browser. Skipping native Pi SDK injection.");
+        // Fallback to simulation mode or direct web-auth redirect
+        setIsAuthenticating(false);
+        return;
       }
 
-      console.log("[MESH-SYNC] Initializing Pi SDK Sandbox...");
+      // 🛡️ ONLY EXECUTE NATIVE SDK IN INSIDE THE PI BROWSER
       window.Pi.init({ 
         version: "2.0", 
         sandbox: process.env.NODE_ENV !== "production" 
       });
 
-      const onIncompletePaymentFound = (payment: any) => {
-        console.log("[MESH-SYNC] Incomplete payment detected:", payment);
-      };
-
       const authResult = await window.Pi.authenticate(
         ["username", "payments"],
-        onIncompletePaymentFound
+        (payment: any) => console.log("[MESH-SYNC] Incomplete payment:", payment)
       );
 
-      console.log("[MESH-SYNC] Handshake accepted by:", authResult.user.username);
       finalizeLogin(authResult.user.username);
 
     } catch (error) {
-      console.error("[MESH-FAULT] Authentication rejected or failed:", error);
+      console.error("[MESH-FAULT] Native SDK Handshake rejected:", error);
       setIsAuthenticating(false);
     }
   };

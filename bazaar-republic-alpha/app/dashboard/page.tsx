@@ -1,4 +1,3 @@
-// Location: /app/dashboard/page.tsx
 "use client";
 
 import { useEffect, useState } from "react";
@@ -7,7 +6,7 @@ import { useAuth } from "@/context/AuthContext";
 import PioneerAuthGate from "@/app/components/PioneerAuthGate";
 import EpochYieldTracker from '@/app/components/EpochYieldTracker';
 import PioneerVaultCard from "@/app/dashboard/components/PioneerVaultCard";
-import MasterMeshSwitch from "@/app/components/MasterMeshSwitch"; // 🛡️ MESH SWITCH IMPORTED
+import MasterMeshSwitch from "@/app/components/MasterMeshSwitch"; 
 import { useMeshCurrency } from "@/app/hooks/useMeshCurrency";
 
 interface TelemetryData {
@@ -32,25 +31,31 @@ export default function DashboardPage() {
   const { text: piText, symbol: piSymbol } = useMeshCurrency();
 
   useEffect(() => {
-    if (!pioneer) {
-      setIsLoading(false);
+    // 1. The Genesis Guard
+    const pioneerUid = pioneer?.uid;
+    
+    if (!pioneerUid) {
+      console.warn("[MESH BUFFER] Awaiting Pioneer Identity Handshake...");
       return;
     }
 
+    // 2. The Async Wrapper (Turbopack Compliant)
     const fetchLiveTelemetry = async () => {
       try {
-        const [scanRes, vaultRes] = await Promise.all([
-          fetch("/api/mesh-scan"),
-          fetch(`/api/mesh/pioneer-vault?pioneerId=${pioneer.uid}`)
-        ]);
+        const scanRes = await fetch("/api/mesh-scan");
+        const vaultRes = await fetch(`/api/mesh/pioneer-vault?pioneerId=${pioneerUid}`);
 
+        // 3. The Graceful Fallback
         if (!scanRes.ok || !vaultRes.ok) {
-          throw new Error("MESH network fracture during payload retrieval.");
+          console.error(`[MESH FAULT] RPC Payload Dropped. Scan: ${scanRes.status} | Vault: ${vaultRes.status}`);
+          return; 
         }
 
+        // 4. Safe Payload Extraction
         const scanData = await scanRes.json();
         const vaultData = await vaultRes.json();
 
+        // 5. Update UI State
         setTelemetry({
           ts: vaultData.vault?.trust_score || 50,
           tier: vaultData.vault?.node_tier || vaultData.node_tier || "Genesis",
@@ -64,15 +69,24 @@ export default function DashboardPage() {
           protocol_version: scanData.telemetry?.protocol_version || "26.1",
         });
 
-      } catch (err) {
-        console.error("[MESH] Dashboard Fetch Failure:", err);
+      } catch (error) {
+        console.error("[MESH FAULT] RPC Sync Failed:", error);
       } finally {
         setIsLoading(false);
       }
     };
 
+    // 6. Execute the sync immediately on load
     fetchLiveTelemetry();
-  }, [pioneer]);
+
+    // 7. The 15-Second Shield
+    const telemetryLoop = setInterval(fetchLiveTelemetry, 15000);
+
+    // 8. The Cleanup Protocol
+    return () => {
+      clearInterval(telemetryLoop);
+    };
+  }, [pioneer?.uid]);
 
   if (isLoading) {
     return (
