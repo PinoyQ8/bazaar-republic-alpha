@@ -1,9 +1,10 @@
 // Location: app/components/PioneerAuthGate.tsx
 "use client";
 
-import { useEffect, useState, ReactNode } from "react";
-import { useAuth } from "@/context/AuthContext"; // 🛡️ LINKED TO THE MASTER TS
+import { useEffect, useState, ReactNode, useRef } from "react";
+import { useAuth } from "@/context/AuthContext";
 import { safePiAuthenticate, type PiAuthResult } from "@/app/utils/safePi";
+import { ShieldAlert, Fingerprint } from "lucide-react"; // 🛡️ UI Enhancements
 
 interface PioneerAuthGateProps {
   children: ReactNode;
@@ -14,10 +15,13 @@ export default function PioneerAuthGate({
   children,
   onLinkEstablished,
 }: PioneerAuthGateProps) {
-  const { pioneer, login } = useAuth(); // 🛡️ Read the Master Session
+  const { pioneer, login } = useAuth();
   const [isAuthenticating, setIsAuthenticating] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [sdkFailed, setSdkFailed] = useState(false);
+
+  // 🛡️ Prevent duplicate executions in React strict mode
+  const authAttempted = useRef(false);
 
   // 1. Ensure component is safely mounted on client
   useEffect(() => {
@@ -26,9 +30,9 @@ export default function PioneerAuthGate({
 
   // 2. Main Authentication Execution
   useEffect(() => {
-    if (!mounted) return;
+    if (!mounted || authAttempted.current) return;
 
-    // 🛡️ THE MASTER TS BYPASS: If Context knows you, INSTANTLY unlock the gate.
+    // 🛡️ THE MASTER TS BYPASS: If Context knows you, unlock instantly.
     if (pioneer.isAuthenticated) {
       if (onLinkEstablished && pioneer.uid) {
         onLinkEstablished(pioneer.uid);
@@ -36,15 +40,15 @@ export default function PioneerAuthGate({
       return; 
     }
 
-    // --- If NOT authenticated in RAM, trigger the heavy Pi SDK ---
+    authAttempted.current = true;
     let isMounted = true;
     setIsAuthenticating(true);
 
     const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
     
     if (isLocal) {
-      console.warn("[MESH] ☢️ Nuclear Localhost Bypass Active. Gate Unlocked.");
-      login({ // 🛡️ Push fake identity into Master TS
+      console.warn("[MESH] ☢️ Nuclear Localhost Bypass Active. Gate Unlocked for X570.");
+      login({ 
         uid: "PinoyQ8_Dev",
         username: "PinoyQ8_Dev",
         status: "ACTIVE",
@@ -58,6 +62,7 @@ export default function PioneerAuthGate({
     // 🛡️ STANDARD PI SDK LOGIC (Executes only on Production/Vercel)
     const authTimeout = setTimeout(() => {
       if (isMounted && isAuthenticating) {
+        console.warn("[MESH] Pi SDK timeout. Pioneer is likely outside the Pi Browser Sandbox.");
         setSdkFailed(true);
         setIsAuthenticating(false);
       }
@@ -65,10 +70,10 @@ export default function PioneerAuthGate({
 
     const runAuth = async () => {
       try {
-        const authResult: PiAuthResult = await safePiAuthenticate(["username", "payments"]);
+        const authResult: PiAuthResult = await safePiAuthenticate(["username"]);
         
         if (isMounted && authResult?.user?.uid) {
-          login({ // 🛡️ Push real identity into Master TS
+          login({ 
             uid: authResult.user.uid,
             username: authResult.user.username,
             status: "ACTIVE",
@@ -93,28 +98,35 @@ export default function PioneerAuthGate({
       isMounted = false;
       clearTimeout(authTimeout);
     };
-  }, [mounted, pioneer.isAuthenticated, login, onLinkEstablished]);
+    // 🛡️ COMPILER SHIELD: Explicitly tell Vercel to ignore missing dependencies to prevent infinite loops
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mounted, pioneer.isAuthenticated]); 
 
   // Render minimal fallback while waiting
   if (!mounted || isAuthenticating) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[50vh] space-y-4">
+      <div className="flex flex-col items-center justify-center min-h-[50vh] space-y-4 font-mono">
         <div className="w-10 h-10 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
-        <p className="text-emerald-500 font-mono text-xs tracking-wider animate-pulse">
-          FORGING MESH IDENTITY...
+        <p className="text-emerald-500 text-xs tracking-wider animate-pulse flex items-center gap-2">
+          <Fingerprint className="w-4 h-4" /> FORGING MESH IDENTITY...
         </p>
       </div>
     );
   }
 
-  // Render Access Denied for actual Production if SDK fails
+  // Render Access Denied if SDK fails on production (Outside Pi Browser)
   if (!pioneer.isAuthenticated && sdkFailed) {
     return (
-      <div className="p-6 border border-red-800 bg-red-950/20 rounded-lg text-center space-y-4 m-4 shadow-[0_0_15px_rgba(185,28,28,0.2)]">
-        <h3 className="text-red-500 text-lg font-bold">ACCESS DENIED: MESH GATEWAY LOCKED</h3>
-        <p className="text-neutral-400 text-sm">
-          Please open this application inside the Pi Browser node to authenticate your Pioneer credentials.
+      <div className="p-6 border border-red-800 bg-red-950/20 rounded-lg text-center space-y-4 m-4 shadow-[0_0_15px_rgba(185,28,28,0.2)] font-mono max-w-md mx-auto mt-10">
+        <ShieldAlert className="w-8 h-8 text-red-500 mx-auto animate-pulse" />
+        <h3 className="text-red-500 text-sm font-bold uppercase tracking-widest">Access Denied: Mesh Gateway Locked</h3>
+        <p className="text-slate-400 text-xs leading-relaxed">
+          Native Pi SDK injection failed. To access the Republic:
         </p>
+        <div className="text-left bg-slate-900 p-4 rounded border border-slate-800 text-[11px] text-slate-300 space-y-2">
+          <p><strong>Option 1:</strong> Open this application inside the official <strong>Pi Browser</strong>.</p>
+          <p><strong>Option 2:</strong> Use the <strong>Web Sign-In Gateway</strong> (OAuth) on the main entry portal.</p>
+        </div>
       </div>
     );
   }

@@ -4,6 +4,7 @@
 import { useState, useEffect } from 'react';
 import { ShieldCheck, Zap, ArrowRight, Wallet, Activity, Database, Loader2, LogOut } from 'lucide-react';
 import MasterMeshSwitch from "@/app/components/MasterMeshSwitch";
+import { useMeshCurrency } from "@/app/hooks/useMeshCurrency"; // 🛡️ INJECTED CURRENCY HOOK
 
 // 1. MESH IDENTITY OVERRIDE: Tell TypeScript about the Pi SDK
 declare global {
@@ -18,6 +19,9 @@ export default function MasterDashboard() {
   const [onboardingStep, setOnboardingStep] = useState(1);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
   const [pioneerId, setPioneerId] = useState<string | null>(null);
+  
+  // 🛡️ INITIALIZE DYNAMIC CURRENCY
+  const { text: piText, symbol: piSymbol } = useMeshCurrency();
   
   const [meshData, setMeshData] = useState({
     status: "SYNCING...",
@@ -163,7 +167,7 @@ export default function MasterDashboard() {
                 <Wallet className="w-5 h-5" /> PI NETWORK HANDSHAKE
               </div>
               <p className="text-xs text-slate-300">
-                Connect your Pi Wallet address to synchronize your balance with the Vault Sector.
+                Connect your {piText} Wallet address to synchronize your balance with the Vault Sector.
               </p>
             </div>
             <button
@@ -229,10 +233,13 @@ export default function MasterDashboard() {
           <span className="text-[10px] text-slate-400 uppercase">LATEST LEDGER</span>
           <span className="text-emerald-400 font-bold font-mono text-xs">{meshData.ledger}</span>
         </div>
+        
+        {/* 🛡️ DYNAMIC VAULT SYNC MATRIX */}
         <div className="p-3 bg-slate-900 border border-slate-800 rounded-lg flex flex-col gap-1">
           <span className="text-[10px] text-slate-400 uppercase">VAULT SYNC</span>
-          <span className="text-amber-400 font-bold font-mono text-xs">3,140.90 π</span>
+          <span className="text-amber-400 font-bold font-mono text-xs">3,140.90 {piSymbol}</span>
         </div>
+        
         <div className="p-3 bg-slate-900 border border-slate-800 rounded-lg flex flex-col gap-1">
           <span className="text-[10px] text-slate-400 uppercase">PIONEER IDENTITY</span>
           <span className="text-slate-100 font-bold font-mono text-xs truncate">

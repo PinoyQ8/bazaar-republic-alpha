@@ -4,6 +4,7 @@
 import React, { useState, useEffect } from "react";
 import { getMasterMeshConfig, DeploymentMode, NetworkMode } from "@/app/utils/meshConfig";
 import { Server, Cpu, RefreshCw, ShieldCheck, Lock } from "lucide-react";
+import { setNetworkMode } from "@/app/utils/mesh-contracts";
 
 export default function MasterMeshSwitch() {
   const [config, setConfig] = useState(getMasterMeshConfig());
@@ -16,7 +17,7 @@ export default function MasterMeshSwitch() {
     // 🛡️ SECURITY ADJUDICATION: Verify active Pioneer session clearance
     const pioneerActive = localStorage.getItem("mesh_pioneer_active");
     const pioneerId = localStorage.getItem("mesh_pioneer_id");
-    
+
     if (pioneerActive === "true" && pioneerId) {
       setHasClearance(true);
     }
@@ -30,13 +31,17 @@ export default function MasterMeshSwitch() {
     if (targetDeployment) {
       localStorage.setItem("mesh_deployment_mode", targetDeployment);
     }
+    
     if (targetNetwork) {
-      localStorage.setItem("mesh_network_mode", targetNetwork);
+      // 🛡️ MESH SYNC: Persist & dispatch event across all mounted React hooks
+      setNetworkMode(targetNetwork);
     }
 
     setTimeout(() => {
       setIsSwapping(false);
-      window.location.href = "/?v=FORCE_SYNC";
+      // 🛡️ PRESERVE ROUTE: Soft refresh on active route with salted cache-buster
+      const currentPath = window.location.pathname;
+      window.location.href = `${currentPath}?v=FORCE_SYNC`;
     }, 500);
   };
 
