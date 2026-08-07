@@ -4,7 +4,7 @@
 import Link from 'next/link';
 import React, { useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
-import { Loader2, AlertTriangle, ShieldCheck, Lock, Unlock } from 'lucide-react';
+import { Loader2, AlertTriangle, ShieldCheck, Lock, Unlock, ArrowLeft } from 'lucide-react'; // 🛡️ INJECTED ARROWLEFT
 import PioneerAuthGate from '@/app/components/PioneerAuthGate';
 
 export default function AcademyDashboard() {
@@ -60,12 +60,21 @@ export default function AcademyDashboard() {
     <PioneerAuthGate>
       <main className="w-full max-w-sm mx-auto p-4 pb-24 min-h-screen text-slate-100 font-mono selection:bg-emerald-500/30">
         
-        {/* 🛡️ ACADEMY HEADER */}
+        {/* 🛡️ ACADEMY HEADER WITH ESCAPE ROUTE */}
         <div className="mb-6 border-b border-slate-800 pb-4 mt-2">
           <div className="flex justify-between items-end">
             <div>
-              <h1 className="text-emerald-400 font-bold tracking-widest uppercase text-sm">MESH ACADEMY</h1>
-              <div className="flex items-center gap-2 mt-2">
+              <div className="flex items-center gap-3">
+                <Link 
+                  href="/dashboard"
+                  className="p-1 bg-slate-900/60 hover:bg-slate-800 border border-slate-700 text-slate-400 hover:text-cyan-400 rounded transition-colors shadow-[0_0_10px_rgba(6,182,212,0.1)]"
+                  title="Return to Master Node"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                </Link>
+                <h1 className="text-emerald-400 font-bold tracking-widest uppercase text-sm">MESH ACADEMY</h1>
+              </div>
+              <div className="flex items-center gap-2 mt-2 ml-9">
                 <span className="relative flex h-2 w-2">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
