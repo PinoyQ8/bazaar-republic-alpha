@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react';
 import { ShieldCheck, Zap, ArrowRight, Wallet, Activity, Database, Loader2, LogOut } from 'lucide-react';
 import MasterMeshSwitch from "@/app/components/MasterMeshSwitch";
 import { useMeshCurrency } from "@/app/hooks/useMeshCurrency"; // 🛡️ INJECTED CURRENCY HOOK
+import PiAuthGate from "@/app/components/PiAuthGate"; // 🛡️ Correct relative import path
 
 // 1. MESH IDENTITY OVERRIDE: Tell TypeScript about the Pi SDK
 declare global {
@@ -68,11 +69,12 @@ export default function MasterDashboard() {
     try {
       const isOutsideSandbox = window.self === window.top;
       
-      if (process.env.NODE_ENV === "development" && isOutsideSandbox) {
-        console.warn("[MESH-FAULT] Operating outside Pi Sandbox. Using Dev Node bypass.");
-        setTimeout(() => finalizeLogin("BazaarDevNode"), 1000);
-        return;
-      }
+      if (process.env.NODE_ENV === "development" || !window.Pi) {
+  console.warn("[MESH-FAULT] Operating outside Pi Sandbox. Using Dev Node bypass.");
+  // 👇 ONLY PUT // IN FRONT OF THESE SPECIFIC LINES:
+  // login({ uid: "PinoyQ8_Dev", username: "PinoyQ8_Dev", status: "ACTIVE" });
+  // return; 
+}
 
       if (typeof window === "undefined" || !window.Pi) {
         throw new Error("Pi SDK Missing. Ensure the SDK script is loaded in layout.tsx.");
@@ -170,18 +172,17 @@ export default function MasterDashboard() {
                 Connect your {piText} Wallet address to synchronize your balance with the Vault Sector.
               </p>
             </div>
+            
+            {/* 🛡️ REPLACED CRASHING NATIVE SDK BUTTON WITH OAUTH WEB GATEWAY */}
+            <div className="pt-2">
+              <PiAuthGate clientId="FtbUB9fO3zfZZG3cp2SEpEdgzTNEgqpliDl8Q7Jr9Nc" />
+            </div>
+
             <button
-              onClick={completeOnboarding}
-              disabled={isAuthenticating}
-              className="w-full py-3 bg-emerald-500 hover:bg-emerald-400 disabled:bg-emerald-800 text-slate-950 font-bold text-xs rounded-xl flex items-center justify-center gap-2 transition-all"
+              onClick={() => setOnboardingStep(1)}
+              className="w-full py-2 bg-transparent text-slate-500 hover:text-slate-300 text-[10px] tracking-wider uppercase transition-colors"
             >
-              {isAuthenticating ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" /> ESTABLISHING MESH...
-                </>
-              ) : (
-                'AUTHENTICATE & ENTER REPUBLIC'
-              )}
+              &larr; Back to Genesis Gate
             </button>
           </div>
         )}

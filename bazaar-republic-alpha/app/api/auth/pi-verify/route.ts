@@ -1,32 +1,20 @@
 import { NextResponse } from "next/server";
-import { db } from "../../../../lib/db"; // 🛡️ Database Bridge
+// 🛡️ Removed db import. Identity verification does not require a database ping.
 
 export async function POST(req: Request) {
   try {
     const body = await req.json().catch(() => ({}));
     const accessToken = body.accessToken;
 
-    // 🛡️ NEO PROTOCOL OVERRIDE: Local Dev Bypass
+    // 🛡️ NEO PROTOCOL OVERRIDE: Local Dev Bypass (Sub-5ms Execution)
     if (process.env.NODE_ENV === "development") {
       console.log("[MESH-BRIDGE] Engaging Local Dev Bypass for PinoyQ8...");
       
-      // Pull the actual minted database record we just created
-      let devNode = await db.pioneerNode.findUnique({
-        where: { uid: "pi_node_founder_99" }
-      });
-
-      // Safety fallback
-      if (!devNode) {
-        devNode = {
-          id: "temp",
-          uid: "pi_node_founder_99",
-          username: "PinoyQ8_Dev",
-          mbzrBalance: 0,
-          tier: "BAZAAR_FOUNDER",
-        } as any;
-      }
-
-      return NextResponse.json(devNode, { status: 200 });
+      // Mimic the EXACT payload structure of the Pi Network v2/me API
+      return NextResponse.json({
+        uid: "PinoyQ8_Dev",
+        username: "PinoyQ8_Dev"
+      }, { status: 200 });
     }
 
     // --- STANDARD PRODUCTION PATH BELOW ---

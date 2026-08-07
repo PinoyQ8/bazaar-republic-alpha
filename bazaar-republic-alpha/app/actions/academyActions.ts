@@ -5,6 +5,7 @@ import mongoose from "mongoose";
 import { PioneerNode } from "@/models/PioneerNode";
 import { AcademyLedger } from "@/models/AcademyLedger";
 import { revalidatePath } from "next/cache"; // 🛡️ ADJUDICATOR CACHE SYNC
+import { db } from "@/lib/db"; // Ensure your DB bridge path is correct
 
 /**
  * 🛡️ MONGODB CONNECTION GATEWAY
@@ -54,20 +55,15 @@ export async function commitModuleSignature(
 ): Promise<SignatureResponse> {
   const serverTimestamp = Date.now();
   const MODULE_YIELD = 15.0;
-  const TS_REWARD = 10; // TrustScore earned per module (Aligned with 100 max scale)
+  const TS_REWARD = 10; 
 
   try {
-    // 0. 🛡️ ESTABLISH DB CONNECTION WITH FALLBACK CHECK
+    // 0. 🛡️ ESTABLISH DB CONNECTION
     const isConnected = await connectDB();
 
     if (!isConnected) {
-      // Local Simulation Pass for UI/UX testing when cluster is offline
-      const fallbackHash = `MESH-SIM-SIG-${pioneerId
-        .substring(0, 4)
-        .toUpperCase()}-${serverTimestamp}`;
-      console.log(
-        `[MESH-BRIDGE] 🛡️ SIMULATION MODE ACTIVE: Module ${moduleId} cleared locally for ${pioneerId}.`
-      );
+      const fallbackHash = `MESH-SIM-SIG-${pioneerId.substring(0, 4).toUpperCase()}-${serverTimestamp}`;
+      console.log(`[MESH-BRIDGE] 🛡️ SIMULATION MODE ACTIVE: Module ${moduleId} cleared locally for ${pioneerId}.`);
       return {
         success: true,
         message: "LOGIC GATE CLEARED (SIMULATION MODE ACTIVE).",
@@ -81,84 +77,66 @@ export async function commitModuleSignature(
     // 1. 🛑 ZERO-TRUST PERIMETER
     if (!pioneerId || !moduleId) {
       console.error(`[MESH-SCAN] 🚨 FATAL: Missing node or module ID.`);
-      return {
-        success: false,
-        message: "ADJUDICATOR: PAYLOAD FRACTURED.",
-        timestamp: serverTimestamp,
-      };
+      return { success: false, message: "ADJUDICATOR: PAYLOAD FRACTURED.", timestamp: serverTimestamp };
     }
 
-    // 2. 🏛️ THE QUORUM GATE (Strict Schema Match: ACTIVE & stakedAmount)
+    // 2. 🏛️ THE QUORUM GATE
     const quorumCount = await PioneerNode.countDocuments({
       status: "ACTIVE",
       stakedAmount: { $gte: 10 },
     });
-
-    // 🛡️ Allow local development bypass so testing isn't blocked by live node counts
     const isDevBypass = process.env.NODE_ENV === "development";
 
     if (quorumCount < 10 && !isDevBypass) {
-      return {
-        success: false,
-        message: "NETWORK_UNSTABLE: 10-Node Staking Quorum Not Met.",
-        timestamp: serverTimestamp,
-      };
+      return { success: false, message: "NETWORK_UNSTABLE: 10-Node Staking Quorum Not Met.", timestamp: serverTimestamp };
     }
 
-    // 3. 🛑 DOUBLE-CLAIM GUARD
+    // 3. 🛑 DOUBLE-CLAIM GUARD (🛡️ Realigned to use pioneerId instead of username)
     const existingRecord = await AcademyLedger.findOne({
-      username: pioneerId,
+      pioneerId: pioneerId, 
       moduleId: moduleId,
     }).lean();
     
     if (existingRecord && existingRecord.status === "COMPLETED") {
-      return {
-        success: false,
-        message: "MODULE_ALREADY_SIGNED_AND_CLAIMED",
-        timestamp: serverTimestamp,
-      };
+      return { success: false, message: "MODULE_ALREADY_SIGNED_AND_CLAIMED", timestamp: serverTimestamp };
     }
 
-    // 4. ⚖️ THE TS CLAMP ALGORITHM (Fetch or auto-seed pioneer node with strict schema keys)
-    let node = await PioneerNode.findOne({ username: pioneerId });
-
-    if (!node) {
-      console.log(
-        `[MESH-BRIDGE] 🛡️ AUTO-SEEDING: Pioneer node '${pioneerId}' not found. Initializing ledger record...`
-      );
-      node = await PioneerNode.create({
-        uid: pioneerId,
-        username: pioneerId,
-        status: "ACTIVE",
-        stakedAmount: 15, // Meets dev quorum criteria
-        trustScore: 10,
-        tier: "CITIZEN",
-      });
-    }
+    // 4. 🛡️ ATOMIC NODE SYNC (🛡️ Realigned to strictly use uid)
+    let node = await PioneerNode.findOneAndUpdate(
+      { uid: pioneerId },
+      {
+        $setOnInsert: {
+          uid: pioneerId,
+          status: "ACTIVE",
+          stakedAmount: 15, // Meets dev quorum criteria
+          trustScore: 10,
+          tier: "CITIZEN",
+        }
+      },
+      { upsert: true, new: true } 
+    );
 
     const currentTS = node.trustScore || 0;
-    const newTS = Math.min(currentTS + TS_REWARD, 100); // Strict ceiling of 100
+    const newTS = Math.min(currentTS + TS_REWARD, 100); 
 
     // 5. ⛽ ATOMIC YIELD & TS INJECTION
     await PioneerNode.updateOne(
-      { username: pioneerId },
+      { uid: pioneerId },
       {
-        $inc: { stakedAmount: MODULE_YIELD }, // Increment staked allocation / reward pool
+        $inc: { stakedAmount: MODULE_YIELD }, 
         $set: { trustScore: newTS },
       }
     );
 
     // 6. 🔐 GENERATE MATHEMATICAL PROOF
-    const generatedHash = `MESH-SIG-${pioneerId
-      .substring(0, 4)
-      .toUpperCase()}-${serverTimestamp}`;
+    const generatedHash = `MESH-SIG-${pioneerId.substring(0, 4).toUpperCase()}-${serverTimestamp}`;
 
-    // 7. 🗄️ MONGODB CLUSTER COMMIT (The Ledger Bridge)
+    // 7. 🗄️ MONGODB CLUSTER COMMIT (🛡️ Realigned to strictly use pioneerId)
     await AcademyLedger.findOneAndUpdate(
-      { username: pioneerId, moduleId: moduleId },
+      { pioneerId: pioneerId, moduleId: moduleId },
       {
         $set: {
-          username: pioneerId,
+          pioneerId: pioneerId, 
           moduleId: moduleId,
           status: "COMPLETED",
           signatureHash: generatedHash,
@@ -171,14 +149,11 @@ export async function commitModuleSignature(
       { upsert: true, returnDocument: "after" }
     );
 
-    console.log(
-      `[MESH-BRIDGE] ✅ Module ${moduleId} locked. +${MODULE_YIELD} Yield | TS: ${newTS}/100 -> ${pioneerId}. Hash: ${generatedHash}`
-    );
+    console.log(`[MESH-BRIDGE] ✅ Module ${moduleId} locked. +${MODULE_YIELD} Yield | TS: ${newTS}/100 -> ${pioneerId}. Hash: ${generatedHash}`);
 
-    // 8. 🔄 PURGE CACHE (Forces UI synchronization)
+    // 8. 🔄 PURGE CACHE 
     revalidatePath("/academy");
     revalidatePath("/academy/module-01");
-    revalidatePath("/academy/module-02");
     revalidatePath("/dashboard");
 
     return {
@@ -209,7 +184,7 @@ export async function getPioneerAcademyStatus(username: string) {
       return { success: true, trustScore: 50, status: "ACTIVE", stakedAmount: 15 };
     }
 
-    const node = await PioneerNode.findOne({ username }).lean();
+    const node = await PioneerNode.findOne({ uid: username }).lean();
     if (!node) {
       return { success: false, message: "Node not found." };
     }
@@ -241,14 +216,14 @@ export async function unlockPremiumTier(pioneerId: string) {
       };
     }
 
-    const node = await PioneerNode.findOne({ username: pioneerId }).lean();
+    const node = await PioneerNode.findOne({ uid: pioneerId }).lean();
     if (!node || (node.stakedAmount || 0) < TIER_COST) {
       return { success: false, message: "INSUFFICIENT_STAKE_FOR_UPGRADE" };
     }
 
     // Atomic Tier Upgrade
     await PioneerNode.updateOne(
-      { username: pioneerId },
+      { uid: pioneerId },
       {
         $inc: { stakedAmount: -TIER_COST },
         $set: { tier: "ACADEMY_CORE" },
