@@ -1,8 +1,9 @@
-// Location: /app/dashboard/page.tsx (or master dashboard component path)
+// Location: /app/dashboard/page.tsx
 'use client';
 
 import { useState, useEffect } from 'react';
 import { ShieldCheck, Zap, ArrowRight, Wallet, Activity, Database, Loader2, LogOut } from 'lucide-react';
+import MasterMeshSwitch from "@/app/components/MasterMeshSwitch";
 
 // 1. MESH IDENTITY OVERRIDE: Tell TypeScript about the Pi SDK
 declare global {
@@ -61,7 +62,6 @@ export default function MasterDashboard() {
     setIsAuthenticating(true);
 
     try {
-      // A. DESKTOP / WORKSTATION BYPASS
       const isOutsideSandbox = window.self === window.top;
       
       if (process.env.NODE_ENV === "development" && isOutsideSandbox) {
@@ -70,19 +70,16 @@ export default function MasterDashboard() {
         return;
       }
 
-      // B. STRICT SDK CHECK
       if (typeof window === "undefined" || !window.Pi) {
         throw new Error("Pi SDK Missing. Ensure the SDK script is loaded in layout.tsx.");
       }
 
-      // C. INITIALIZE PROTOCOL
       console.log("[MESH-SYNC] Initializing Pi SDK Sandbox...");
       window.Pi.init({ 
         version: "2.0", 
         sandbox: process.env.NODE_ENV !== "production" 
       });
 
-      // D. EXECUTE CRYPTOGRAPHIC AUTH
       const onIncompletePaymentFound = (payment: any) => {
         console.log("[MESH-SYNC] Incomplete payment detected:", payment);
       };
@@ -110,7 +107,6 @@ export default function MasterDashboard() {
     setIsAuthenticating(false);
   };
 
-  // FLUSH RAM: Purge Identity & Reset Node
   const disconnectNode = () => {
     console.log("[MESH-SYNC] Initiating Node Disconnect (Flush RAM)...");
     localStorage.removeItem("mesh_pioneer_active");
@@ -122,7 +118,6 @@ export default function MasterDashboard() {
     setIsFirstTime(true); 
   };
 
-  // TRACK 0: INITIALIZATION SHIELD
   if (isInitializing) {
     return (
       <div className="min-h-screen bg-slate-950 text-cyan-400 flex flex-col items-center justify-center font-mono text-xs w-full max-w-[384px] mx-auto">
@@ -132,7 +127,6 @@ export default function MasterDashboard() {
     );
   }
 
-  // TRACK 1: FIRST-TIME PIONEER UI (Genesis Gate)
   if (isFirstTime) {
     return (
       <div className="min-h-screen bg-slate-950 text-slate-100 p-4 font-mono flex flex-col justify-between w-full max-w-[384px] mx-auto pb-24">
@@ -143,7 +137,6 @@ export default function MasterDashboard() {
           <h1 className="text-xl font-extrabold text-slate-100 mt-1">Pioneer Activation</h1>
         </header>
 
-        {/* Step 1: Protocol Welcome */}
         {onboardingStep === 1 && (
           <div className="space-y-4 my-auto">
             <div className="p-4 bg-slate-900 border border-cyan-500/30 rounded-xl space-y-2 shadow-[0_0_15px_rgba(6,182,212,0.15)]">
@@ -151,7 +144,7 @@ export default function MasterDashboard() {
                 <ShieldCheck className="w-5 h-5" /> MESH PROTOCOL ONLINE
               </div>
               <p className="text-xs text-slate-300 leading-relaxed">
-                Welcome to the Republic DAO. To participate in node consensus, trade in the E-Network, and access the Vault, initialize your Pioneer identity.
+                Welcome to the Republic DAO. Initialize your Pioneer identity to participate in node consensus.
               </p>
             </div>
             <button
@@ -163,7 +156,6 @@ export default function MasterDashboard() {
           </div>
         )}
 
-        {/* Step 2: Pi Wallet Sync */}
         {onboardingStep === 2 && (
           <div className="space-y-4 my-auto">
             <div className="p-4 bg-slate-900 border border-cyan-500/30 rounded-xl space-y-3 shadow-[0_0_15px_rgba(6,182,212,0.15)]">
@@ -173,10 +165,6 @@ export default function MasterDashboard() {
               <p className="text-xs text-slate-300">
                 Connect your Pi Wallet address to synchronize your balance with the Vault Sector.
               </p>
-              <div className="p-3 bg-slate-950 border border-slate-800 rounded-lg text-[11px] text-slate-400 font-mono flex justify-between">
-                <span>SDK STATUS:</span>
-                <span className="text-emerald-400 font-bold">READY</span>
-              </div>
             </div>
             <button
               onClick={completeOnboarding}
@@ -201,7 +189,6 @@ export default function MasterDashboard() {
     );
   }
 
-  // TRACK 2: RETURNING PIONEER UI (Master Dashboard)
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 p-4 font-mono w-full max-w-[384px] mx-auto pb-24 space-y-4">
       
@@ -227,35 +214,31 @@ export default function MasterDashboard() {
         </div>
       </header>
 
+      {/* 🎛️ MASTER MESH SWITCH EMBEDDED DIRECTLY IN DASHBOARD */}
+      <div className="w-full">
+        <MasterMeshSwitch />
+      </div>
+
       {/* Structured Telemetry Grid */}
       <div className="grid grid-cols-2 gap-2 text-xs">
-        
-        {/* Network Protocol Card */}
         <div className="p-3 bg-slate-900 border border-slate-800 rounded-lg flex flex-col gap-1">
           <span className="text-[10px] text-slate-400 uppercase">NETWORK PROTOCOL</span>
           <span className="text-cyan-400 font-bold font-mono text-sm">{meshData.protocol}</span>
         </div>
-
-        {/* Latest Ledger Card */}
         <div className="p-3 bg-slate-900 border border-slate-800 rounded-lg flex flex-col gap-1">
           <span className="text-[10px] text-slate-400 uppercase">LATEST LEDGER</span>
           <span className="text-emerald-400 font-bold font-mono text-xs">{meshData.ledger}</span>
         </div>
-
-        {/* Vault Sync Card */}
         <div className="p-3 bg-slate-900 border border-slate-800 rounded-lg flex flex-col gap-1">
           <span className="text-[10px] text-slate-400 uppercase">VAULT SYNC</span>
           <span className="text-amber-400 font-bold font-mono text-xs">3,140.90 π</span>
         </div>
-
-        {/* Pioneer Identity Card */}
         <div className="p-3 bg-slate-900 border border-slate-800 rounded-lg flex flex-col gap-1">
           <span className="text-[10px] text-slate-400 uppercase">PIONEER IDENTITY</span>
           <span className="text-slate-100 font-bold font-mono text-xs truncate">
             @{pioneerId ? pioneerId.toUpperCase() : 'UNKNOWN_NODE'}
           </span>
         </div>
-
       </div>
 
       {/* Quick Sector Shortcuts */}
