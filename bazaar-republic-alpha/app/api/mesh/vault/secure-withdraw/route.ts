@@ -95,9 +95,11 @@ export async function POST(req: NextRequest) {
       // Force vault state into Permanent Quarantine (Locked) via Prisma
       const updatedVault = await prisma.pioneerVault.update({
         where: { pioneerId },
+        // Location: /app/api/mesh/vault/secure-withdraw/route.ts (around line 98)
+
         data: {
           vaultState: "Locked",
-          lockTimestamp: BigInt(Math.floor(Date.now() / 1000))
+          lockTimestamp: Math.floor(Date.now() / 1000) // 🛡️ Stripped BigInt wrapper to align with Schema v2.6 Float
         }
       });
 
