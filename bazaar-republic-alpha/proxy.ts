@@ -2,44 +2,33 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-const PUBLIC_UI = ["/", "/log-in", "/alpha-track"];
 const PUBLIC_API = ["/api/auth"];
-const RESTRICTED_SECTORS = ["/academy", "/e-network", "/governance", "/treasury"];
 const RESTRICTED_API = ["/api/academy", "/api/governance", "/api/treasury", "/api/mesh-transactions", "/api/consensus", "/mesh-consensus"];
 
 export default function proxy(req: NextRequest) {
   const path = req.nextUrl.pathname;
   
   // ☢️ THE NUCLEAR MIDDLEWARE BYPASS
-  // If we are running 'npm run dev' on the X570, completely disable the Adjudicator firewall.
   if (process.env.NODE_ENV === "development") {
-    console.log(`[MESH-PROXY] Dev Mode Bypass: Allowed passage to ${path}`);
     return NextResponse.next();
   }
 
-  const isBypassed = req.nextUrl.searchParams.get("bypass") === "true";
-  if (isBypassed) {
+  if (req.nextUrl.searchParams.get("bypass") === "true") {
     return NextResponse.next();
   }
 
-  // 🛑 STAGE 1: FRONT GATE WHITELIST
-  const isPublicUI = PUBLIC_UI.includes(path);
-  const isPublicAPI = PUBLIC_API.some((route) => path.startsWith(route));
-  
-  if (isPublicUI || isPublicAPI) {
+  // 🛑 STAGE 1: FRONT GATE API WHITELIST
+  if (PUBLIC_API.some((route) => path.startsWith(route))) {
     return NextResponse.next();
   }
 
-  // 🔐 STAGE 2: CRYPTOGRAPHIC HANDSHAKE CHECK
-  // 🛡️ MESH ALIGNED: Replaced legacy tokens with the active `mesh_session` key
+  // 🔐 STAGE 2: CRYPTOGRAPHIC HANDSHAKE CHECK (API ONLY)
   const isAuthenticated = req.cookies.has("mesh_session") || req.cookies.has("pioneer_session");
 
-  // 🛡️ STAGE 3: ADJUDICATE UI SECTORS
-  const isRestrictedSector = RESTRICTED_SECTORS.some((sector) => path.startsWith(sector));
-  if (isRestrictedSector && !isAuthenticated) {
-    console.warn(`[ADJUDICATOR] ⚠️ Unauthorized ghost at ${path}. Bouncing to Login Node.`);
-    return NextResponse.redirect(new URL("/log-in", req.url));
-  }
+  // 🛡️ STAGE 3: UI DELEGATION
+  // The RESTRICTED_SECTORS edge-drop has been purged. 
+  // Pi Browser Webview drops cookies during RSC fetches. UI routing security is 
+  // now fully delegated to the client-side PioneerAuthGate (Master TS RAM).
 
   // 🛡️ STAGE 4: ADJUDICATE API SECTORS
   const isRestrictedApi = RESTRICTED_API.some((apiRoute) => path.startsWith(apiRoute));
