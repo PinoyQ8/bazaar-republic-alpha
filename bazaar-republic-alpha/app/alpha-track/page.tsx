@@ -182,9 +182,16 @@ export default function AlphaTrackModule() {
             <Network className="w-3 h-3 text-emerald-500" /> Bridge Online
           </p>
         </div>
-        <Link href="/academy" className="px-2.5 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-zinc-400 border border-zinc-800 text-[10px] font-bold uppercase rounded tracking-wider transition-colors shrink-0">
-          HUB
-        </Link>
+        
+        {/* 🛡️ INJECTED NAVIGATION MATRIX */}
+        <div className="flex items-center gap-2 shrink-0">
+          <Link href="/dashboard" className="px-2.5 py-1.5 bg-cyan-950/40 hover:bg-cyan-900 border border-cyan-800/50 text-cyan-400 text-[10px] font-bold uppercase rounded tracking-wider transition-colors shadow-[0_0_10px_rgba(6,182,212,0.1)]">
+            DASHBOARD
+          </Link>
+          <Link href="/academy" className="px-2.5 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-zinc-400 border border-zinc-800 text-[10px] font-bold uppercase rounded tracking-wider transition-colors">
+            HUB
+          </Link>
+        </div>
       </div>
 
       {/* DYNAMIC MATRIX */}
