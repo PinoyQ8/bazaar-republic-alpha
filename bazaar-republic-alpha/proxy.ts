@@ -1,3 +1,4 @@
+// Location: /proxy.ts
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
@@ -30,7 +31,8 @@ export default function proxy(req: NextRequest) {
   }
 
   // 🔐 STAGE 2: CRYPTOGRAPHIC HANDSHAKE CHECK
-  const isAuthenticated = req.cookies.has("pioneer_uid") || req.cookies.has("pioneer_session");
+  // 🛡️ MESH ALIGNED: Replaced legacy tokens with the active `mesh_session` key
+  const isAuthenticated = req.cookies.has("mesh_session") || req.cookies.has("pioneer_session");
 
   // 🛡️ STAGE 3: ADJUDICATE UI SECTORS
   const isRestrictedSector = RESTRICTED_SECTORS.some((sector) => path.startsWith(sector));
