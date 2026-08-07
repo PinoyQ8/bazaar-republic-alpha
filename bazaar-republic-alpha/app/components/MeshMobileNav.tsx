@@ -42,7 +42,7 @@ export default function MeshMobileNav() {
     <>
       {/* 🛡️ THE COMMAND DRAWER (Overlay) */}
       {isDrawerOpen && (
-        <div className="fixed inset-0 z-40 flex flex-col bg-neutral-950/95 backdrop-blur-xl animate-in fade-in pb-20 pt-10 px-6 overflow-y-auto h-[100dvh]">
+        <div className="fixed inset-0 z-40 flex flex-col bg-neutral-950/95 backdrop-blur-xl animate-in fade-in pb-20 pt-10 px-6 overflow-y-auto h-dvh">
           <div className="flex justify-between items-center mb-8 border-b border-neutral-800 pb-4">
             <span className="font-mono text-sm font-black text-amber-500 tracking-widest uppercase">
               Command Center
