@@ -299,3 +299,74 @@ export async function seedGenesisProposal() {
     return { success: false, message: "DB Error during reset." };
   }
 }
+
+// ----------------------------------------------------------------------
+// 5. 🏛️ AUTOMATED EXECUTION: Supermajority & Vault Disbursal Engine
+// ----------------------------------------------------------------------
+export async function executeProposal(proposalId: string, executorId: string) {
+  try {
+    const isConnected = await connectDB();
+    if (!isConnected) {
+      return { success: false, message: "NETWORK_OFFLINE: Cannot access Master Index during execution." };
+    }
+
+    // 1. Locate Proposal
+    const proposal = await ProposalLedger.findOne({ proposalId });
+
+    if (!proposal) {
+      return { success: false, message: "EXECUTION_HALT: Proposal target not found in ledger." };
+    }
+
+    if (proposal.status === 'EXECUTED') {
+      return { success: false, message: "EXECUTION_HALT: Proposal payload has already been executed." };
+    }
+
+    // 2. Supermajority & Quorum Audit
+    const totalFor = proposal.totalVotesFor || 0;
+    const totalAgainst = proposal.totalVotesAgainst || 0;
+    const combinedVP = totalFor + totalAgainst;
+    const approvalRate = combinedVP > 0 ? (totalFor / combinedVP) * 100 : 0;
+    const quorumTarget = proposal.quorumTarget || 30.0;
+
+    if (combinedVP < quorumTarget) {
+      return {
+        success: false,
+        message: `EXECUTION_REJECTED: Quorum not satisfied. Current: ${combinedVP.toFixed(2)} VP / Required: ${quorumTarget} VP.`
+      };
+    }
+
+    if (approvalRate < 80.0) {
+      return {
+        success: false,
+        message: `EXECUTION_REJECTED: Supermajority threshold not reached. Current: ${approvalRate.toFixed(1)}% / Required: 80.0%.`
+      };
+    }
+
+    // 3. Treasury & Vault Payload Disbursal
+    // Auto-allocate reward fuel to proposer for passing network motion
+    const rewardFuel = 50; // 50 MESH Fuel credited to node
+    await PioneerNode.updateOne(
+      { $or: [{ username: proposal.proposerId }, { uid: proposal.proposerId }] },
+      { $inc: { activeFuel: rewardFuel, trust_score: 5 } }
+    );
+
+    // 4. Update Proposal Status to EXECUTED
+    proposal.status = 'EXECUTED';
+    await proposal.save();
+
+    console.log(`[MESH-ADJUDICATOR] 🚀 PROPOSAL EXECUTED: ${proposalId} by ${executorId}. Reward Fuel Disbursed: +${rewardFuel}`);
+
+    revalidatePath('/dashboard/proposals');
+    revalidatePath('/dashboard');
+
+    return {
+      success: true,
+      message: `PAYLOAD EXECUTED: Proposal ${proposalId} finalized. Supermajority (${approvalRate.toFixed(1)}%) locked into state ledger.`,
+      rewardDisbursed: rewardFuel
+    };
+
+  } catch (error: any) {
+    console.error(`[MESH-EXECUTION FRACTURE]:`, error.message || error);
+    return { success: false, message: `EXECUTION_FAILED: ${error.message}` };
+  }
+}
