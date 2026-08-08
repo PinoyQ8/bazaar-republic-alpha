@@ -2,7 +2,7 @@
 "use client";
 
 import { useEffect, useState, ReactNode, useRef } from "react";
-import { useAuth } from "@/context/AuthContext";
+import { useAuth } from "@/app/context/AuthContext";
 import { safePiAuthenticate, type PiAuthResult } from "@/app/utils/safePi";
 import { ShieldAlert, Fingerprint } from "lucide-react"; 
 import PiAuthGate from "./PiAuthGate"; 
@@ -23,16 +23,13 @@ export default function PioneerAuthGate({
 
   const authAttempted = useRef(false);
 
-  // 1. Ensure component is safely mounted on client
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  // 2. Main Authentication Execution
   useEffect(() => {
     if (!mounted || authAttempted.current) return;
 
-    // 🛡️ THE MASTER TS BYPASS: If Context knows you, unlock instantly.
     if (pioneer.isAuthenticated) {
       if (onLinkEstablished && pioneer.uid) {
         onLinkEstablished(pioneer.uid);
@@ -44,41 +41,10 @@ export default function PioneerAuthGate({
     let isMounted = true;
     setIsAuthenticating(true);
 
-    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-    
-    /* 🛑 TEMPORARILY DISABLED FOR OAUTH TESTING
-    if (isLocal) {
-      console.warn("[MESH] ☢️ Nuclear Localhost Bypass Active. Gate Unlocked for X570.");
-      login({ 
-        uid: "PinoyQ8_Dev",
-        username: "PinoyQ8_Dev",
-        status: "ACTIVE",
-        tier: "BAZAAR_FOUNDER"
-      });
-      if (onLinkEstablished) onLinkEstablished("X570_Bazaar_Founder");
-      setIsAuthenticating(false);
-      return;
-    }
-    */
-
-    // 🛡️ STANDARD PI SDK LOGIC
-    const authTimeout = setTimeout(() => {
-      if (isMounted && isAuthenticating) {
-        console.warn("[MESH] Pi SDK timeout. Pioneer is likely outside the Pi Browser Sandbox.");
-        setSdkFailed(true);
-        setIsAuthenticating(false);
-      }
-    }, 3000);
-
     const runAuth = async () => {
       try {
-        // 1. Forge a strict Promise Race to force the SDK to answer or die
-        const authResult = await Promise.race([
-          safePiAuthenticate(["username"]),
-          new Promise((_, reject) => 
-            setTimeout(() => reject(new Error("Pi SDK Promise Deadlock")), 3500)
-          )
-        ]) as PiAuthResult;
+        // 🛡️ DELEGATION PROTOCOL: No timer here. safePi.ts handles the 60s timeout.
+        const authResult: PiAuthResult = await safePiAuthenticate(["username", "payments"]);
         
         if (isMounted && authResult?.user?.uid) {
           login({ 
@@ -95,7 +61,6 @@ export default function PioneerAuthGate({
         if (isMounted) setSdkFailed(true);
       } finally {
         if (isMounted) {
-          clearTimeout(authTimeout);
           setIsAuthenticating(false);
         }
       }
@@ -105,12 +70,9 @@ export default function PioneerAuthGate({
 
     return () => {
       isMounted = false;
-      clearTimeout(authTimeout);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mounted, pioneer.isAuthenticated]); 
+  }, [mounted, pioneer.isAuthenticated, login, onLinkEstablished]); 
 
-  // 🔴 RENDER: FALLBACK (Waiting state)
   if (!mounted || isAuthenticating) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[50vh] space-y-4 font-mono">
@@ -122,7 +84,6 @@ export default function PioneerAuthGate({
     );
   }
 
-  // 🔴 RENDER: ACCESS DENIED + OAUTH BUTTON
   if (!pioneer.isAuthenticated && sdkFailed) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-slate-950 font-mono">
@@ -138,10 +99,9 @@ export default function PioneerAuthGate({
             <p><strong>Option 2:</strong> Use the Web Sign-In Gateway below.</p>
           </div>
 
-          {/* 🛡️ THE OAUTH BUTTON IS NOW CORRECTLY MOUNTED OUTSIDE THE USE-EFFECT */}
           <div className="pt-4 border-t border-red-900/50">
-             {/* ⚠️ IMPORTANT: Replace this placeholder with your real Client ID from the Pi Developer Portal */}
-             <PiAuthGate clientId="YOUR_CLIENT_ID_HERE" /> 
+             {/* 🛡️ INJECTED REAL PORTAL CLIENT ID TO UNLOCK WEB OAUTH */}
+             <PiAuthGate clientId="FtbUB9fO3zfZZG3cp2SEpEdgzTNEgqpliDl8Q7Jr9Nc" /> 
           </div>
           
         </div>
@@ -149,6 +109,5 @@ export default function PioneerAuthGate({
     );
   }
 
-  // 🟢 RENDER: GATE OPEN (Node Verified)
   return <>{children}</>;
 }
