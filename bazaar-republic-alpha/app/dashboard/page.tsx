@@ -48,6 +48,8 @@ export default function MasterDashboard() {
   const disconnectNode = () => {
     console.log("[MESH-SYNC] Initiating Node Disconnect (Flush RAM)...");
     logout();
+    // 🛡️ Force a full window reload to clear all React states and return to a pristine Genesis state
+    window.location.href = "/dashboard";
   };
 
   // 🛡️ THE GLOBAL AUTH SHIELD
