@@ -4,6 +4,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import PioneerAuthGate from "@/app/components/PioneerAuthGate";
+import LedgerTelemetry from "@/app/components/LedgerTelemetry"; // 🛡️ MESH INJECTION: Master Index UI
 
 interface PeerNode {
   nodeId: string;
@@ -66,7 +67,8 @@ export default function NetworkPage() {
 
   return (
     <PioneerAuthGate>
-      <div className="w-full max-w-full overflow-x-hidden space-y-4 p-2 min-h-screen bg-black text-neutral-300 font-mono flex flex-col">
+      {/* 🛡️ Added pb-20 so the mobile nav menu does not cover the bottom ledger logs */}
+      <div className="w-full max-w-full overflow-x-hidden space-y-4 p-2 min-h-screen bg-black text-neutral-300 font-mono flex flex-col pb-20">
         
         {/* HEADER BLOCK */}
         <header className="border-b border-amber-900/60 pb-3 space-y-2">
@@ -107,7 +109,7 @@ export default function NetworkPage() {
         </section>
 
         {/* PEER NODES FEED */}
-        <section className="space-y-2 grow">
+        <section className="space-y-2 shrink-0">
           <h2 className="text-[10px] font-bold text-amber-500 uppercase tracking-widest px-1">
             Connected Relay Nodes
           </h2>
@@ -132,6 +134,14 @@ export default function NetworkPage() {
               </div>
             ))
           )}
+        </section>
+
+        {/* 🛡️ MASTER INDEX TELEMETRY INJECTION */}
+        <section className="space-y-2 grow pt-4 border-t border-amber-900/40 mt-4">
+          <h2 className="text-[10px] font-bold text-amber-500 uppercase tracking-widest px-1">
+            Live Master Index (TESTMBZR)
+          </h2>
+          <LedgerTelemetry />
         </section>
 
       </div>
