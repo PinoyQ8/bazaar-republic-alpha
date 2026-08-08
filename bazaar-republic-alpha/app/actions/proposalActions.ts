@@ -23,14 +23,45 @@ async function connectDB() {
 }
 
 // ----------------------------------------------------------------------
-// 1. 📡 TELEMETRY: Fetch Active & Round Proposals
+// 1. 📡 TELEMETRY: Fetch Active & Round Proposals (WITH AUTO-HEAL)
 // ----------------------------------------------------------------------
 export async function getActiveProposals() {
   try {
     const isConnected = await connectDB();
     if (!isConnected) return [];
 
-    // Fetch proposals in Round 1, Round 2, or legacy ACTIVE status
+    const now = Date.now();
+
+    // 🛡️ MESH AUTO-HEAL: If MIP-001 is missing or expired, automatically refresh it
+    const genesis = await ProposalLedger.findOne({ proposalId: 'MIP-001' });
+    if (genesis) {
+      const exp = new Date(genesis.expiresAt).getTime();
+      if (isNaN(exp) || now >= exp) {
+        console.log("[MESH-ADJUDICATOR] 🔄 Auto-healing expired genesis proposal MIP-001...");
+        genesis.expiresAt = now + (7 * 24 * 60 * 60 * 1000);
+        genesis.voters = []; // Reset voter locks
+        genesis.totalVotesFor = 0;
+        genesis.totalVotesAgainst = 0;
+        await genesis.save();
+      }
+    } else {
+      // Create fresh genesis proposal if missing
+      await ProposalLedger.create({
+        proposalId: "MIP-001",
+        title: "MIP-001: Activate v23 Mainnet Protocol",
+        description: "Motion to finalize the S23 viewport testing phase and authorize the deployment of the MESH DAO logic to the Pi Network Mainnet.",
+        proposerId: "Bazaar_Founder",
+        proposerTier: "MESH_GUARDIAN",
+        status: "TIER_ROUND_1",
+        totalVotesFor: 0,
+        totalVotesAgainst: 0,
+        quorumTarget: 30.0,
+        expiresAt: now + (7 * 24 * 60 * 60 * 1000),
+        createdAt: now,
+        voters: []
+      });
+    }
+
     const proposals = await ProposalLedger.find({ 
       status: { $in: ['TIER_ROUND_1', 'GLOBAL_ROUND_2', 'ACTIVE'] } 
     })
@@ -82,28 +113,38 @@ export async function castVote(proposalId: string, pioneerId: string, voteType: 
       return { success: false, message: "INSUFFICIENT_VP: Node Voting Power below 1.0 threshold." };
     }
 
-    // 3. ⏳ FIND PROPOSAL & CHECK DOUBLE-VOTE
-    const proposal = await ProposalLedger.findOne({
+    // 3. ⏳ FIND PROPOSAL
+    let proposal = await ProposalLedger.findOne({
       proposalId: proposalId,
-      status: { $in: ['TIER_ROUND_1', 'GLOBAL_ROUND_2', 'ACTIVE'] },
-      'voters.pioneerId': { $ne: pioneerId }
+      status: { $in: ['TIER_ROUND_1', 'GLOBAL_ROUND_2', 'ACTIVE'] }
     });
 
     if (!proposal) {
-      return { success: false, message: "REJECTED: Proposal expired, invalid, or Node already voted." };
+      return { success: false, message: "REJECTED: Proposal not found or invalid." };
     }
 
-    // 🛡️ MESH HARD-CODED EXPIRY SHIELD:
-    const expiryTime = new Date(proposal.expiresAt).getTime();
+    // Check if user already voted
+    const alreadyVoted = proposal.voters?.some((v: any) => v.pioneerId === pioneerId);
+    if (alreadyVoted) {
+      return { success: false, message: "REJECTED: Node already voted on this proposal." };
+    }
+
+    // 🛡️ MESH TEMPORAL AUTO-HEAL: If MIP-001 is expired on vote attempt, auto-extend
+    let expiryTime = new Date(proposal.expiresAt).getTime();
     if (isNaN(expiryTime) || serverTimestamp > expiryTime) {
-      return { success: false, message: "REJECTED: Temporal bound exceeded. Voting closed." };
+      if (proposalId === 'MIP-001') {
+        proposal.expiresAt = serverTimestamp + (7 * 24 * 60 * 60 * 1000);
+        proposal.voters = [];
+        await proposal.save();
+      } else {
+        return { success: false, message: "REJECTED: Temporal bound exceeded. Voting closed." };
+      }
     }
 
     // 4. 🛡️ ROUND 1 TIER RESTRICTION CHECK
     const proposalStatus = proposal.status || 'TIER_ROUND_1';
     if (proposalStatus === 'TIER_ROUND_1') {
       const proposerTier = proposal.proposerTier || 'MESH_GUARDIAN';
-      // Restrict Round 1 voting to nodes of the same tier (or Bazaar Founder override)
       if (node.tier !== proposerTier && node.tier !== 'BAZAAR_FOUNDER') {
         return { 
           success: false, 
@@ -179,7 +220,6 @@ export async function submitProposalWithAdjudication(payload: ProposalPayload) {
       return { success: false, message: "NETWORK_OFFLINE: Adjudicator offline." };
     }
 
-    // Constitutional Invariant 1: Principal Protection
     const lowerDesc = payload.description.toLowerCase();
     if (lowerDesc.includes('slash principal') || lowerDesc.includes('reduce staked pi') || lowerDesc.includes('seize pi')) {
       return { 
@@ -188,7 +228,6 @@ export async function submitProposalWithAdjudication(payload: ProposalPayload) {
       };
     }
 
-    // Constitutional Invariant 2: Quorum Floor
     if (payload.quorumTarget < 10.0) {
       return { 
         success: false, 
@@ -205,7 +244,7 @@ export async function submitProposalWithAdjudication(payload: ProposalPayload) {
       description: payload.description,
       proposerId: payload.proposerId,
       proposerTier: payload.proposerTier || 'MESH_GUARDIAN',
-      status: 'TIER_ROUND_1', // Starts in Round 1 Tier-Internal Ring
+      status: 'TIER_ROUND_1',
       totalVotesFor: 0,
       totalVotesAgainst: 0,
       quorumTarget: payload.quorumTarget || 30.0,
@@ -215,8 +254,6 @@ export async function submitProposalWithAdjudication(payload: ProposalPayload) {
     });
 
     revalidatePath('/dashboard/proposals');
-    console.log(`[MESH-ADJUDICATOR] 🟢 Motion passed constitutional pre-check (Round 1): ${newProposal.proposalId}`);
-
     return { 
       success: true, 
       message: "ADJUDICATOR CLEAR: Motion validated and broadcasted to Tier-Internal Round 1.",
@@ -235,12 +272,10 @@ export async function submitProposalWithAdjudication(payload: ProposalPayload) {
 export async function seedGenesisProposal() {
   try {
     await connectDB();
-    
-    // Purge stale or expired MIP-001 records from earlier tests
     await ProposalLedger.deleteMany({ proposalId: "MIP-001" });
 
     const freshTimestamp = Date.now();
-    const freshExpiry = freshTimestamp + (7 * 24 * 60 * 60 * 1000); // 7-Day Window
+    const freshExpiry = freshTimestamp + (7 * 24 * 60 * 60 * 1000);
 
     await ProposalLedger.create({
       proposalId: "MIP-001",
@@ -261,6 +296,6 @@ export async function seedGenesisProposal() {
     return { success: true, message: "GENESIS MOTION RE-SEEDED WITH FRESH 7-DAY WINDOW." };
   } catch (error) {
     console.error("[MESH-BRIDGE] Seed failed:", error);
-    return { success: false };
+    return { success: false, message: "DB Error during reset." };
   }
 }
