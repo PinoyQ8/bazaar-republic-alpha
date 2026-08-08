@@ -72,7 +72,13 @@ export default function PioneerAuthGate({
 
     const runAuth = async () => {
       try {
-        const authResult: PiAuthResult = await safePiAuthenticate(["username"]);
+        // 1. Forge a strict Promise Race to force the SDK to answer or die
+        const authResult = await Promise.race([
+          safePiAuthenticate(["username"]),
+          new Promise((_, reject) => 
+            setTimeout(() => reject(new Error("Pi SDK Promise Deadlock")), 3500)
+          )
+        ]) as PiAuthResult;
         
         if (isMounted && authResult?.user?.uid) {
           login({ 
@@ -85,6 +91,7 @@ export default function PioneerAuthGate({
            if (isMounted) setSdkFailed(true);
         }
       } catch (error) {
+        console.error("[MESH FAULT] SDK Handshake Terminated:", error);
         if (isMounted) setSdkFailed(true);
       } finally {
         if (isMounted) {
