@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ShieldCheck, Zap, LogOut } from "lucide-react";
+import { ShieldCheck, Zap, LogOut, Wallet, Sliders, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { useAuth } from "@/app/context/AuthContext";
 import PioneerAuthGate from "@/app/components/PioneerAuthGate";
 import EpochYieldTracker from '@/app/components/EpochYieldTracker';
@@ -21,11 +21,17 @@ interface TelemetryData {
   status: string;
   latest_ledger: number;
   protocol_version: string;
+  vaultBalance: number;
 }
 
 export default function MasterDashboard() {
   const { pioneer, logout } = useAuth();
   const [telemetry, setTelemetry] = useState<TelemetryData | null>(null);
+  
+  // 🛡️ MINTING & PENALTY SIMULATION STATES
+  const [stakeAmount, setStakeAmount] = useState<number>(100);
+  const [simulationStatus, setSimulationStatus] = useState<string>("IDLE");
+  const [penaltyWarning, setPenaltyWarning] = useState<boolean>(false);
   
   // 🛡️ INITIALIZE DYNAMIC CURRENCY
   const { text: piText, symbol: piSymbol } = useMeshCurrency();
@@ -54,6 +60,7 @@ export default function MasterDashboard() {
             status: scanData.telemetry?.node_status || "SYNCED",
             latest_ledger: scanData.telemetry?.latest_ledger || 0,
             protocol_version: scanData.telemetry?.protocol_version || "26.1",
+            vaultBalance: vaultData.vault?.balance || 3141.59,
           });
         }
       } catch (error) {
@@ -69,8 +76,14 @@ export default function MasterDashboard() {
   const disconnectNode = () => {
     console.log("[MESH-SYNC] Initiating Node Disconnect (Flush RAM)...");
     logout();
-    // 🛡️ Force a full window reload to clear all React states and return to a pristine Genesis state
     window.location.href = "/dashboard";
+  };
+
+  const handleSimulateMint = () => {
+    setSimulationStatus("MINTING...");
+    setTimeout(() => {
+      setSimulationStatus("SUCCESS");
+    }, 1200);
   };
 
   return (
@@ -98,6 +111,11 @@ export default function MasterDashboard() {
               </span>
             </div>
           </div>
+          {/* IDENTIFY USER VISIBILITY */}
+          <div className="text-[11px] text-slate-400 flex items-center justify-between bg-slate-900/80 px-3 py-1.5 rounded border border-slate-800">
+            <span>PIONEER ID:</span>
+            <span className="text-cyan-400 font-bold">@{pioneer?.username ? pioneer.username.toUpperCase() : 'PIONEER_NODE'}</span>
+          </div>
         </header>
 
         {/* 🎛️ INJECTED MASTER MESH SWITCH */}
@@ -105,9 +123,70 @@ export default function MasterDashboard() {
           <MasterMeshSwitch />
         </div>
 
+        {/* 🛡️ PERSONAL VAULT BALANCE & CARD */}
+        {pioneer?.uid && (
+          <section className="space-y-2">
+            <div className="flex items-center gap-2 text-cyan-400 text-xs font-bold uppercase tracking-wider px-1">
+              <Wallet className="w-4 h-4" /> Personal Vault Sector
+            </div>
+            <PioneerVaultCard pioneerId={pioneer.uid} />
+          </section>
+        )}
+
+        {/* 🛡️ MINTING & WITHDRAWAL PENALTY SIMULATOR */}
+        <section className="p-3 border border-amber-500/30 bg-slate-900/60 rounded-lg space-y-3">
+          <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+            <span className="text-xs text-amber-400 font-bold uppercase tracking-wider flex items-center gap-1.5">
+              <Sliders className="w-4 h-4" /> Economic Mint Simulator
+            </span>
+            <span className="text-[10px] bg-amber-950/60 text-amber-300 px-2 py-0.5 rounded border border-amber-800/50">
+              SANDBOX
+            </span>
+          </div>
+          
+          <div className="space-y-2 text-xs">
+            <div className="flex justify-between text-slate-300">
+              <span>Target Stake Allocation:</span>
+              <span className="text-cyan-400 font-bold">{stakeAmount} {piSymbol}</span>
+            </div>
+            <input 
+              type="range" 
+              min="10" 
+              max="1000" 
+              step="10"
+              value={stakeAmount}
+              onChange={(e) => {
+                setStakeAmount(Number(e.target.value));
+                setPenaltyWarning(Number(e.target.value) > 500);
+              }}
+              className="w-full accent-cyan-500 bg-slate-800 rounded-lg cursor-pointer h-2"
+            />
+            
+            {penaltyWarning && (
+              <div className="p-2 bg-red-950/30 border border-red-900/50 rounded flex items-start gap-2 text-[10px] text-red-300">
+                <AlertTriangle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                <span><strong>High Allocation Warning:</strong> Early withdrawal before the 30-day epoch snapshot will trigger a strict 15% slashing penalty.</span>
+              </div>
+            )}
+
+            <button
+              onClick={handleSimulateMint}
+              disabled={simulationStatus === "MINTING..."}
+              className="w-full py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded text-xs transition-colors uppercase tracking-wider flex items-center justify-center gap-2"
+            >
+              {simulationStatus === "MINTING..." ? "Simulating Soroban Mint..." : simulationStatus === "SUCCESS" ? "Mint Simulation Active" : "Simulate Stake Mint"}
+            </button>
+            {simulationStatus === "SUCCESS" && (
+              <div className="text-[10px] text-emerald-400 text-center flex items-center justify-center gap-1">
+                <CheckCircle2 className="w-3 h-3" /> Node weight successfully anchored to mock ledger.
+              </div>
+            )}
+          </div>
+        </section>
+
         {/* 🛡️ TS CORE ANCHOR & MATRIX */}
         {telemetry && (
-          <section className="p-3 border border-cyan-900/80 bg-slate-900/60 rounded-lg space-y-4 shadow-[0_0_15px_rgba(6,182,212,0.15)]">
+          <section className="p-3 border border-cyan-900/80 bg-slate-900/60 rounded-lg space-y-4">
             <div className="flex justify-between items-center border-b border-slate-800 pb-3">
               <div>
                 <p className="text-[10px] text-slate-400 uppercase tracking-widest">TrustScore</p>
@@ -149,23 +228,7 @@ export default function MasterDashboard() {
                   <div className="h-full bg-cyan-500" style={{ width: `${Math.min((telemetry.cFlow / 100) * 100, 100)}%` }}></div>
                 </div>
               </div>
-              <div>
-                <div className="flex justify-between text-[10px] mb-1">
-                  <span className="text-red-400">Penalties (P_slash)</span>
-                  <span className="text-red-400">-{telemetry.pSlash}</span>
-                </div>
-                <div className="h-1.5 w-full bg-slate-800 rounded overflow-hidden">
-                  <div className="h-full bg-red-500" style={{ width: `${telemetry.pSlash}%` }}></div>
-                </div>
-              </div>
             </div>
-          </section>
-        )}
-
-        {/* 🛡️ PIONEER WALLET SECURITY & VAULT SHIELD */}
-        {pioneer?.uid && (
-          <section className="mt-4">
-            <PioneerVaultCard pioneerId={pioneer.uid} />
           </section>
         )}
 
@@ -176,13 +239,16 @@ export default function MasterDashboard() {
           initialNetworkBufferPi={1420.50} 
         />
 
-        {/* 🛡️ THE GOVERNANCE GATE */}
+        {/* 🛡️ THE GOVERNANCE VOTING SIMULATION GATE */}
         {telemetry && (
           <section className="p-3 border border-cyan-900/80 bg-slate-900/80 rounded-lg flex flex-col gap-3">
             <div className="flex justify-between items-center">
-              <span className="text-xs text-slate-400 uppercase tracking-wide">Active Voting Power</span>
+              <span className="text-xs text-slate-400 uppercase tracking-wide">Active Governance Voting Power</span>
               <span className="text-lg font-bold text-cyan-400">{telemetry.votingPower} VP</span>
             </div>
+            <p className="text-[10px] text-slate-400 leading-relaxed">
+              Simulate DAO consensus casting for active node proposals using your live TrustScore weight.
+            </p>
             <div className="grid grid-cols-2 gap-2">
               <Link 
                 href="/dashboard/proposals" 
@@ -194,25 +260,11 @@ export default function MasterDashboard() {
                 disabled 
                 className="py-2 bg-slate-800 text-slate-500 text-xs font-bold rounded cursor-not-allowed uppercase tracking-wider"
               >
-                Cooldown
+                Cooldown Active
               </button>
             </div>
           </section>
         )}
-
-        {/* Quick Sector Shortcuts */}
-        <div className="grid grid-cols-2 gap-2 text-xs mt-4">
-          <div className="p-3 bg-slate-900 border border-slate-800 hover:border-cyan-500/50 cursor-pointer transition-colors rounded-lg flex flex-col gap-1">
-            <Zap className="w-4 h-4 text-cyan-400" />
-            <span className="font-bold text-slate-200">MESH Config</span>
-            <span className="text-[10px] text-slate-400">Node Logic</span>
-          </div>
-          <div className="p-3 bg-slate-900 border border-slate-800 hover:border-emerald-500/50 cursor-pointer transition-colors rounded-lg flex flex-col gap-1">
-            <ShieldCheck className="w-4 h-4 text-emerald-400" />
-            <span className="font-bold text-slate-200">E-Network</span>
-            <span className="text-[10px] text-slate-400">Bridge Ready</span>
-          </div>
-        </div>
 
         {/* Disconnect Button */}
         <button
