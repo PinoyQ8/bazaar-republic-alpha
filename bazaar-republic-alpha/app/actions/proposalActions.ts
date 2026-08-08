@@ -1,4 +1,3 @@
-// Location: app/actions/proposalActions.ts
 "use server";
 
 import mongoose from 'mongoose';
@@ -94,7 +93,9 @@ export async function castVote(proposalId: string, pioneerId: string, voteType: 
       return { success: false, message: "REJECTED: Proposal expired, invalid, or Node already voted." };
     }
 
-    if (serverTimestamp > proposal.expiresAt) {
+    // 🛡️ MESH HARD-CODED EXPIRY SHIELD:
+    const expiryTime = new Date(proposal.expiresAt).getTime();
+    if (isNaN(expiryTime) || serverTimestamp > expiryTime) {
       return { success: false, message: "REJECTED: Temporal bound exceeded. Voting closed." };
     }
 
@@ -229,13 +230,17 @@ export async function submitProposalWithAdjudication(payload: ProposalPayload) {
 }
 
 // ----------------------------------------------------------------------
-// 4. 🌱 DEVELOPMENT ONLY: Auto-Seed Genesis Motion
+// 4. 🌱 DEVELOPMENT ONLY: Force-Seed Fresh Genesis Motion
 // ----------------------------------------------------------------------
 export async function seedGenesisProposal() {
   try {
     await connectDB();
-    const existing = await ProposalLedger.countDocuments();
-    if (existing > 0) return { success: false, message: "Ledger already populated." };
+    
+    // Purge stale or expired MIP-001 records from earlier tests
+    await ProposalLedger.deleteMany({ proposalId: "MIP-001" });
+
+    const freshTimestamp = Date.now();
+    const freshExpiry = freshTimestamp + (7 * 24 * 60 * 60 * 1000); // 7-Day Window
 
     await ProposalLedger.create({
       proposalId: "MIP-001",
@@ -247,13 +252,13 @@ export async function seedGenesisProposal() {
       totalVotesFor: 0,
       totalVotesAgainst: 0,
       quorumTarget: 30.0,
-      expiresAt: Date.now() + (7 * 24 * 60 * 60 * 1000),
-      createdAt: Date.now(),
+      expiresAt: freshExpiry,
+      createdAt: freshTimestamp,
       voters: []
     });
 
     revalidatePath('/dashboard/proposals');
-    return { success: true, message: "GENESIS MOTION INJECTED INTO TIER ROUND 1." };
+    return { success: true, message: "GENESIS MOTION RE-SEEDED WITH FRESH 7-DAY WINDOW." };
   } catch (error) {
     console.error("[MESH-BRIDGE] Seed failed:", error);
     return { success: false };
