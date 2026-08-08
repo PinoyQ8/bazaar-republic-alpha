@@ -1,3 +1,4 @@
+// Location: app/actions/proposalActions.ts
 "use server";
 
 import mongoose from 'mongoose';
@@ -23,29 +24,26 @@ async function connectDB() {
 }
 
 // ----------------------------------------------------------------------
-// 1. 📡 TELEMETRY: Fetch Active & Round Proposals (WITH AUTO-HEAL)
+// 1. 📡 TELEMETRY: Fetch Active & Round Proposals
 // ----------------------------------------------------------------------
 export async function getActiveProposals() {
   try {
     const isConnected = await connectDB();
     if (!isConnected) return [];
-
     const now = Date.now();
 
-    // 🛡️ MESH AUTO-HEAL: If MIP-001 is missing or expired, automatically refresh it
     const genesis = await ProposalLedger.findOne({ proposalId: 'MIP-001' });
     if (genesis) {
       const exp = new Date(genesis.expiresAt).getTime();
       if (isNaN(exp) || now >= exp) {
         console.log("[MESH-ADJUDICATOR] 🔄 Auto-healing expired genesis proposal MIP-001...");
         genesis.expiresAt = now + (7 * 24 * 60 * 60 * 1000);
-        genesis.voters = []; // Reset voter locks
+        genesis.voters = []; 
         genesis.totalVotesFor = 0;
         genesis.totalVotesAgainst = 0;
         await genesis.save();
       }
     } else {
-      // Create fresh genesis proposal if missing
       await ProposalLedger.create({
         proposalId: "MIP-001",
         title: "MIP-001: Activate v23 Mainnet Protocol",
@@ -64,9 +62,7 @@ export async function getActiveProposals() {
 
     const proposals = await ProposalLedger.find({ 
       status: { $in: ['TIER_ROUND_1', 'GLOBAL_ROUND_2', 'ACTIVE'] } 
-    })
-      .sort({ createdAt: -1 })
-      .lean();
+    }).sort({ createdAt: -1 }).lean();
 
     return JSON.parse(JSON.stringify(proposals));
   } catch (error) {
@@ -76,16 +72,15 @@ export async function getActiveProposals() {
 }
 
 // ----------------------------------------------------------------------
-// 2. ⚖️ THE ADJUDICATOR: Cast Vote & Two-Round Consensus Engine
+// 2. ⚖️ THE ADJUDICATOR: Security Matrix & Two-Round Consensus Engine
 // ----------------------------------------------------------------------
 export async function castVote(proposalId: string, pioneerId: string, voteType: 'FOR' | 'AGAINST' | 'ABSTAIN') {
   const serverTimestamp = Date.now();
+  const ONE_EPOCH_MS = 30 * 24 * 60 * 60 * 1000; // 30-Day Epoch Window
 
   try {
     const isConnected = await connectDB();
-    if (!isConnected) {
-      return { success: false, message: "NETWORK_OFFLINE: Consensus requires active DB sync." };
-    }
+    if (!isConnected) return { success: false, message: "NETWORK_OFFLINE: Consensus requires DB sync." };
 
     // 1. 🛑 ZERO-TRUST PERIMETER: Verify or Auto-Provision Node
     let node = await PioneerNode.findOne({ 
@@ -93,43 +88,89 @@ export async function castVote(proposalId: string, pioneerId: string, voteType: 
     });
 
     if (!node) {
+      const isFounder = pioneerId === 'Bazaar_Founder' || pioneerId === 'PinoyQ8_Dev';
       node = await PioneerNode.create({
         uid: pioneerId,
         username: pioneerId,
         walletAddress: pioneerId,
-        tier: 'MESH_GUARDIAN',
-        trust_score: 50,
-        stake_amount: 100,
+        tier: isFounder ? 'BAZAAR_FOUNDER' : 'NEW_PIONEER', // 🛡️ Zero-Trust default
+        trust_score: isFounder ? 100 : 10,                  // 🛡️ Base TS
+        stake_amount: isFounder ? 1000 : 0,                 // 🛡️ Zero free collateral
+        isKycVerified: isFounder ? true : false,
+        securityCircleKycCount: 0,
+        staked_at_ts: serverTimestamp
       });
-      console.log(`[MESH-BRIDGE] 🌱 Auto-provisioned missing Pioneer Node for: ${pioneerId}`);
+      console.log(`[MESH-SECURITY] 🌱 Zero-Trust node initialized for: ${pioneerId}`);
     }
 
-    // 2. 🧮 CALCULATE ACTIVE VOTING POWER (VP)
-    const trustScore = node.trust_score || 50;
-    const stake = node.stake_amount || 100;
-    const activeVP = parseFloat(((trustScore * 0.3) + (stake * 0.5)).toFixed(4));
+    // 2. 🛡️ WEB-OF-TRUST EXEMPTION MATRIX EVALUATION
+    const isKycVerified = node.isKycVerified ?? false;
+    const isGenesis100 = node.tier === 'GENESIS_100' || node.isGenesis100 === true || node.tier === 'BAZAAR_FOUNDER';
+    const kycSecurityCircleAnchors = node.securityCircleKycCount || 0; 
+
+    let canVote = false;
+    let vpMultiplier = 1.0;
+    let exemptionReason = "";
+
+    if (isKycVerified) {
+      canVote = true;
+      exemptionReason = "MAINNET_KYC";
+    } else if (isGenesis100) {
+      canVote = true;
+      exemptionReason = "GENESIS_100";
+    } else if (kycSecurityCircleAnchors >= 3) {
+      canVote = true;
+      vpMultiplier = 0.5; // 50% Weight Penalty for un-KYCed Circle members
+      exemptionReason = "WEB_OF_TRUST";
+    }
+
+    if (!canVote) {
+      return { 
+        success: false, 
+        message: "REJECTED [PERIMETER SHIELD]: Requires Mainnet KYC, Genesis 100 membership, or 3+ KYCed Security Circle anchors." 
+      };
+    }
+
+    // 3. 🛡️ TRUSTSCORE MAINTENANCE FLOOR CHECK (TS >= 40.0)
+    const currentTS = node.trust_score || 10;
+    if (currentTS < 40.0) {
+      return { 
+        success: false, 
+        message: `VP DEACTIVATED: TrustScore (${currentTS}) fell below 40.0 maintenance floor. Ping telemetry to reactivate.` 
+      };
+    }
+
+    // 4. 🛡️ 1-EPOCH STAKING LOCK (Anti-Flash-Stake)
+    const stakeAmount = node.stake_amount || 0;
+    const stakedAt = node.staked_at_ts || (serverTimestamp - ONE_EPOCH_MS); // Fallback for legacy
+    const hasCompletedOneEpoch = (serverTimestamp - stakedAt) >= ONE_EPOCH_MS;
+
+    if (!hasCompletedOneEpoch && stakeAmount > 0) {
+      return { 
+        success: false, 
+        message: "VP BONDING IN PROGRESS: Collateral must complete 1 full Epoch (30 Days) before Voting Power activates." 
+      };
+    }
+
+    // 5. 🧮 CALCULATE EFFECTIVE VOTING POWER
+    const rawVP = (currentTS * 0.3) + (stakeAmount * 0.5);
+    const activeVP = parseFloat((rawVP * vpMultiplier).toFixed(4));
 
     if (activeVP < 1.0) {
-      return { success: false, message: "INSUFFICIENT_VP: Node Voting Power below 1.0 threshold." };
+      return { success: false, message: `INSUFFICIENT_VP: Active Voting Power (${activeVP}) is below the 1.0 threshold.` };
     }
 
-    // 3. ⏳ FIND PROPOSAL
+    // 6. ⏳ FIND PROPOSAL & CHECK VOTE STATUS
     let proposal = await ProposalLedger.findOne({
       proposalId: proposalId,
       status: { $in: ['TIER_ROUND_1', 'GLOBAL_ROUND_2', 'ACTIVE'] }
     });
 
-    if (!proposal) {
-      return { success: false, message: "REJECTED: Proposal not found or invalid." };
-    }
+    if (!proposal) return { success: false, message: "REJECTED: Proposal not found or invalid." };
 
-    // Check if user already voted
     const alreadyVoted = proposal.voters?.some((v: any) => v.pioneerId === pioneerId);
-    if (alreadyVoted) {
-      return { success: false, message: "REJECTED: Node already voted on this proposal." };
-    }
+    if (alreadyVoted) return { success: false, message: "REJECTED: Node already voted on this proposal." };
 
-    // 🛡️ MESH TEMPORAL AUTO-HEAL: If MIP-001 is expired on vote attempt, auto-extend
     let expiryTime = new Date(proposal.expiresAt).getTime();
     if (isNaN(expiryTime) || serverTimestamp > expiryTime) {
       if (proposalId === 'MIP-001') {
@@ -141,37 +182,24 @@ export async function castVote(proposalId: string, pioneerId: string, voteType: 
       }
     }
 
-    // 4. 🛡️ ROUND 1 TIER RESTRICTION CHECK
-    const proposalStatus = proposal.status || 'TIER_ROUND_1';
-    if (proposalStatus === 'TIER_ROUND_1') {
+    // 7. 🛡️ ROUND 1 TIER RESTRICTION CHECK
+    if (proposal.status === 'TIER_ROUND_1') {
       const proposerTier = proposal.proposerTier || 'MESH_GUARDIAN';
-      if (node.tier !== proposerTier && node.tier !== 'BAZAAR_FOUNDER') {
-        return { 
-          success: false, 
-          message: `ADJUDICATOR HALT: Round 1 voting is strictly restricted to the [${proposerTier}] tier ring.` 
-        };
+      if (node.tier !== proposerTier && node.tier !== 'BAZAAR_FOUNDER' && node.tier !== 'GENESIS_100') {
+        return { success: false, message: `ADJUDICATOR HALT: Round 1 voting is restricted to the [${proposerTier}] tier ring.` };
       }
     }
 
-    // 5. ⚖️ EXECUTE ATOMIC VOTE COMMIT
-    const votePayload = {
-      pioneerId,
-      voteType,
-      votingPower: activeVP,
-      timestamp: serverTimestamp
-    };
-
+    // 8. ⚖️ EXECUTE ATOMIC VOTE COMMIT
+    const votePayload = { pioneerId, voteType, votingPower: activeVP, timestamp: serverTimestamp };
     const updateQuery: any = { $push: { voters: votePayload } };
     
     if (voteType === 'FOR') updateQuery.$inc = { totalVotesFor: activeVP };
     if (voteType === 'AGAINST') updateQuery.$inc = { totalVotesAgainst: activeVP };
 
-    await ProposalLedger.updateOne(
-      { proposalId: proposalId },
-      updateQuery
-    );
+    await ProposalLedger.updateOne({ proposalId: proposalId }, updateQuery);
 
-    // 6. 🚀 CHECK ROUND 1 TO ROUND 2 ESCALATION (≥80% Approval)
+    // 9. 🚀 CHECK ROUND 1 TO ROUND 2 ESCALATION (≥80% Approval)
     const updatedProposal = await ProposalLedger.findOne({ proposalId: proposalId });
     if (updatedProposal && updatedProposal.status === 'TIER_ROUND_1') {
       const totalFor = updatedProposal.totalVotesFor || 0;
@@ -182,18 +210,14 @@ export async function castVote(proposalId: string, pioneerId: string, voteType: 
       if (approvalRate >= 80.0 && combinedVP >= (updatedProposal.quorumTarget || 15.0)) {
         updatedProposal.status = 'GLOBAL_ROUND_2';
         await updatedProposal.save();
-        console.log(`[MESH-ADJUDICATOR] 🚀 Proposal ${proposalId} cleared Round 1 (${approvalRate.toFixed(1)}%). Escalating to GLOBAL_ROUND_2.`);
+        console.log(`[MESH-ADJUDICATOR] 🚀 Proposal ${proposalId} escalated to GLOBAL_ROUND_2.`);
       }
     }
 
-    console.log(`[MESH-BRIDGE] ✅ VOTE LOCKED: ${pioneerId} cast ${activeVP} VP [${voteType}] on ${proposalId}.`);
+    console.log(`[MESH-BRIDGE] ✅ VOTE LOCKED: ${pioneerId} cast ${activeVP} VP [${voteType}] via [${exemptionReason}].`);
     revalidatePath('/dashboard/proposals');
 
-    return { 
-      success: true, 
-      message: `CONSENSUS LOGGED: ${activeVP} VP committed to the vault.`,
-      vpUsed: activeVP 
-    };
+    return { success: true, message: `CONSENSUS LOGGED: ${activeVP} VP committed to the vault.`, vpUsed: activeVP };
 
   } catch (error: any) {
     console.error(`[MESH-BRIDGE] 🚨 CONSENSUS FRACTURE:`, error.message || error);
@@ -205,39 +229,22 @@ export async function castVote(proposalId: string, pioneerId: string, voteType: 
 // 3. 🛡️ CONSTITUTIONAL PRE-SCREENING: Submit Proposal
 // ----------------------------------------------------------------------
 interface ProposalPayload {
-  proposalId: string;
-  title: string;
-  description: string;
-  proposerId: string;
-  proposerTier: string;
-  quorumTarget: number;
+  proposalId: string; title: string; description: string; proposerId: string; proposerTier: string; quorumTarget: number;
 }
-
 export async function submitProposalWithAdjudication(payload: ProposalPayload) {
   try {
     const isConnected = await connectDB();
-    if (!isConnected) {
-      return { success: false, message: "NETWORK_OFFLINE: Adjudicator offline." };
-    }
+    if (!isConnected) return { success: false, message: "NETWORK_OFFLINE: Adjudicator offline." };
 
     const lowerDesc = payload.description.toLowerCase();
     if (lowerDesc.includes('slash principal') || lowerDesc.includes('reduce staked pi') || lowerDesc.includes('seize pi')) {
-      return { 
-        success: false, 
-        message: "ADJUDICATOR HALT [CONSTITUTIONAL VIOLATION]: Proposals touching Pioneer principal Pi collateral are forbidden." 
-      };
+      return { success: false, message: "ADJUDICATOR HALT [CONSTITUTIONAL VIOLATION]: Proposals touching principal Pi are forbidden." };
     }
-
     if (payload.quorumTarget < 10.0) {
-      return { 
-        success: false, 
-        message: "ADJUDICATOR HALT [CONSTITUTIONAL VIOLATION]: Quorum target is below the minimum 10.0 VP safety floor." 
-      };
+      return { success: false, message: "ADJUDICATOR HALT [CONSTITUTIONAL VIOLATION]: Quorum below 10.0 VP minimum." };
     }
 
     const serverTimestamp = Date.now();
-    const expiresAt = serverTimestamp + (7 * 24 * 60 * 60 * 1000);
-
     const newProposal = await ProposalLedger.create({
       proposalId: payload.proposalId || `MIP-${Date.now().toString().slice(-4)}`,
       title: payload.title,
@@ -245,23 +252,16 @@ export async function submitProposalWithAdjudication(payload: ProposalPayload) {
       proposerId: payload.proposerId,
       proposerTier: payload.proposerTier || 'MESH_GUARDIAN',
       status: 'TIER_ROUND_1',
-      totalVotesFor: 0,
-      totalVotesAgainst: 0,
+      totalVotesFor: 0, totalVotesAgainst: 0,
       quorumTarget: payload.quorumTarget || 30.0,
       createdAt: serverTimestamp,
-      expiresAt: expiresAt,
+      expiresAt: serverTimestamp + (7 * 24 * 60 * 60 * 1000),
       voters: []
     });
 
     revalidatePath('/dashboard/proposals');
-    return { 
-      success: true, 
-      message: "ADJUDICATOR CLEAR: Motion validated and broadcasted to Tier-Internal Round 1.",
-      proposalId: newProposal.proposalId 
-    };
-
+    return { success: true, message: "ADJUDICATOR CLEAR: Motion broadcasted to Tier-Internal Round 1.", proposalId: newProposal.proposalId };
   } catch (error: any) {
-    console.error(`[MESH-ADJUDICATOR] 🚨 FRACTURE:`, error.message);
     return { success: false, message: `SUBMISSION_FAILED: ${error.message}` };
   }
 }
@@ -273,10 +273,8 @@ export async function seedGenesisProposal() {
   try {
     await connectDB();
     await ProposalLedger.deleteMany({ proposalId: "MIP-001" });
-
     const freshTimestamp = Date.now();
-    const freshExpiry = freshTimestamp + (7 * 24 * 60 * 60 * 1000);
-
+    
     await ProposalLedger.create({
       proposalId: "MIP-001",
       title: "MIP-001: Activate v23 Mainnet Protocol",
@@ -284,18 +282,13 @@ export async function seedGenesisProposal() {
       proposerId: "Bazaar_Founder",
       proposerTier: "MESH_GUARDIAN",
       status: "TIER_ROUND_1",
-      totalVotesFor: 0,
-      totalVotesAgainst: 0,
-      quorumTarget: 30.0,
-      expiresAt: freshExpiry,
-      createdAt: freshTimestamp,
-      voters: []
+      totalVotesFor: 0, totalVotesAgainst: 0, quorumTarget: 30.0,
+      expiresAt: freshTimestamp + (7 * 24 * 60 * 60 * 1000),
+      createdAt: freshTimestamp, voters: []
     });
-
     revalidatePath('/dashboard/proposals');
     return { success: true, message: "GENESIS MOTION RE-SEEDED WITH FRESH 7-DAY WINDOW." };
   } catch (error) {
-    console.error("[MESH-BRIDGE] Seed failed:", error);
     return { success: false, message: "DB Error during reset." };
   }
 }
@@ -306,67 +299,32 @@ export async function seedGenesisProposal() {
 export async function executeProposal(proposalId: string, executorId: string) {
   try {
     const isConnected = await connectDB();
-    if (!isConnected) {
-      return { success: false, message: "NETWORK_OFFLINE: Cannot access Master Index during execution." };
-    }
+    if (!isConnected) return { success: false, message: "NETWORK_OFFLINE: Cannot access Master Index." };
 
-    // 1. Locate Proposal
     const proposal = await ProposalLedger.findOne({ proposalId });
+    if (!proposal) return { success: false, message: "EXECUTION_HALT: Proposal target not found." };
+    if (proposal.status === 'EXECUTED') return { success: false, message: "EXECUTION_HALT: Already executed." };
 
-    if (!proposal) {
-      return { success: false, message: "EXECUTION_HALT: Proposal target not found in ledger." };
-    }
-
-    if (proposal.status === 'EXECUTED') {
-      return { success: false, message: "EXECUTION_HALT: Proposal payload has already been executed." };
-    }
-
-    // 2. Supermajority & Quorum Audit
-    const totalFor = proposal.totalVotesFor || 0;
-    const totalAgainst = proposal.totalVotesAgainst || 0;
-    const combinedVP = totalFor + totalAgainst;
-    const approvalRate = combinedVP > 0 ? (totalFor / combinedVP) * 100 : 0;
+    const combinedVP = (proposal.totalVotesFor || 0) + (proposal.totalVotesAgainst || 0);
+    const approvalRate = combinedVP > 0 ? ((proposal.totalVotesFor || 0) / combinedVP) * 100 : 0;
     const quorumTarget = proposal.quorumTarget || 30.0;
 
-    if (combinedVP < quorumTarget) {
-      return {
-        success: false,
-        message: `EXECUTION_REJECTED: Quorum not satisfied. Current: ${combinedVP.toFixed(2)} VP / Required: ${quorumTarget} VP.`
-      };
-    }
+    if (combinedVP < quorumTarget) return { success: false, message: `EXECUTION_REJECTED: Quorum not satisfied.` };
+    if (approvalRate < 80.0) return { success: false, message: `EXECUTION_REJECTED: Supermajority threshold not reached.` };
 
-    if (approvalRate < 80.0) {
-      return {
-        success: false,
-        message: `EXECUTION_REJECTED: Supermajority threshold not reached. Current: ${approvalRate.toFixed(1)}% / Required: 80.0%.`
-      };
-    }
-
-    // 3. Treasury & Vault Payload Disbursal
-    // Auto-allocate reward fuel to proposer for passing network motion
-    const rewardFuel = 50; // 50 MESH Fuel credited to node
+    const rewardFuel = 50;
     await PioneerNode.updateOne(
       { $or: [{ username: proposal.proposerId }, { uid: proposal.proposerId }] },
       { $inc: { activeFuel: rewardFuel, trust_score: 5 } }
     );
 
-    // 4. Update Proposal Status to EXECUTED
     proposal.status = 'EXECUTED';
     await proposal.save();
 
-    console.log(`[MESH-ADJUDICATOR] 🚀 PROPOSAL EXECUTED: ${proposalId} by ${executorId}. Reward Fuel Disbursed: +${rewardFuel}`);
-
     revalidatePath('/dashboard/proposals');
     revalidatePath('/dashboard');
-
-    return {
-      success: true,
-      message: `PAYLOAD EXECUTED: Proposal ${proposalId} finalized. Supermajority (${approvalRate.toFixed(1)}%) locked into state ledger.`,
-      rewardDisbursed: rewardFuel
-    };
-
+    return { success: true, message: `PAYLOAD EXECUTED: Proposal ${proposalId} finalized.`, rewardDisbursed: rewardFuel };
   } catch (error: any) {
-    console.error(`[MESH-EXECUTION FRACTURE]:`, error.message || error);
     return { success: false, message: `EXECUTION_FAILED: ${error.message}` };
   }
 }

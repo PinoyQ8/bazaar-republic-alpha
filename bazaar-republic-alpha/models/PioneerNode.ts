@@ -5,13 +5,31 @@ export interface IPioneerNode extends Document {
   uid: string;
   username: string;
   walletAddress?: string;
-  tier: "CITIZEN" | "NOVICE" | "ACADEMY_CORE" | "MESH_GUARDIAN" | "BAZAAR_FOUNDER";
+  tier: "CITIZEN" | "NOVICE" | "ACADEMY_CORE" | "MESH_GUARDIAN" | "BAZAAR_FOUNDER" | "GENESIS_100" | "NEW_PIONEER";
+  
+  // 🏛️ Legacy / Base Fields
   trustScore: number;
   stakedAmount: number;
   mbzrBalance: number;
-  unlockedTranche: number; // 🛡️ Added to support token vesting/tranche management
+  unlockedTranche: number;
   status: "SYNCING" | "ACTIVE" | "FROZEN" | "SUSPENDED";
   lastActivityTimestamp?: Date;
+
+  // 🛡️ MESH Telemetry & Governance Fields (Snake_case alignment)
+  trust_score: number;
+  stake_amount: number;
+  activeFuel: number;
+  uptime_shield: number;
+  
+  // 🛡️ Slashing Engine Fields
+  slashed_amount: number;
+  is_slashed: boolean;
+
+  // 🛡️ Web-of-Trust & Security Matrix
+  isKycVerified: boolean;
+  isGenesis100: boolean;
+  securityCircleKycCount: number;
+  staked_at_ts: number;
 }
 
 const PioneerNodeSchema = new Schema<IPioneerNode>(
@@ -21,19 +39,37 @@ const PioneerNodeSchema = new Schema<IPioneerNode>(
     walletAddress: { type: String },
     tier: {
       type: String,
-      enum: ["CITIZEN", "NOVICE", "ACADEMY_CORE", "MESH_GUARDIAN", "BAZAAR_FOUNDER"],
-      default: "CITIZEN",
+      enum: ["CITIZEN", "NOVICE", "ACADEMY_CORE", "MESH_GUARDIAN", "BAZAAR_FOUNDER", "GENESIS_100", "NEW_PIONEER"],
+      default: "NEW_PIONEER", // 🛡️ Zero-Trust default
     },
+    
+    // 🏛️ Legacy / Base Mapping
     trustScore: { type: Number, default: 10 },
     stakedAmount: { type: Number, default: 0 },
     mbzrBalance: { type: Number, default: 0 },
-    unlockedTranche: { type: Number, default: 0 }, // 🛡️ Schema definition added
+    unlockedTranche: { type: Number, default: 0 },
     status: {
       type: String,
       enum: ["SYNCING", "ACTIVE", "FROZEN", "SUSPENDED"],
       default: "ACTIVE",
     },
     lastActivityTimestamp: { type: Date, default: Date.now },
+
+    // 🛡️ MESH Telemetry Mapping
+    trust_score: { type: Number, default: 10 },
+    stake_amount: { type: Number, default: 0 },
+    activeFuel: { type: Number, default: 0 },
+    uptime_shield: { type: Number, default: 0 },
+
+    // 🛡️ Slashing Mapping
+    slashed_amount: { type: Number, default: 0 },
+    is_slashed: { type: Boolean, default: false },
+
+    // 🛡️ Web-of-Trust Mapping
+    isKycVerified: { type: Boolean, default: false },
+    isGenesis100: { type: Boolean, default: false },
+    securityCircleKycCount: { type: Number, default: 0 },
+    staked_at_ts: { type: Number, default: () => Date.now() },
   },
   { timestamps: true }
 );
