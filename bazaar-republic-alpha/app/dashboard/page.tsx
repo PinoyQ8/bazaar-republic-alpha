@@ -37,6 +37,7 @@ export default function MasterDashboard() {
   const { text: piText, symbol: piSymbol } = useMeshCurrency();
 
   useEffect(() => {
+    // Wait until Pioneer is actually authenticated by the AuthGate before syncing telemetry
     if (!pioneer.isAuthenticated) return;
 
     const fetchLiveTelemetry = async () => {
