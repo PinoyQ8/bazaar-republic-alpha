@@ -3,8 +3,8 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import PioneerAuthGate from "@/app/components/PioneerAuthGate"; // 🛡️ MESH PERIMETER SHIELD
-import { getActiveProposals, castVote, seedGenesisProposal } from "@/app/actions/proposalActions";
+import PioneerAuthGate from "@/app/components/PioneerAuthGate";
+import { getActiveProposals, castVote, seedGenesisProposal, executeProposal } from "@/app/actions/proposalActions";
 
 interface MESHProposal {
   proposalId: string;
@@ -66,6 +66,26 @@ export default function ProposalsMatrix() {
       setStatusMsg("🚨 System panic during vote execution.");
     } finally {
       setVotingOn(null);
+    }
+  };
+
+  const handleExecute = async (proposalId: string) => {
+    if (!session?.uid) return;
+    setIsLoading(true);
+    setStatusMsg(null);
+    try {
+      const res = await executeProposal(proposalId, session.uid);
+      if (res.success) {
+        setStatusMsg(`✅ ${res.message}`);
+        await fetchLedger(session.uid);
+      } else {
+        setStatusMsg(`🚨 ${res.message}`);
+      }
+    } catch (error) {
+      console.error("[MESH] Execution Engine Panic:", error);
+      setStatusMsg("🚨 System panic during proposal execution.");
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -146,6 +166,7 @@ export default function ProposalsMatrix() {
               const approvalRate = totalVP > 0 ? (prop.totalVotesFor / totalVP) * 100 : 0;
               const hoursLeft = Math.max(0, Math.floor((prop.expiresAt - Date.now()) / (1000 * 60 * 60)));
               const hasVoted = prop.voters?.some(v => v.pioneerId === session?.uid);
+              const isReadyForExecution = prop.status !== 'EXECUTED' && approvalRate >= 80.0 && totalVP >= prop.quorumTarget;
 
               return (
                 <div key={prop.proposalId} className="p-3 bg-neutral-900/60 border border-amber-900/50 rounded-lg space-y-3 shadow-[0_0_10px_rgba(0,0,0,0.3)]">
@@ -184,7 +205,18 @@ export default function ProposalsMatrix() {
 
                   {/* Adjudicator Action Gate */}
                   <div className="pt-2 border-t border-amber-900/40">
-                    {hasVoted ? (
+                    {prop.status === 'EXECUTED' ? (
+                      <div className="w-full text-center py-2 text-xs font-bold bg-emerald-950/60 text-emerald-400 rounded border border-emerald-800/80 uppercase tracking-widest flex items-center justify-center gap-2">
+                        <span>✓ MOTION EXECUTED & TREASURY DISBURSED</span>
+                      </div>
+                    ) : isReadyForExecution ? (
+                      <button
+                        onClick={() => handleExecute(prop.proposalId)}
+                        className="w-full py-2 bg-linear-to-r from-amber-600 to-emerald-600 hover:from-amber-500 hover:to-emerald-500 text-black font-extrabold text-xs rounded tracking-wider uppercase shadow-[0_0_15px_rgba(16,185,129,0.3)] transition-all active:scale-95"
+                      >
+                        🚀 EXECUTE MOTION & DISBURSE TREASURY
+                      </button>
+                    ) : hasVoted ? (
                       <div className="w-full text-center py-2 text-xs font-bold bg-neutral-800/50 text-neutral-500 rounded border border-neutral-800 uppercase tracking-widest">
                         VP Locked in Ledger
                       </div>
