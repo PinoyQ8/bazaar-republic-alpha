@@ -1,4 +1,4 @@
-// app/utils/safePi.ts
+// Location: app/utils/safePi.ts
 
 export interface PioneerUser {
   username: string;
@@ -10,6 +10,9 @@ export interface PiAuthResult {
   user: PioneerUser;
   accessToken: string;
 }
+
+// 🛡️ THE GLOBAL INIT SHIELD: Prevents React from obliterating the Pi SDK iframe bridge
+let isPiInitialized = false;
 
 if (typeof window !== "undefined") {
   const isLocalhost = 
@@ -54,10 +57,10 @@ export async function safePiAuthenticate(
     typeof window !== "undefined" && 
     (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
 
-  // 🛡️ Check for URL bypass flags to release rotation locks on mobile networks
+  // 🛑 FIX: Removed "FORCE_SYNC" from bypass query so it doesn't break production cache clears
   const hasBypassQuery = 
     typeof window !== "undefined" && 
-    (window.location.search.includes("bypass=true") || window.location.search.includes("FORCE_SYNC"));
+    window.location.search.includes("bypass=true");
 
   if (isLocalhost || hasBypassQuery) {
     if (hasBypassQuery) {
@@ -87,7 +90,12 @@ export async function safePiAuthenticate(
 
     const initPromise = new Promise<PiAuthResult>(async (resolve, reject) => {
       try {
-        await Pi.init({ version: "2.0", sandbox: true });
+        // 🛡️ CRITICAL FIX: Only call Pi.init once per session
+        if (!isPiInitialized) {
+          Pi.init({ version: "2.0", sandbox: true });
+          isPiInitialized = true;
+        }
+
         const auth = await Pi.authenticate(scopes, onIncompletePayment);
         resolve(auth as PiAuthResult);
       } catch (err) {
