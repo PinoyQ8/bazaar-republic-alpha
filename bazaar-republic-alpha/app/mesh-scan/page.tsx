@@ -3,12 +3,22 @@
 import { useState } from 'react';
 import { useAuth } from "../context/AuthContext";
 
+// Define the exact shape of our backend payout logs
+interface LogEntry {
+  uid: string;
+  status: string;
+  transferred?: string;
+  txHash?: string;
+  error?: string;
+}
+
 export default function MeshScanNode() {
-  const { pioneer, executeStakePayment } = useAuth();
+  const { pioneer } = useAuth();
   
-  // Quantum Handshake States
+  // E-Network Distribution States
   const [meshState, setMeshState] = useState<string>('STANDBY');
-  const [payloadData, setPayloadData] = useState<string | null>(null);
+  const [summaryData, setSummaryData] = useState<string | null>(null);
+  const [logs, setLogs] = useState<LogEntry[]>([]);
   
   // 🛡️ TS18048 FIX: Enforce a safe fallback
   const safeUsername = pioneer?.username || "PIONEER";
@@ -17,37 +27,32 @@ export default function MeshScanNode() {
     ? `ALIGNED: ${safeUsername.toUpperCase()}` 
     : "AWAITING UPLINK...";
 
-  const handleQuantumSyncAndStake = async () => {
+  const executeEnetworkQueue = async () => {
     if (!pioneer?.isAuthenticated) {
       console.error("[MESH-BRIDGE] UNAUTHORIZED: Connect Pioneer identity first.");
       return;
     }
 
-    // Phase 1: Initiate Post-Quantum Tunnel
-    setMeshState('NEGOTIATING_ML_KEM...');
-    setPayloadData(null);
+    // Phase 1: Lock UI and initiate the backend payout queue
+    setMeshState('EXECUTING_QUEUE...');
+    setLogs([]);
+    setSummaryData(null);
     
     try {
-      const response = await fetch('/mesh-scan/api/quantum-handshake', {
-        method: 'POST',
+      const response = await fetch('/api/cron/process-payouts', {
+        method: 'GET',
       });
       
       const data = await response.json();
       
       if (response.ok) {
-        setMeshState(data.mesh_state); // Expects: QUANTUM_SHIELD_ACTIVE
-        setPayloadData(JSON.stringify(data.payload, null, 2));
-        
-        // Phase 2: Execute Stake through Secured MESH
-        if (typeof executeStakePayment === 'function') {
-          // 🛡️ SCHEMA ALIGNED: Context strictly expects a number
-          executeStakePayment(10);
-          console.log("[MESH-BRIDGE] Quantum tunnel secured. 10 Pi Payment broadcasted.");
-        } else {
-          console.error("[MESH-BRIDGE] FRACTURE: Payment function missing in Context.");
-        }
+        setMeshState('DISTRIBUTION_COMPLETE'); 
+        setSummaryData(data.summary);
+        setLogs(data.logs || []);
+        console.log("[MESH-BRIDGE] TESTMBZR Queue Executed.");
       } else {
         setMeshState('SYNC_FAILED');
+        setSummaryData("Server rejected the distribution payload.");
       }
     } catch (error) {
       console.error("[MESH-SCAN] Handshake Error:", error);
@@ -88,7 +93,7 @@ export default function MeshScanNode() {
             </div>
             <div className="flex flex-col pt-1">
               <span className="text-green-700 text-xs tracking-wider mb-1">Q-SHIELD STATUS:</span> 
-              <span className={`text-sm font-bold ${meshState === 'QUANTUM_SHIELD_ACTIVE' ? 'text-green-400' : 'text-amber-500'}`}>
+              <span className={`text-sm font-bold ${meshState === 'DISTRIBUTION_COMPLETE' ? 'text-green-400' : 'text-amber-500'}`}>
                 {meshState}
               </span>
             </div>
@@ -97,21 +102,32 @@ export default function MeshScanNode() {
           {/* Action Matrix */}
           <div className="flex flex-col gap-4 mt-4">
             <button 
-              onClick={handleQuantumSyncAndStake}
-              disabled={!pioneer?.isAuthenticated || meshState === 'NEGOTIATING_ML_KEM...'}
+              onClick={executeEnetworkQueue}
+              disabled={!pioneer?.isAuthenticated || meshState === 'EXECUTING_QUEUE...'}
               className="w-full py-3 font-bold bg-transparent border border-green-500 text-green-500 rounded-sm uppercase tracking-wider text-sm hover:bg-green-500 hover:text-black transition-all disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-green-500 relative group"
             >
-              {meshState === 'NEGOTIATING_ML_KEM...' ? 'Forging Tunnel...' : 'Execute Sync (10 Pi)'}
+              {meshState === 'EXECUTING_QUEUE...' ? 'Processing Ledger...' : 'Fire TESTMBZR Queue'}
               {/* Scanline hover effect */}
               <div className="absolute inset-0 bg-green-400 opacity-0 group-hover:opacity-20 pointer-events-none transition-opacity"></div>
             </button>
           </div>
 
-          {/* Payload Trace (Visible only if handshake succeeds) */}
-          {payloadData && (
-            <div className="mt-4 p-2 bg-black border border-green-900/50 rounded overflow-x-auto h-24">
-              <p className="text-[10px] text-green-700 mb-1">// RUST NODE PAYLOAD</p>
-              <pre className="text-[10px] text-green-400 whitespace-pre-wrap">{payloadData}</pre>
+          {/* Payload Trace (Visible only if logs are returned) */}
+          {logs.length > 0 && (
+            <div className="mt-4 p-2 bg-black border border-green-900/50 rounded overflow-y-auto max-h-32">
+              <p className="text-[10px] text-green-700 mb-1">// LEDGER SETTLEMENT TRACE</p>
+              {summaryData && <p className="text-[10px] text-green-300 mb-2">{summaryData}</p>}
+              
+              {logs.map((log, i) => (
+                <div key={i} className="mb-2 pb-2 border-b border-green-900/30 last:border-0 text-[10px]">
+                  <div className="flex justify-between font-bold">
+                    <span className="text-green-500">{log.uid}</span>
+                    <span className={log.status === 'SUCCESS' ? 'text-green-400' : 'text-red-500'}>[{log.status}]</span>
+                  </div>
+                  {log.transferred && <div className="text-green-300 mt-0.5">Amt: {log.transferred}</div>}
+                  {log.txHash && <div className="text-green-700 truncate mt-0.5">Tx: {log.txHash}</div>}
+                </div>
+              ))}
             </div>
           )}
 

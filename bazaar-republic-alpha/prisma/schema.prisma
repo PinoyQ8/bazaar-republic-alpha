@@ -265,3 +265,14 @@ model PioneerVault {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 }
+
+// NEO PROTOCOL: E-Network Ledger Telemetry
+model LedgerLog {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  uid       String
+  amount    String
+  asset     String
+  txHash    String   @unique
+  status    String
+  timestamp DateTime @default(now())
+}
