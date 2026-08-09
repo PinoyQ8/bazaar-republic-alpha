@@ -1,0 +1,23 @@
+{
+  "name": "bazaar-republic-alpha",
+  "displayName": "Bazaar Republic Alpha",
+  "version": "0.1.1",
+  "description": "Decentralized E-Network and MESH Node application built exclusively for the Pi Network ecosystem.",
+  "author": "Bazaar Tech (PinoyQ8)",
+  "repository": "https://github.com/PinoyQ8/bazaar-republic-alpha",
+  "category": "Decentralized Compute & Utility",
+  "runtime": {
+    "type": "docker",
+    "dockerfile": "Dockerfile",
+    "composeFile": "docker-compose.yml",
+    "port": 3000
+  },
+  "permissions": [
+    "pi-sign-in",
+    "local-network-bridge"
+  ],
+  "environment": {
+    "NODE_ENV": "production",
+    "REQUIRED_VARS": ["MONGODB_URI", "ACTIX_VERIFIER_URL"]
+  }
+}
