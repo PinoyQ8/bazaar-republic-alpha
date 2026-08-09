@@ -4,6 +4,7 @@
 import mongoose from 'mongoose';
 import { MarketListing } from "@/models/MarketListing";
 import { PioneerNode } from "@/models/PioneerNode";
+import { TransactionLedger } from "@/models/TransactionLedger"; // 🛡️ Injected Ledger
 import { revalidatePath } from 'next/cache';
 
 /**
@@ -57,7 +58,6 @@ export async function createMarketListing(
     const isConnected = await connectDB();
     if (!isConnected) return { success: false, message: "NETWORK_OFFLINE: Market Engine offline." };
 
-    // 🛡️ ADJUDICATOR AUDIT: Verify Provider Node & Collateral
     const node = await PioneerNode.findOne({
       $or: [{ username: providerId }, { uid: providerId }]
     });
@@ -68,7 +68,6 @@ export async function createMarketListing(
 
     const currentStake = node.stake_amount || 0;
     
-    // 🛡️ PERIMETER SHIELD: Deny listing if collateral is insufficient
     if (currentStake < requiredCollateral) {
       return {
         success: false,
@@ -90,7 +89,7 @@ export async function createMarketListing(
     revalidatePath('/dashboard/marketplace');
     return {
       success: true,
-      message: "SERVICE LISTED: Vault Collateral verified. Listing is now live on the E-Network.",
+      message: "SERVICE LISTED: Vault Collateral verified.",
       listingId: newListing.listingId
     };
   } catch (error: any) {
@@ -108,7 +107,7 @@ export async function toggleListingStatus(listingId: string, providerId: string,
     if (!isConnected) return { success: false, message: "NETWORK_OFFLINE" };
 
     const listing = await MarketListing.findOne({ listingId, providerId });
-    if (!listing) return { success: false, message: "UNAUTHORIZED: Listing not found or you are not the provider." };
+    if (!listing) return { success: false, message: "UNAUTHORIZED: Listing not found." };
 
     listing.status = newStatus;
     await listing.save();
@@ -126,42 +125,33 @@ export async function toggleListingStatus(listingId: string, providerId: string,
 export async function executeMarketTransaction(
   buyerId: string, 
   merchantId: string, 
-  cartValue: number // Denominated in Pi or mBZR
+  cartValue: number
 ) {
-  const MAX_DISCOUNT = 0.10; // 10% max DAO subsidy for buyers
-  const BASE_TAX = 0.03;     // 3% standard network tax for merchants
+  const MAX_DISCOUNT = 0.10; 
+  const BASE_TAX = 0.03;     
 
   try {
     const isConnected = await connectDB();
     if (!isConnected) return { success: false, message: "NETWORK_OFFLINE: Atlas unreachable." };
 
-    // 1. 🛑 FETCH IDENTITIES & REPUTATION (Using $or for robust targeting)
     const [buyer, merchant] = await Promise.all([
       PioneerNode.findOne({ $or: [{ username: buyerId }, { uid: buyerId }] }).lean(),
       PioneerNode.findOne({ $or: [{ username: merchantId }, { uid: merchantId }] }).lean()
     ]);
 
-    if (!buyer || !merchant) {
-      return { success: false, message: "MESH-FRACTURE: Node identity unverified in Master Ledger." };
-    }
+    if (!buyer || !merchant) return { success: false, message: "MESH-FRACTURE: Node identity unverified." };
 
-    // 2. ⚖️ CALCULATE TRUSTSCORE (TS) ALGORITHMS 
     const buyerTS = buyer.trust_score || buyer.trustScore || 10;
     const merchantTS = merchant.trust_score || merchant.trustScore || 10;
 
-    // Buyer Discount: e.g., TS 100 = 10% discount | TS 50 = 5% discount
     const activeDiscount = MAX_DISCOUNT * (buyerTS / 100);
-    
-    // Merchant Tax: e.g., TS 100 = 0% tax | TS 0 = 3% tax
     const activeTaxRate = BASE_TAX * (1 - (merchantTS / 100));
 
-    // 3. 🧮 EXECUTE THE FIAT/CRYPTO MATH
     const buyerPays = cartValue * (1 - activeDiscount);
-    const treasurySubsidy = cartValue * activeDiscount; // The DAO pays the difference
+    const treasurySubsidy = cartValue * activeDiscount; 
     const merchantReceives = cartValue * (1 - activeTaxRate);
     const treasuryCollects = cartValue * activeTaxRate;
 
-    // 4. 🛑 ATOMIC BALANCE CHECK (Does the buyer have enough?)
     if ((buyer.mbzrBalance || 0) < buyerPays) {
       return { 
         success: false, 
@@ -169,15 +159,25 @@ export async function executeMarketTransaction(
       };
     }
 
-    // 5. 🚀 EXECUTE ATOMIC SETTLEMENT (The Ledger Update)
     await Promise.all([
       PioneerNode.updateOne({ uid: buyer.uid }, { $inc: { mbzrBalance: -buyerPays } }),
       PioneerNode.updateOne({ uid: merchant.uid }, { $inc: { mbzrBalance: merchantReceives } })
-      // TreasuryLedger updates will be injected here later
     ]);
 
-    console.log(`[MESH-MARKET] 🟢 Tx Cleared. Buyer TS: ${buyerTS} | Merchant TS: ${merchantTS}`);
-    console.log(`- Cart: ${cartValue} | Buyer Paid: ${buyerPays.toFixed(2)} | Merchant Earned: ${merchantReceives.toFixed(2)}`);
+    // 📊 6. LOG BEHAVIORAL DATA TO TRANSACTION LEDGER
+    const txId = `TX-${Date.now().toString().slice(-8)}`;
+    await TransactionLedger.create({
+      txId,
+      buyerId: buyer.uid,
+      merchantId: merchant.uid,
+      cartValue,
+    buyerPaid: buyerPays, // 🛡️ ADJUDICATOR FIX: Mapped correctly
+    subsidyApplied: treasurySubsidy,
+      taxCollected: treasuryCollects,
+      timestamp: Date.now()
+    });
+
+    console.log(`[MESH-MARKET] 🟢 Tx Cleared & Logged: ${txId}`);
 
     return {
       success: true,
@@ -194,5 +194,56 @@ export async function executeMarketTransaction(
   } catch (error) {
     console.error("[MESH-MARKET] 🚨 Transaction Fracture:", error);
     return { success: false, message: "FATAL: MARKET ENGINE OFFLINE" };
+  }
+}
+
+// ----------------------------------------------------------------------
+// 5. 🌱 DEVELOPMENT ONLY: SEED VIRTUAL MARKET
+// ----------------------------------------------------------------------
+export async function seedVirtualMarket() {
+  try {
+    await connectDB();
+    
+    await MarketListing.deleteMany({ providerId: 'Virtual_Node' });
+
+    const virtualListings = [
+      {
+        listingId: `SVC-V1-${Date.now()}`,
+        providerId: 'Virtual_Node',
+        title: 'Virtual: Docker Container (1GB RAM)',
+        description: 'Test listing. Automated cloud compute node for executing light logic scripts.',
+        serviceCategory: 'COMPUTE',
+        pricePi: 15,
+        requiredCollateral: 0,
+        status: 'ACTIVE'
+      },
+      {
+        listingId: `SVC-V2-${Date.now()}`,
+        providerId: 'Virtual_Node',
+        title: 'Virtual: UX/UI Matrix Audit',
+        description: 'Test listing. Comprehensive design review of your E-Network viewport.',
+        serviceCategory: 'CONSULTING',
+        pricePi: 50,
+        requiredCollateral: 0,
+        status: 'ACTIVE'
+      },
+      {
+        listingId: `SVC-V3-${Date.now()}`,
+        providerId: 'Virtual_Node',
+        title: 'Virtual: Neo Protocol Scripting API',
+        description: 'Test listing. Access to automated Adjudicator endpoints.',
+        serviceCategory: 'DIGITAL_ASSET',
+        pricePi: 100,
+        requiredCollateral: 0,
+        status: 'ACTIVE'
+      }
+    ];
+
+    await MarketListing.insertMany(virtualListings);
+    revalidatePath('/dashboard/marketplace');
+    
+    return { success: true, message: "VIRTUAL MARKET SEEDED: 3 Test Services Online." };
+  } catch (error: any) {
+    return { success: false, message: `SEED_FAILED: ${error.message}` };
   }
 }
