@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import PioneerAuthGate from "@/app/components/PioneerAuthGate";
 import { getActiveListings, createMarketListing, executeMarketTransaction } from "@/app/actions/marketActions";
-import { ShieldCheck, Server, Cpu, Briefcase, Zap } from "lucide-react";
+import { ShieldCheck, Server, Cpu, Briefcase, Zap, Lock } from "lucide-react"; // 🛡️ Injected Lock Icon
 
 interface IMarketListing {
   listingId: string;
@@ -25,6 +25,9 @@ export default function MarketplaceViewport() {
   const [isLoading, setIsLoading] = useState(true);
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
 
+  // 🛡️ ADJUDICATOR PERIMETER STATE
+  const [isPiBrowser, setIsPiBrowser] = useState(true); 
+
   // Form State
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState({
@@ -32,6 +35,12 @@ export default function MarketplaceViewport() {
   });
 
   useEffect(() => {
+    // 🛡️ DETECT ENVIRONMENT: Pi Browser or Local Dev
+    const ua = navigator.userAgent || "";
+    const inPi = ua.includes("PiBrowser");
+    const isLocalDev = process.env.NODE_ENV === "development";
+    setIsPiBrowser(inPi || isLocalDev);
+
     const storedAuth = localStorage.getItem("pi_auth_user");
     const authData = storedAuth ? JSON.parse(storedAuth) : { username: "PinoyQ8_Dev", uid: "PinoyQ8_Dev" };
     setSession(authData);
@@ -51,7 +60,7 @@ export default function MarketplaceViewport() {
 
   const handleCreateSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!session?.uid) return;
+    if (!session?.uid || !isPiBrowser) return; // Halt if bypassed
     setIsLoading(true);
     setStatusMsg("Authenticating Collateral Bounds...");
 
@@ -75,7 +84,7 @@ export default function MarketplaceViewport() {
   };
 
   const handlePurchase = async (merchantId: string, price: number) => {
-    if (!session?.uid) return;
+    if (!session?.uid || !isPiBrowser) return; // Halt if bypassed
     setIsLoading(true);
     setStatusMsg("Executing Zero-Trust Subsidy Transaction...");
 
@@ -126,8 +135,10 @@ export default function MarketplaceViewport() {
               DASHBOARD
             </button>
           </div>
-          <p className="text-xs text-neutral-500 uppercase tracking-widest">
-            Zero-Trust Subsidies Active • High TS Yields Lower Tax
+          <p className="text-xs text-neutral-500 uppercase tracking-widest flex items-center justify-between">
+            <span>Zero-Trust Subsidies Active • High TS Yields Lower Tax</span>
+            {/* 🛡️ INJECTED READ-ONLY BADGE */}
+            {!isPiBrowser && <span className="text-red-500 font-bold flex items-center gap-1"><Lock className="w-3 h-3"/> READ-ONLY MODE</span>}
           </p>
         </header>
 
@@ -138,18 +149,19 @@ export default function MarketplaceViewport() {
           </div>
         )}
 
-        {/* ➕ ACTION BAR */}
+        {/* ➕ ACTION BAR (Locked for Web Users) */}
         <div className="flex justify-end">
           <button
             onClick={() => setShowForm(!showForm)}
-            className="px-4 py-2 bg-emerald-950/60 hover:bg-emerald-900/80 border border-emerald-700 text-emerald-400 font-bold text-xs uppercase tracking-widest rounded transition-all shadow-[0_0_10px_rgba(16,185,129,0.2)]"
+            disabled={!isPiBrowser} // 🛡️ INJECTED LOCK
+            className="px-4 py-2 bg-emerald-950/60 hover:bg-emerald-900/80 border border-emerald-700 text-emerald-400 font-bold text-xs uppercase tracking-widest rounded transition-all shadow-[0_0_10px_rgba(16,185,129,0.2)] disabled:opacity-30 disabled:cursor-not-allowed"
           >
             {showForm ? "CANCEL LISTING" : "+ CREATE SERVICE LISTING"}
           </button>
         </div>
 
         {/* 📝 CREATE LISTING FORM */}
-        {showForm && (
+        {showForm && isPiBrowser && ( // 🛡️ INJECTED LOCK
           <form onSubmit={handleCreateSubmit} className="p-4 bg-neutral-900/80 border border-emerald-900/50 rounded-lg space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-1">
@@ -218,13 +230,23 @@ export default function MarketplaceViewport() {
                 </div>
               </div>
               
-              {/* TRANSACTION GATE */}
+              {/* 🛡️ ADJUDICATOR TRANSACTION GATE (Dynamic State) */}
               <button 
                 onClick={() => handlePurchase(item.providerId, item.pricePi)}
-                disabled={session?.uid === item.providerId || isLoading}
-                className="w-full py-2.5 bg-neutral-800 hover:bg-amber-900/80 text-amber-500 border-t border-neutral-800 text-xs font-bold uppercase tracking-widest transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={session?.uid === item.providerId || isLoading || !isPiBrowser}
+                className={`w-full py-2.5 border-t border-neutral-800 text-xs font-bold uppercase tracking-widest transition-colors ${
+                  !isPiBrowser 
+                    ? 'bg-black text-neutral-600 cursor-not-allowed' 
+                    : session?.uid === item.providerId
+                    ? 'bg-neutral-900 text-neutral-500 cursor-not-allowed'
+                    : 'bg-neutral-800 hover:bg-amber-900/80 text-amber-500'
+                }`}
               >
-                {session?.uid === item.providerId ? 'YOUR LISTING' : 'EXECUTE CONTRACT'}
+                {!isPiBrowser 
+                  ? <span className="flex items-center justify-center gap-2"><Lock className="w-3 h-3"/> REQUIRES PI BROWSER</span>
+                  : session?.uid === item.providerId 
+                  ? 'YOUR LISTING' 
+                  : 'EXECUTE CONTRACT'}
               </button>
             </div>
           ))}
