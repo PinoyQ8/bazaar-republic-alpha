@@ -130,3 +130,49 @@ export async function executeEarlyWithdrawalSlash(pioneerId: string, requestedWi
     return { success: false, message: `SLASH_FAILED: ${error.message}` };
   }
 }
+
+// ----------------------------------------------------------------------
+// 3. 📡 COMMAND CENTER: Legacy Dependency Support
+// ----------------------------------------------------------------------
+export async function getMeshTelemetry() {
+  try {
+    const isConnected = await connectDB();
+    if (!isConnected) return { totalNodes: 0, activeNodes: 0, status: 'OFFLINE' };
+
+    const totalNodes = await PioneerNode.countDocuments();
+    const activeNodes = await PioneerNode.countDocuments({ status: 'ACTIVE' });
+    const totalStake = await PioneerNode.aggregate([{ $group: { _id: null, total: { $sum: "$stake_amount" } } }]);
+
+    return {
+      totalNodes,
+      activeNodes,
+      totalStaked: totalStake[0]?.total || 0,
+      status: 'SYNCED',
+      protocol_version: '26.1'
+    };
+  } catch (error) {
+    console.error("[MESH-TELEMETRY ERROR]:", error);
+    return { totalNodes: 0, activeNodes: 0, status: 'FRACTURED' };
+  }
+}
+
+export async function upgradeBootstrapNodes() {
+  try {
+    const isConnected = await connectDB();
+    if (!isConnected) return { success: false, message: "DB_OFFLINE" };
+
+    // Standard bootstrap upgrade logic for Command Center
+    const result = await PioneerNode.updateMany(
+      { tier: 'NEW_PIONEER' },
+      { $set: { tier: 'CITIZEN' } }
+    );
+
+    revalidatePath('/dashboard/command');
+    return { 
+      success: true, 
+      message: `Bootstrap protocol executed. ${result.modifiedCount} nodes upgraded.` 
+    };
+  } catch (error: any) {
+    return { success: false, message: `UPGRADE_FAILED: ${error.message}` };
+  }
+}
