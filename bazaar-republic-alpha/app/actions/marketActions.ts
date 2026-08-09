@@ -144,17 +144,21 @@ export async function executeMarketTransaction(
     const MBZR_CONVERSION_RATIO = 1000;
     const grossTotalMBZR = pricePi * MBZR_CONVERSION_RATIO;
 
-    // 🛡️ 2. TRIPLE-LEDGER MATH
+   // 🛡️ 2. TRIPLE-LEDGER MATH & REPUBLIC SHIELD INJECTION
     const EVAT_RATE = 0.12; // 12% Global e-VAT
     const BASE_SERVICE_TAX = 0.08; // 8% DAO Tax
-    const TRUST_SHIELD = (buyerTS / 100) * 0.05; // Up to 5% Tax Reduction for High-Trust Pioneers
+    const TRUST_SHIELD = (buyerTS / 100) * 0.05; // Up to 5% Tax Reduction
     const DYNAMIC_SERVICE_TAX = BASE_SERVICE_TAX - TRUST_SHIELD;
 
     const eVatAmount = Number((grossTotalMBZR * EVAT_RATE).toFixed(2));
-    const serviceTaxAmount = Number((grossTotalMBZR * DYNAMIC_SERVICE_TAX).toFixed(2));
-    const unitPriceYield = Number((grossTotalMBZR - eVatAmount - serviceTaxAmount).toFixed(2));
-    const totalTaxCollected = eVatAmount + serviceTaxAmount;
-    const subsidyValue = Number((grossTotalMBZR * TRUST_SHIELD).toFixed(2)); // Value saved by Trust Shield
+    const totalServiceTax = Number((grossTotalMBZR * DYNAMIC_SERVICE_TAX).toFixed(2));
+    
+    // 🏥 THE REPUBLIC SHIELD SIPHON (80/20 Split)
+    const daoOperations = Number((totalServiceTax * 0.80).toFixed(2));
+    const republicShieldVault = Number((totalServiceTax * 0.20).toFixed(2));
+
+    const unitPriceYield = Number((grossTotalMBZR - eVatAmount - totalServiceTax).toFixed(2));
+    const subsidyValue = Number((grossTotalMBZR * TRUST_SHIELD).toFixed(2));
 
     // 🛡️ 3. LIQUIDITY VERIFICATION
     if ((buyer.mbzrBalance || 0) < grossTotalMBZR) {
@@ -170,34 +174,41 @@ export async function executeMarketTransaction(
       PioneerNode.updateOne({ uid: merchant.uid }, { $inc: { mbzrBalance: unitPriceYield } })
     ]);
 
-    // 📊 5. LOG TRIPLE-LEDGER TELEMETRY
+    // 📊 5. LOG QUAD-LEDGER TELEMETRY (Upgraded for the Shield)
     const txId = `TX-${Date.now().toString().slice(-8)}`;
+    
+    // 🛡️ ADJUDICATOR BYPASS: Force the write through the cache lock
     await TransactionLedger.create({
       txId,
       buyerId: buyer.uid,
       merchantId: merchant.uid,
       cartValue: pricePi, 
       buyerPaid: grossTotalMBZR,
-      subsidyApplied: subsidyValue, // Maps Trust Shield savings to the UI ledger
-      taxCollected: totalTaxCollected, 
+      subsidyApplied: subsidyValue,
+      taxCollected: totalServiceTax, 
+      daoOperationsYield: daoOperations,
+      republicShieldYield: republicShieldVault, 
+      eVatCollected: eVatAmount, 
       timestamp: Date.now()
-    });
+    } as any);
 
     console.log(`[MESH-ADJUDICATOR] 📊 TRANSPARENCY BREAKDOWN (Gross: ${grossTotalMBZR} mBZR)`);
     console.log(`[MESH-ADJUDICATOR] 1. Merchant Unit Price : ${unitPriceYield} mBZR`);
-    console.log(`[MESH-ADJUDICATOR] 2. DAO Service Tax    : ${serviceTaxAmount} mBZR (${(DYNAMIC_SERVICE_TAX * 100).toFixed(1)}%)`);
-    console.log(`[MESH-ADJUDICATOR] 3. Government e-VAT   : ${eVatAmount} mBZR (${(EVAT_RATE * 100).toFixed(1)}%)`);
+    console.log(`[MESH-ADJUDICATOR] 2. DAO Operations Vault : ${daoOperations} mBZR`);
+    console.log(`[MESH-ADJUDICATOR] 3. Republic Shield Vault: ${republicShieldVault} mBZR (Medical/Social)`);
+    console.log(`[MESH-ADJUDICATOR] 4. Government e-VAT    : ${eVatAmount} mBZR`);
     console.log(`[MESH-MARKET] 🟢 Tx Cleared & Logged: ${txId}`);
 
     // 🛡️ 6. RETURN TRANSPARENT RECEIPT TO UI
     return {
       success: true,
-      message: "Triple-Ledger Transaction Secured.",
+      message: "Quad-Ledger Transaction Secured.",
       receipt: {
         txId,
         grossTotal: grossTotalMBZR,
         unitPrice: unitPriceYield,
-        serviceTax: serviceTaxAmount,
+        daoOperations: daoOperations,
+        republicShield: republicShieldVault,
         eVat: eVatAmount,
         dynamicTaxRate: `${(DYNAMIC_SERVICE_TAX * 100).toFixed(1)}%`,
         currency: 'mBZR'

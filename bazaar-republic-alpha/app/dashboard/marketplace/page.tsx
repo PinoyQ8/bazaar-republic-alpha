@@ -94,11 +94,12 @@ export default function MarketplaceViewport() {
       setStatusMsg(
         `✅ TX SECURED: ${payload.receipt.grossTotal.toFixed(2)} mBZR TOTAL. ` +
         `Breakdown ➔ [Unit Price: ${payload.receipt.unitPrice.toFixed(2)} | ` +
-        `Service Tax: ${payload.receipt.serviceTax.toFixed(2)} | ` +
+        `DAO Ops: ${payload.receipt.daoOperations.toFixed(2)} | ` +
+        `Shield: ${payload.receipt.republicShield.toFixed(2)} | ` +
         `e-VAT: ${payload.receipt.eVat.toFixed(2)}]`
       );
     } else {
-      setStatusMsg(`🚨 TX REJECTED: ${res.message || 'Unknown Error'}`);
+      setStatusMsg(`🚨 TX REJECTED: ${payload.message || 'Unknown Error'}`);
     }
     
     setIsLoading(false);
