@@ -19,9 +19,9 @@ async function connectDB() {
   }
 }
 
-/**
- * 📡 1. DYNAMIC TRUSTSCORE BOOST / DECAY EVALUATOR
- */
+// ----------------------------------------------------------------------
+// 1. 📡 DYNAMIC TRUSTSCORE BOOST / DECAY EVALUATOR
+// ----------------------------------------------------------------------
 export async function evaluateNodeTelemetry(pioneerId: string) {
   const now = Date.now();
   const ONE_DAY_MS = 24 * 60 * 60 * 1000;
@@ -42,13 +42,11 @@ export async function evaluateNodeTelemetry(pioneerId: string) {
     let trustScoreDelta = 0;
     let logMessage = "";
 
-    // 🕒 Inactivity Decay: -2 TS for every 24 hours of missed ping
     if (elapsedMs > ONE_DAY_MS) {
       const missedDays = Math.floor(elapsedMs / ONE_DAY_MS);
       trustScoreDelta = -(missedDays * 2);
       logMessage = `DECAY APPLIED: -${Math.abs(trustScoreDelta)} TS (${missedDays}d inactive).`;
     } else {
-      // ⚡ Active Boost: +1.5 TS for daily active heartbeat
       trustScoreDelta = 1.5;
       logMessage = `HEARTBEAT BOOST: +1.5 TS logged.`;
     }
@@ -73,11 +71,9 @@ export async function evaluateNodeTelemetry(pioneerId: string) {
   }
 }
 
-/**
- * ⚡ 2. 15% DIVIDEND SLASHING EXECUTOR (PRINCIPAL PROTECTED)
- * 🛡️ INVARIANT: Capital Staked (stake_amount) is 100% SHIELDED.
- * Slashing applies ONLY to earned yield/dividend fuel.
- */
+// ----------------------------------------------------------------------
+// 2. ⚡ 15% DIVIDEND SLASHING EXECUTOR (PRINCIPAL PROTECTED)
+// ----------------------------------------------------------------------
 export async function executeEarlyWithdrawalSlash(pioneerId: string, requestedWithdrawalAmount: number) {
   try {
     const isConnected = await connectDB();
@@ -91,38 +87,40 @@ export async function executeEarlyWithdrawalSlash(pioneerId: string, requestedWi
       return { success: false, message: "NODE_NOT_FOUND" };
     }
 
-    // Earned dividend/fuel yield buffer
-    const availableDividend = node.activeFuel || 0;
-    
-    if (availableDividend <= 0) {
-      return { 
-        success: true, 
-        message: "PROTECTED: Capital Staked remains untouched. Zero accrued dividends available to slash.",
-        slashedPenalty: 0,
-        stakePreserved: node.stake_amount
-      };
+    const availableYield = node.activeFuel || 0;
+    const requiredPenalty = parseFloat((requestedWithdrawalAmount * 0.15).toFixed(4));
+
+    let actualDeductedYield = 0;
+    let deficitPenalty = 0;
+    let tsPenalty = 0;
+
+    if (availableYield >= requiredPenalty) {
+      actualDeductedYield = requiredPenalty;
+      node.activeFuel = parseFloat((availableYield - actualDeductedYield).toFixed(4));
+    } else {
+      actualDeductedYield = availableYield;
+      deficitPenalty = requiredPenalty - availableYield;
+      node.activeFuel = 0;
+      tsPenalty = 25; 
+      node.trust_score = Math.max(10, (node.trust_score || 50) - tsPenalty);
     }
 
-    // Calculate 15% penalty based on requested withdrawal
-    const rawPenalty = parseFloat((requestedWithdrawalAmount * 0.15).toFixed(4));
-    
-    // Deduct strictly from earned dividends (activeFuel/yield), NEVER from capital stake
-    const actualSlash = Math.min(availableDividend, rawPenalty);
-    node.activeFuel = parseFloat((availableDividend - actualSlash).toFixed(4));
-    node.slashed_amount = (node.slashed_amount || 0) + actualSlash;
+    node.slashed_amount = (node.slashed_amount || 0) + actualDeductedYield;
     node.is_slashed = true;
 
     await node.save();
 
-    console.log(`[MESH-ADJUDICATOR] 🛡️ DIVIDEND SLASH EXECUTED: Node ${pioneerId} penalized -${actualSlash} Fuel. Capital Staked (${node.stake_amount} Pi) 100% Intact.`);
+    console.log(`[MESH-ADJUDICATOR] 🛡️ HARMONIZED SLASH: ${pioneerId} | Yield Deducted: -${actualDeductedYield} | Deficit TS Penalty: -${tsPenalty} TS.`);
 
     revalidatePath('/dashboard');
     return {
       success: true,
-      message: `DIVIDEND SLASHED: 15% penalty (-${actualSlash} Fuel) deducted from earned yield. Capital Staked (${node.stake_amount} Pi) remains 100% protected.`,
-      slashedPenalty: actualSlash,
-      remainingDividends: node.activeFuel,
-      capitalStakedUntouched: node.stake_amount
+      message: deficitPenalty > 0
+        ? `DEFICIT SLASH APPLIED: Covered -${actualDeductedYield} Yield. Deficit triggered -${tsPenalty} TS TrustScore Quarantine. Capital Staked remains 100% protected.`
+        : `YIELD SLASH EXECUTED: -${actualDeductedYield} Yield deducted. Capital Staked remains 100% protected.`,
+      deductedYield: actualDeductedYield,
+      trustScoreDeduction: tsPenalty,
+      capitalPreserved: node.stake_amount
     };
 
   } catch (error: any) {
@@ -164,5 +162,25 @@ export async function getMeshTelemetry() {
       success: false, 
       data: { totalNodes: 0, activeNodes: 0, status: 'FRACTURED' } 
     };
+  }
+}
+
+export async function upgradeBootstrapNodes() {
+  try {
+    const isConnected = await connectDB();
+    if (!isConnected) return { success: false, message: "DB_OFFLINE" };
+
+    const result = await PioneerNode.updateMany(
+      { tier: 'NEW_PIONEER' },
+      { $set: { tier: 'CITIZEN' } }
+    );
+
+    revalidatePath('/dashboard/command');
+    return { 
+      success: true, 
+      message: `Bootstrap protocol executed. ${result.modifiedCount} nodes upgraded.` 
+    };
+  } catch (error: any) {
+    return { success: false, message: `UPGRADE_FAILED: ${error.message}` };
   }
 }
