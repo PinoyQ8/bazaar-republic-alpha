@@ -165,11 +165,13 @@ export async function getMeshTelemetry() {
   }
 }
 
-export async function upgradeBootstrapNodes() {
+export async function upgradeBootstrapNodes(forceBypass?: boolean) {
   try {
     const isConnected = await connectDB();
     if (!isConnected) return { success: false, message: "DB_OFFLINE" };
 
+    // The frontend passes forceBypass=true to override the temporal lock.
+    // We accept the parameter to satisfy the TypeScript compiler matrix.
     const result = await PioneerNode.updateMany(
       { tier: 'NEW_PIONEER' },
       { $set: { tier: 'CITIZEN' } }
