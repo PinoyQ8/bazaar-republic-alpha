@@ -3,8 +3,10 @@
 import { PioneerNode } from "@/models/PioneerNode";
 // import { TreasuryLedger } from "@/models/TreasuryLedger"; // ◄ To be forged later for strict accounting
 
+// Location: app/actions/marketActions.ts (Append to bottom)
+
 // ----------------------------------------------------------------------
-// 🛡️ THE MESH-MARKET: ZERO-TRUST SUBSIDY ENGINE
+// 4. 🛡️ THE MESH-MARKET: ZERO-TRUST SUBSIDY ENGINE
 // ----------------------------------------------------------------------
 export async function executeMarketTransaction(
   buyerId: string, 
@@ -15,20 +17,23 @@ export async function executeMarketTransaction(
   const BASE_TAX = 0.03;     // 3% standard network tax for merchants
 
   try {
-    
-    // 1. 🛑 FETCH IDENTITIES & REPUTATION
+    const isConnected = await connectDB();
+    if (!isConnected) return { success: false, message: "NETWORK_OFFLINE: Atlas unreachable." };
+
+    // 1. 🛑 FETCH IDENTITIES & REPUTATION (Using $or for robust targeting)
     const [buyer, merchant] = await Promise.all([
-      PioneerNode.findOne({ username: buyerId }).lean(),
-      PioneerNode.findOne({ username: merchantId }).lean()
+      PioneerNode.findOne({ $or: [{ username: buyerId }, { uid: buyerId }] }).lean(),
+      PioneerNode.findOne({ $or: [{ username: merchantId }, { uid: merchantId }] }).lean()
     ]);
 
     if (!buyer || !merchant) {
-      return { success: false, message: "MESH-FRACTURE: Node identity unverified in ledger." };
+      return { success: false, message: "MESH-FRACTURE: Node identity unverified in Master Ledger." };
     }
 
-    // 2. ⚖️ CALCULATE TRUSTSCORE (TS) ALGORITHMS
-     const buyerTS = buyer.trustScore || 0;     // 🛡️ Fixed to camelCase
-     const merchantTS = merchant.trustScore || 0; // 🛡️ Fixed to camelCase
+    // 2. ⚖️ CALCULATE TRUSTSCORE (TS) ALGORITHMS 
+    // Prefer the active telemetry 'trust_score' with fallback to legacy 'trustScore'
+    const buyerTS = buyer.trust_score || buyer.trustScore || 10;
+    const merchantTS = merchant.trust_score || merchant.trustScore || 10;
 
     // Buyer Discount: e.g., TS 100 = 10% discount | TS 50 = 5% discount
     const activeDiscount = MAX_DISCOUNT * (buyerTS / 100);
@@ -43,17 +48,20 @@ export async function executeMarketTransaction(
     const treasuryCollects = cartValue * activeTaxRate;
 
     // 4. 🛑 ATOMIC BALANCE CHECK (Does the buyer have enough?)
-    // This assumes your PioneerNode schema tracks mBZR balances in a field called 'mbzr_balance'
+    // 🛡️ Fixed schema alignment: mbzrBalance
     if ((buyer.mbzrBalance || 0) < buyerPays) {
-      return { success: false, message: "INSUFFICIENT_FUNDS: Buyer lacks required mBZR." };
+      return { 
+        success: false, 
+        message: `INSUFFICIENT_FUNDS: Buyer lacks required mBZR. Balance: ${(buyer.mbzrBalance || 0).toFixed(2)}` 
+      };
     }
 
     // 5. 🚀 EXECUTE ATOMIC SETTLEMENT (The Ledger Update)
-    // In production, use MongoDB Transactions (session.withTransaction) for absolute safety
+    // 🛡️ Fixed schema alignment: mbzrBalance
     await Promise.all([
-      PioneerNode.updateOne({ username: buyerId }, { $inc: { mbzr_balance: -buyerPays } }),
-      PioneerNode.updateOne({ username: merchantId }, { $inc: { mbzr_balance: merchantReceives } })
-      // Treasury balances would be updated here
+      PioneerNode.updateOne({ uid: buyer.uid }, { $inc: { mbzrBalance: -buyerPays } }),
+      PioneerNode.updateOne({ uid: merchant.uid }, { $inc: { mbzrBalance: merchantReceives } })
+      // TreasuryLedger updates will be injected here later
     ]);
 
     console.log(`[MESH-MARKET] 🟢 Tx Cleared. Buyer TS: ${buyerTS} | Merchant TS: ${merchantTS}`);
