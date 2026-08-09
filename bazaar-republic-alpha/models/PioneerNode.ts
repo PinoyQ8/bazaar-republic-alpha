@@ -30,6 +30,17 @@ export interface IPioneerNode extends Document {
   isGenesis100: boolean;
   securityCircleKycCount: number;
   staked_at_ts: number;
+
+  // 💀 DEADMAN PROTOCOL & HEIRS
+  deadman_protocol?: {
+    isActive: boolean;
+    lastHeartbeat: Date;
+    triggerDays: number;
+    heirs: Array<{
+      heirUid: string;
+      allocationPercentage: number;
+    }>;
+  };
 }
 
 const PioneerNodeSchema = new Schema<IPioneerNode>(
@@ -70,6 +81,17 @@ const PioneerNodeSchema = new Schema<IPioneerNode>(
     isGenesis100: { type: Boolean, default: false },
     securityCircleKycCount: { type: Number, default: 0 },
     staked_at_ts: { type: Number, default: () => Date.now() },
+
+    // 💀 DEADMAN PROTOCOL MAPPING
+    deadman_protocol: {
+      isActive: { type: Boolean, default: false },
+      lastHeartbeat: { type: Date, default: Date.now },
+      triggerDays: { type: Number, default: 365 }, // Default to 1-Year expiration
+      heirs: [{
+        heirUid: { type: String, required: true },
+        allocationPercentage: { type: Number, required: true }
+      }]
+    },
   },
   { timestamps: true }
 );

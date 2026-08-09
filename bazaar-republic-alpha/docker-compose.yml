@@ -1,0 +1,18 @@
+services:
+  bazaar-republic:
+    build: .
+    container_name: bazaar-republic-alpha
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - MONGODB_URI=mongodb://bazaar-ledger:27017/bazaar_republic
+      - ACTIX_VERIFIER_URL=http://actix-verifier-node:8080
+    networks:
+      - mesh-network
+
+networks:
+  mesh-network:
+    external: true
+    name: mesh-network

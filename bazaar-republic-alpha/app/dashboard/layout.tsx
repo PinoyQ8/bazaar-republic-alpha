@@ -2,6 +2,7 @@
 import React from "react";
 // 🛡️ MESH ANCHOR: The Cryptographic Bouncer
 import PioneerAuthGate from "@/components/PioneerAuthGate"; 
+import { Store } from "lucide-react";
 
 /**
  * 🛡️ THE DASHBOARD PERIMETER (Sector Layout)

@@ -1,6 +1,7 @@
+// Location: app/api/cron/process-payouts/route.ts
 import { NextResponse } from 'next/server';
 import { Horizon, Networks, Keypair, TransactionBuilder, Asset, Operation } from '@stellar/stellar-sdk';
-import { prisma } from '@/lib/prisma';
+// import { prisma } from '@/lib/prisma'; // 🛡️ ADJUDICATOR HALT: Disabled to prevent Mongoose conflict
 
 const MBRS_CONVERSION_RATIO = 1000;
 
@@ -11,7 +12,7 @@ const pendingDistributions = [
 
 let isProcessingQueue = false; 
 
-export async function GET(req: Request) {
+export async function GET(req: Request) { 
   if (isProcessingQueue) {
     return NextResponse.json({ status: "Queue locked. MESH active." });
   }
@@ -22,21 +23,22 @@ export async function GET(req: Request) {
   const SECRET_SEED = process.env.STELLAR_VAULT_SEED;
 
   try {
+    if (!SECRET_SEED) {
+      throw new Error("STELLAR_VAULT_SEED is missing from environment variables.");
+    }
+
     const isMainnet = process.env.STELLAR_NETWORK === 'MAINNET';
     const server = new Horizon.Server(isMainnet ? 'https://horizon.stellar.org' : 'https://horizon-testnet.stellar.org');
     
-    const sourceKeypair = Keypair.fromSecret(SECRET_SEED!);
+    const sourceKeypair = Keypair.fromSecret(SECRET_SEED);
     const sourcePublicKey = sourceKeypair.publicKey();
-
     const testMbzrAsset = new Asset('TESTMBZR', sourcePublicKey);
 
     for (const payout of pendingDistributions) {
       console.log(`[NEO-SYNC] Processing Pioneer Node: ${payout.uid}`);
-
       const tokenAmount = (payout.testPiAmount * MBRS_CONVERSION_RATIO).toFixed(7);
-
-      // FALLBACK: Route to our own funded vault public key for local testing
-      let destinationId = sourcePublicKey;
+      
+      let destinationId = sourcePublicKey; 
       
       try {
         const createRes = await fetch('https://api.minepi.com/v2/payments', {
@@ -55,7 +57,6 @@ export async function GET(req: Request) {
           })
         });
         const paymentData = await createRes.json();
-        // Only override if the Pi server returns a valid, funded destination
         if (paymentData.to_address) {
           destinationId = paymentData.to_address;
         }
@@ -63,7 +64,6 @@ export async function GET(req: Request) {
         console.log("[NEO NOTE] Pi API Sandbox offline. Routing to local vault target.");
       }
 
-      // STEP 2: BUILD HORIZON TRANSACTION FOR TESTMBZR
       const sourceAccount = await server.loadAccount(sourcePublicKey);
       const fee = await server.fetchBaseFee();
 
@@ -80,20 +80,9 @@ export async function GET(req: Request) {
       .build();
 
       transaction.sign(sourceKeypair);
-
-      // STEP 3: SUBMIT TO LEDGER & LOG TO MASTER INDEX
+      
+      console.log(`[NEO-SYNC] Submitting Horizon Tx for ${payout.uid}...`);
       const txResponse = await server.submitTransaction(transaction);
-
-      // NEO-SYNC: Push the exact record to MongoDB via Prisma ORM
-      await prisma.ledgerLog.create({
-        data: {
-          uid: payout.uid,
-          amount: tokenAmount,
-          asset: 'TESTMBZR',
-          txHash: txResponse.hash,
-          status: 'SUCCESS',
-        }
-      });
 
       processedLogs.push({ 
         uid: payout.uid, 
@@ -102,19 +91,21 @@ export async function GET(req: Request) {
         txHash: txResponse.hash 
       });
       
-      await new Promise(resolve => setTimeout(resolve, 3000));
+      // 🛡️ ADJUDICATOR FIX: Removed artificial 3000ms delay to unblock the queue.
     }
 
-  } catch (error: any) {
-    const errorDetails = error.response?.data?.extras?.result_codes 
-      ? JSON.stringify(error.response.data.extras.result_codes) 
-      : error.message || JSON.stringify(error);
-
-    console.error("[NEO ERROR] Queue Halted:", errorDetails);
-    processedLogs.push({ status: "HALTED", error: errorDetails });
-  } finally {
     isProcessingQueue = false;
-  }
+    return NextResponse.json({ success: true, processed: processedLogs });
 
-  return NextResponse.json({ summary: "E-Network TESTMBZR Distribution Complete", logs: processedLogs });
+  } catch (error: any) {
+    isProcessingQueue = false;
+    console.error(`[NEO ERROR] Queue Halted during processing loop.`);
+    console.error(`[NEO ERROR] Message: ${error.message || 'Unknown Fracture'}`);
+    console.error(error.stack); 
+    
+    return NextResponse.json(
+      { success: false, message: `QUEUE_HALTED: ${error.message}` }, 
+      { status: 500 }
+    );
+  }
 }
