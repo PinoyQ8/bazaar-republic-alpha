@@ -72,11 +72,11 @@ export default function MarketplacePage() {
 
       {/* 📊 REAL-TIME TELEMETRY STATUS BANNER */}
       <div className="bg-emerald-950/20 border border-emerald-800/80 p-4 rounded-lg mb-8 text-xs text-emerald-300 flex items-center gap-3">
-        <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse flex-shrink-0"></span>
-        <div>
-          <span className="font-bold text-white uppercase tracking-wider">Telemetry Adjudicator:</span> {statusMsg}
-        </div>
-      </div>
+  <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shrink-0"></span>
+  <div>
+    <span className="font-bold text-white uppercase tracking-wider">Telemetry Adjudicator:</span> {statusMsg}
+  </div>
+</div>
 
       {/* 🛍️ ACTIVE LISTINGS GRID */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
