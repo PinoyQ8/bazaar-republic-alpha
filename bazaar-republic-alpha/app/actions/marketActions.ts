@@ -1,9 +1,124 @@
+// Location: app/actions/marketActions.ts
 "use server";
 
+import mongoose from 'mongoose';
+import { MarketListing } from "@/models/MarketListing";
 import { PioneerNode } from "@/models/PioneerNode";
-// import { TreasuryLedger } from "@/models/TreasuryLedger"; // ◄ To be forged later for strict accounting
+import { revalidatePath } from 'next/cache';
 
-// Location: app/actions/marketActions.ts (Append to bottom)
+/**
+ * 🛡️ MONGODB CONNECTION GATEWAY
+ */
+async function connectDB() {
+  if (mongoose.connection.readyState === 1) return true;
+  const uri = process.env.MONGODB_URI || process.env.XXXMONGODB_URI;
+  if (!uri) return false;
+
+  try {
+    await mongoose.connect(uri, { bufferCommands: false, serverSelectionTimeoutMS: 3000 });
+    return true;
+  } catch (err) {
+    console.warn("[MESH-MARKET] ⚠️ Atlas unreachable.");
+    return false;
+  }
+}
+
+// ----------------------------------------------------------------------
+// 1. 🛍️ FETCH ALL ACTIVE E-NETWORK LISTINGS
+// ----------------------------------------------------------------------
+export async function getActiveListings() {
+  try {
+    const isConnected = await connectDB();
+    if (!isConnected) return [];
+
+    const listings = await MarketListing.find({ status: 'ACTIVE' })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    return JSON.parse(JSON.stringify(listings));
+  } catch (error) {
+    console.error(`[MESH-MARKET] 🚨 FETCH FRACTURE:`, error);
+    return [];
+  }
+}
+
+// ----------------------------------------------------------------------
+// 2. 📝 CREATE NEW SERVICE LISTING (Requires Collateral Audit)
+// ----------------------------------------------------------------------
+export async function createMarketListing(
+  providerId: string,
+  title: string,
+  description: string,
+  serviceCategory: 'COMPUTE' | 'DIGITAL_ASSET' | 'NODE_HOSTING' | 'CONSULTING',
+  pricePi: number,
+  requiredCollateral: number
+) {
+  try {
+    const isConnected = await connectDB();
+    if (!isConnected) return { success: false, message: "NETWORK_OFFLINE: Market Engine offline." };
+
+    // 🛡️ ADJUDICATOR AUDIT: Verify Provider Node & Collateral
+    const node = await PioneerNode.findOne({
+      $or: [{ username: providerId }, { uid: providerId }]
+    });
+
+    if (!node) {
+      return { success: false, message: "ADJUDICATOR HALT: Provider Node not found in Master Index." };
+    }
+
+    const currentStake = node.stake_amount || 0;
+    
+    // 🛡️ PERIMETER SHIELD: Deny listing if collateral is insufficient
+    if (currentStake < requiredCollateral) {
+      return {
+        success: false,
+        message: `ADJUDICATOR HALT: Insufficient Vault Collateral. Required: ${requiredCollateral} Pi | Current: ${currentStake} Pi.`
+      };
+    }
+
+    const newListing = await MarketListing.create({
+      listingId: `SVC-${Date.now().toString().slice(-6)}`,
+      providerId,
+      title,
+      description,
+      serviceCategory,
+      pricePi,
+      requiredCollateral,
+      status: 'ACTIVE'
+    });
+
+    revalidatePath('/dashboard/marketplace');
+    return {
+      success: true,
+      message: "SERVICE LISTED: Vault Collateral verified. Listing is now live on the E-Network.",
+      listingId: newListing.listingId
+    };
+  } catch (error: any) {
+    console.error(`[MESH-MARKET] 🚨 CREATION FRACTURE:`, error.message);
+    return { success: false, message: `CREATION_FAILED: ${error.message}` };
+  }
+}
+
+// ----------------------------------------------------------------------
+// 3. 🛑 DELIST / PAUSE SERVICE
+// ----------------------------------------------------------------------
+export async function toggleListingStatus(listingId: string, providerId: string, newStatus: 'PAUSED' | 'DELISTED') {
+  try {
+    const isConnected = await connectDB();
+    if (!isConnected) return { success: false, message: "NETWORK_OFFLINE" };
+
+    const listing = await MarketListing.findOne({ listingId, providerId });
+    if (!listing) return { success: false, message: "UNAUTHORIZED: Listing not found or you are not the provider." };
+
+    listing.status = newStatus;
+    await listing.save();
+
+    revalidatePath('/dashboard/marketplace');
+    return { success: true, message: `Listing status updated to ${newStatus}.` };
+  } catch (error: any) {
+    return { success: false, message: `UPDATE_FAILED: ${error.message}` };
+  }
+}
 
 // ----------------------------------------------------------------------
 // 4. 🛡️ THE MESH-MARKET: ZERO-TRUST SUBSIDY ENGINE
@@ -31,7 +146,6 @@ export async function executeMarketTransaction(
     }
 
     // 2. ⚖️ CALCULATE TRUSTSCORE (TS) ALGORITHMS 
-    // Prefer the active telemetry 'trust_score' with fallback to legacy 'trustScore'
     const buyerTS = buyer.trust_score || buyer.trustScore || 10;
     const merchantTS = merchant.trust_score || merchant.trustScore || 10;
 
@@ -48,7 +162,6 @@ export async function executeMarketTransaction(
     const treasuryCollects = cartValue * activeTaxRate;
 
     // 4. 🛑 ATOMIC BALANCE CHECK (Does the buyer have enough?)
-    // 🛡️ Fixed schema alignment: mbzrBalance
     if ((buyer.mbzrBalance || 0) < buyerPays) {
       return { 
         success: false, 
@@ -57,7 +170,6 @@ export async function executeMarketTransaction(
     }
 
     // 5. 🚀 EXECUTE ATOMIC SETTLEMENT (The Ledger Update)
-    // 🛡️ Fixed schema alignment: mbzrBalance
     await Promise.all([
       PioneerNode.updateOne({ uid: buyer.uid }, { $inc: { mbzrBalance: -buyerPays } }),
       PioneerNode.updateOne({ uid: merchant.uid }, { $inc: { mbzrBalance: merchantReceives } })
