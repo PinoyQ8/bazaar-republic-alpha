@@ -4,7 +4,7 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Menu, X, Home, GraduationCap, Activity, FileText, Database, Terminal } from "lucide-react";
+import { Menu, X, Home, GraduationCap, Activity, FileText, Database, Terminal, Store } from "lucide-react"; // 🛡️ Added Store import
 
 export default function MeshMobileNav() {
   const pathname = usePathname();
@@ -75,9 +75,13 @@ export default function MeshMobileNav() {
             </div>
             {/* Dashboard Deep Links */}
             <div className="space-y-3 pt-4 border-t border-neutral-900">
-              <h3 className="font-mono text-[10px] text-neutral-500 tracking-widest uppercase">DAO Governance</h3>
+              <h3 className="font-mono text-[10px] text-neutral-500 tracking-widest uppercase">DAO Governance & Economy</h3>
               <Link onClick={closeDrawer} href="/dashboard/proposals" className="flex items-center gap-3 text-neutral-300 hover:text-emerald-400 font-mono text-sm">
                 <Activity size={16} /> Active Proposals
+              </Link>
+              {/* 🛡️ INJECTED E-MARKETPLACE LINK */}
+              <Link onClick={closeDrawer} href="/dashboard/marketplace" className="flex items-center gap-3 text-neutral-300 hover:text-amber-400 font-mono text-sm mt-2">
+                <Store size={16} /> Service Marketplace
               </Link>
             </div>
 
@@ -96,7 +100,7 @@ export default function MeshMobileNav() {
       <nav className="fixed bottom-0 w-full z-50 border-t border-neutral-900 bg-neutral-950/90 backdrop-blur-md shadow-[0_-4px_30px_rgba(0,0,0,0.8)] pb-safe">
         <div className="flex justify-between items-center max-w-md mx-auto px-6 py-3">
           
-          <Link href="/dashboard" onClick={closeDrawer} className={`flex flex-col items-center gap-1 ${isActive("/dashboard") && !isActive("/dashboard/network") ? "text-amber-500" : "text-neutral-500 hover:text-neutral-300"}`}>
+          <Link href="/dashboard" onClick={closeDrawer} className={`flex flex-col items-center gap-1 ${isActive("/dashboard") && !isActive("/dashboard/network") && !isActive("/dashboard/marketplace") ? "text-amber-500" : "text-neutral-500 hover:text-neutral-300"}`}>
             <Home size={22} />
             <span className="font-mono text-[9px] tracking-wider uppercase">Vault</span>
           </Link>
