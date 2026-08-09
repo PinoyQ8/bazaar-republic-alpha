@@ -121,16 +121,13 @@ export async function toggleListingStatus(listingId: string, providerId: string,
 }
 
 // ----------------------------------------------------------------------
-// 4. 🛡️ THE MESH-MARKET: ZERO-TRUST SUBSIDY ENGINE
+// 4. 🛡️ THE MESH-MARKET: TRIPLE-LEDGER TRANSPARENCY ENGINE (mBZR)
 // ----------------------------------------------------------------------
 export async function executeMarketTransaction(
   buyerId: string, 
   merchantId: string, 
-  cartValue: number
+  pricePi: number // Passed from UI
 ) {
-  const MAX_DISCOUNT = 0.10; 
-  const BASE_TAX = 0.03;     
-
   try {
     const isConnected = await connectDB();
     if (!isConnected) return { success: false, message: "NETWORK_OFFLINE: Atlas unreachable." };
@@ -142,53 +139,68 @@ export async function executeMarketTransaction(
 
     if (!buyer || !merchant) return { success: false, message: "MESH-FRACTURE: Node identity unverified." };
 
+    // 🛡️ 1. TRUST SHIELD & CONVERSION
     const buyerTS = buyer.trust_score || buyer.trustScore || 10;
-    const merchantTS = merchant.trust_score || merchant.trustScore || 10;
+    const MBZR_CONVERSION_RATIO = 1000;
+    const grossTotalMBZR = pricePi * MBZR_CONVERSION_RATIO;
 
-    const activeDiscount = MAX_DISCOUNT * (buyerTS / 100);
-    const activeTaxRate = BASE_TAX * (1 - (merchantTS / 100));
+    // 🛡️ 2. TRIPLE-LEDGER MATH
+    const EVAT_RATE = 0.12; // 12% Global e-VAT
+    const BASE_SERVICE_TAX = 0.08; // 8% DAO Tax
+    const TRUST_SHIELD = (buyerTS / 100) * 0.05; // Up to 5% Tax Reduction for High-Trust Pioneers
+    const DYNAMIC_SERVICE_TAX = BASE_SERVICE_TAX - TRUST_SHIELD;
 
-    const buyerPays = cartValue * (1 - activeDiscount);
-    const treasurySubsidy = cartValue * activeDiscount; 
-    const merchantReceives = cartValue * (1 - activeTaxRate);
-    const treasuryCollects = cartValue * activeTaxRate;
+    const eVatAmount = Number((grossTotalMBZR * EVAT_RATE).toFixed(2));
+    const serviceTaxAmount = Number((grossTotalMBZR * DYNAMIC_SERVICE_TAX).toFixed(2));
+    const unitPriceYield = Number((grossTotalMBZR - eVatAmount - serviceTaxAmount).toFixed(2));
+    const totalTaxCollected = eVatAmount + serviceTaxAmount;
+    const subsidyValue = Number((grossTotalMBZR * TRUST_SHIELD).toFixed(2)); // Value saved by Trust Shield
 
-    if ((buyer.mbzrBalance || 0) < buyerPays) {
+    // 🛡️ 3. LIQUIDITY VERIFICATION
+    if ((buyer.mbzrBalance || 0) < grossTotalMBZR) {
       return { 
         success: false, 
-        message: `INSUFFICIENT_FUNDS: Buyer lacks required mBZR. Balance: ${(buyer.mbzrBalance || 0).toFixed(2)}` 
+        message: `INSUFFICIENT_FUNDS: Required ${grossTotalMBZR} mBZR. Balance: ${(buyer.mbzrBalance || 0).toFixed(2)}` 
       };
     }
 
+    // 🛡️ 4. MONGOOSE WALLET UPDATES (Buyer pays Gross, Merchant gets Net Yield)
     await Promise.all([
-      PioneerNode.updateOne({ uid: buyer.uid }, { $inc: { mbzrBalance: -buyerPays } }),
-      PioneerNode.updateOne({ uid: merchant.uid }, { $inc: { mbzrBalance: merchantReceives } })
+      PioneerNode.updateOne({ uid: buyer.uid }, { $inc: { mbzrBalance: -grossTotalMBZR } }),
+      PioneerNode.updateOne({ uid: merchant.uid }, { $inc: { mbzrBalance: unitPriceYield } })
     ]);
 
-    // 📊 6. LOG BEHAVIORAL DATA TO TRANSACTION LEDGER
+    // 📊 5. LOG TRIPLE-LEDGER TELEMETRY
     const txId = `TX-${Date.now().toString().slice(-8)}`;
     await TransactionLedger.create({
       txId,
       buyerId: buyer.uid,
       merchantId: merchant.uid,
-      cartValue,
-    buyerPaid: buyerPays, // 🛡️ ADJUDICATOR FIX: Mapped correctly
-    subsidyApplied: treasurySubsidy,
-      taxCollected: treasuryCollects,
+      cartValue: pricePi, 
+      buyerPaid: grossTotalMBZR,
+      subsidyApplied: subsidyValue, // Maps Trust Shield savings to the UI ledger
+      taxCollected: totalTaxCollected, 
       timestamp: Date.now()
     });
 
+    console.log(`[MESH-ADJUDICATOR] 📊 TRANSPARENCY BREAKDOWN (Gross: ${grossTotalMBZR} mBZR)`);
+    console.log(`[MESH-ADJUDICATOR] 1. Merchant Unit Price : ${unitPriceYield} mBZR`);
+    console.log(`[MESH-ADJUDICATOR] 2. DAO Service Tax    : ${serviceTaxAmount} mBZR (${(DYNAMIC_SERVICE_TAX * 100).toFixed(1)}%)`);
+    console.log(`[MESH-ADJUDICATOR] 3. Government e-VAT   : ${eVatAmount} mBZR (${(EVAT_RATE * 100).toFixed(1)}%)`);
     console.log(`[MESH-MARKET] 🟢 Tx Cleared & Logged: ${txId}`);
 
+    // 🛡️ 6. RETURN TRANSPARENT RECEIPT TO UI
     return {
       success: true,
-      message: "TRANSACTION SECURED: TREASURY SUBSIDIES APPLIED",
+      message: "Triple-Ledger Transaction Secured.",
       receipt: {
-        originalPrice: cartValue,
-        buyerPaid: buyerPays,
-        discountApplied: treasurySubsidy,
-        merchantReceived: merchantReceives,
-        taxCollected: treasuryCollects
+        txId,
+        grossTotal: grossTotalMBZR,
+        unitPrice: unitPriceYield,
+        serviceTax: serviceTaxAmount,
+        eVat: eVatAmount,
+        dynamicTaxRate: `${(DYNAMIC_SERVICE_TAX * 100).toFixed(1)}%`,
+        currency: 'mBZR'
       }
     };
 
@@ -207,17 +219,23 @@ export async function seedVirtualMarket() {
     if (!isConnected) return { success: false, message: "NETWORK_OFFLINE" };
     
     // 1. Seed Virtual Merchant & Local Test Node with Collateral & Balances
+    // Update both PioneerNode.findOneAndUpdate calls in Section 5:
     await PioneerNode.findOneAndUpdate(
       { uid: 'Virtual_Node' },
       {
         username: 'Virtual_Node',
-        uid: 'Virtual_Node',
-        stake_amount: 500,
-        mbzrBalance: 1000,
-        trust_score: 95,
-        status: 'ACTIVE'
+        // ... node data ...
       },
-      { upsert: true, new: true }
+      { upsert: true, returnDocument: 'after' } // 🛡️ ADJUDICATOR FIX: Replaced 'new: true'
+    );
+
+    await PioneerNode.findOneAndUpdate(
+      { uid: 'local_x570_node' },
+      {
+        username: 'PinoyQ8_Dev',
+        // ... node data ...
+      },
+      { upsert: true, returnDocument: 'after' } // 🛡️ ADJUDICATOR FIX: Replaced 'new: true'
     );
 
     await PioneerNode.findOneAndUpdate(
@@ -225,8 +243,8 @@ export async function seedVirtualMarket() {
       {
         username: 'PinoyQ8_Dev',
         uid: 'local_x570_node',
-        stake_amount: 500, // 🛡️ Bypasses Collateral Check (Requires >= 50)
-        mbzrBalance: 1000, // 🛡️ Bypasses Insufficient Funds Check
+        stake_amount: 500, 
+        mbzrBalance: 1000000, // 🛡️ UPGRADED: 1 Million mBZR Test Liquidity
         trust_score: 90,
         status: 'ACTIVE'
       },

@@ -80,21 +80,27 @@ export default function MarketplaceViewport() {
     }
   };
 
-  const handlePurchase = async (merchantId: string, price: number) => {
+  const handlePurchase = async (merchantId: string, pricePi: number) => {
     if (!session?.uid) return;
     setIsLoading(true);
-    setStatusMsg("🛡️ Executing Zero-Trust Subsidy & Sandbox Payment...");
+    setStatusMsg("🛡️ Executing Triple-Ledger Sandbox Payment...");
 
-    const res = await executeMarketTransaction(session.uid, merchantId, price);
+    const res = await executeMarketTransaction(session.uid, merchantId, pricePi);
     
-    // 🛡️ ADJUDICATOR FIX: Typecast payload to safely bypass strict TS checking on receipt object
+    // 🛡️ ADJUDICATOR FIX: Declared only ONCE
     const payload = res as any;
     
     if (payload.success && payload.receipt) {
-      setStatusMsg(`✅ SANDBOX TX SECURED: Paid ${payload.receipt.buyerPaid.toFixed(2)} Pi. (DAO Subsidy Applied: -${payload.receipt.discountApplied.toFixed(2)} Pi)`);
+      setStatusMsg(
+        `✅ TX SECURED: ${payload.receipt.grossTotal.toFixed(2)} mBZR TOTAL. ` +
+        `Breakdown ➔ [Unit Price: ${payload.receipt.unitPrice.toFixed(2)} | ` +
+        `Service Tax: ${payload.receipt.serviceTax.toFixed(2)} | ` +
+        `e-VAT: ${payload.receipt.eVat.toFixed(2)}]`
+      );
     } else {
-      setStatusMsg(`🚨 TX REJECTED: ${res.message}`);
+      setStatusMsg(`🚨 TX REJECTED: ${res.message || 'Unknown Error'}`);
     }
+    
     setIsLoading(false);
     await fetchMarketData(); 
   };
