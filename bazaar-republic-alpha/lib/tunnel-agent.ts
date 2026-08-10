@@ -1,5 +1,5 @@
 // PROJECT BAZAAR DAO - PROTOCOL 26.1
-// DAEMON: LOCAL X570 TUNNEL AGENT
+// DAEMON: LOCAL X570 TUNNEL AGENT (HARDENED)
 
 const CLOUD_RELAY_URL = 'https://mesh-academy-alpha.vercel.app/api/tunnel';
 const LOCAL_SOLOHOST_RPC = 'http://localhost:31401';
@@ -7,12 +7,24 @@ const PI_TESTNET_RPC = 'https://api.testnet.minepi.com';
 
 async function startTunnelAgent() {
   console.log(`[BAZAAR TUNNEL] X570 Local Agent online. Polling cloud bridge at: ${CLOUD_RELAY_URL}`);
+  
+  let pollCounter = 0;
 
   while (true) {
     try {
+      pollCounter++;
+      
+      if (pollCounter % 5 === 0) {
+        process.stdout.write(`\r[TUNNEL PULSE] Listening to Vercel Edge... Ticks: ${pollCounter}`);
+      }
+
       const pollRes = await fetch(CLOUD_RELAY_URL, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'User-Agent': 'Bazaar-X570-Node-Agent/26.1',
+          'Connection': 'keep-alive'
+        },
         body: JSON.stringify({ type: 'AGENT_REGISTER' }),
       });
 
@@ -21,7 +33,7 @@ async function startTunnelAgent() {
 
         if (data.hasPendingWork && data.work) {
           const { work } = data;
-          console.log(`[TUNNEL ROUTE] Forwarding request to target: ${work.targetHost}`);
+          console.log(`\n[TUNNEL ROUTE] Forwarding request to target: ${work.targetHost}`);
 
           const targetUrl = work.targetHost === 'solohost' 
             ? LOCAL_SOLOHOST_RPC 
@@ -44,10 +56,12 @@ async function startTunnelAgent() {
             };
           }
 
-          // Return response to Vercel
           await fetch(CLOUD_RELAY_URL, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+              'Content-Type': 'application/json',
+              'User-Agent': 'Bazaar-X570-Node-Agent/26.1'
+            },
             body: JSON.stringify({
               type: 'AGENT_FULFILL',
               payload: resultPayload,
@@ -55,12 +69,14 @@ async function startTunnelAgent() {
           });
         }
       }
-    } catch (err) {
-      console.warn('[TUNNEL RETRY] Polling cycle missed:', String(err));
+    } catch (err: any) {
+      // Cleanly log error details without breaking execution
+      const errMsg = err?.cause?.message || err?.message || String(err);
+      process.stdout.write(`\n[TUNNEL RETRY] Socket reset (${errMsg}). Auto-reconnecting...`);
     }
 
-    // Fast 300ms polling cycle
-    await new Promise((r) => setTimeout(r, 300));
+    // Adjusted to 750ms polling loop to prevent OS socket exhaustion
+    await new Promise((r) => setTimeout(r, 750));
   }
 }
 
