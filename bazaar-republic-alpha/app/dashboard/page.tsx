@@ -133,6 +133,35 @@ export default function MasterDashboard() {
           </section>
         )}
 
+        {/* 🛡️ SECTOR NAVIGATION PORTALS */}
+        <section className="space-y-2 pt-2">
+          <span className="text-[10px] opacity-60 uppercase tracking-wider block text-cyan-400">Operational Sectors</span>
+          
+          <Link href="/consumer" className="block p-3 bg-slate-900/80 border border-slate-800 rounded hover:border-cyan-900 transition space-y-0.5">
+            <div className="text-xs font-bold flex justify-between text-slate-200">
+              <span>Consumer Escrow Portal</span>
+              <span className="text-cyan-400">→</span>
+            </div>
+            <div className="text-[10px] text-slate-400">Initialize 4-step escrow briefs and release locked mBZR.</div>
+          </Link>
+
+          <Link href="/provider" className="block p-3 bg-slate-900/80 border border-slate-800 rounded hover:border-cyan-900 transition space-y-0.5">
+            <div className="text-xs font-bold flex justify-between text-slate-200">
+              <span>Service Provider Dashboard</span>
+              <span className="text-cyan-400">→</span>
+            </div>
+            <div className="text-[10px] text-slate-400">Monitor staked bond tiers, accept briefs, and submit deliverables.</div>
+          </Link>
+
+          <Link href="/adjudicator/queue" className="block p-3 bg-slate-900/80 border border-slate-800 rounded hover:border-amber-900 transition space-y-0.5">
+            <div className="text-xs font-bold flex justify-between text-slate-200">
+              <span>Adjudicator Arbitration Queue</span>
+              <span className="text-amber-400">⚖️</span>
+            </div>
+            <div className="text-[10px] text-slate-400">Review timelock anomalies, slash bonds, and cast 3/5 consensus votes.</div>
+          </Link>
+        </section>
+
         {/* 🛡️ MINTING & WITHDRAWAL PENALTY SIMULATOR */}
         <section className="p-3 border border-amber-500/30 bg-slate-900/60 rounded-lg space-y-3">
           <div className="flex items-center justify-between border-b border-slate-800 pb-2">
