@@ -2,13 +2,14 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ShieldCheck, Zap, LogOut, Wallet, Sliders, AlertTriangle, CheckCircle2, Layers, Activity, Cpu } from "lucide-react";
+import { ShieldCheck, Zap, LogOut, Wallet, Sliders, AlertTriangle, CheckCircle2, Layers, Activity, Cpu, Radio } from "lucide-react";
 import { useAuth } from "@/app/context/AuthContext";
 import PioneerAuthGate from "@/app/components/PioneerAuthGate";
 import EpochYieldTracker from '@/app/components/EpochYieldTracker';
 import PioneerVaultCard from "@/app/dashboard/components/PioneerVaultCard";
 import MasterMeshSwitch from "@/app/components/MasterMeshSwitch";
 import { useMeshCurrency } from "@/app/hooks/useMeshCurrency";
+import { useNodePulse } from "@/app/hooks/useNodePulse";
 
 interface TelemetryData {
   ts: number;
@@ -28,6 +29,9 @@ export default function MasterDashboard() {
   const { pioneer, logout } = useAuth();
   const [telemetry, setTelemetry] = useState<TelemetryData | null>(null);
   
+  // 🛡️ BIND LIVE HEARTBEAT PULSE
+  const pulse = useNodePulse(pioneer?.uid, pioneer?.isAuthenticated);
+
   // 🛡️ VIEWPORT TAB STATE
   const [activeTab, setActiveTab] = useState<'sectors' | 'telemetry' | 'sandbox'>('sectors');
 
@@ -92,24 +96,41 @@ export default function MasterDashboard() {
     <PioneerAuthGate>
       <div className="w-full max-w-sm mx-auto overflow-x-hidden space-y-3 p-2 bg-slate-950 min-h-screen font-mono pb-12">
         
-        {/* COMPACT HEADER BLOCK */}
+        {/* COMPACT HEADER BLOCK WITH LIVE PULSE */}
         <header className="border-b border-cyan-500/20 pb-2 flex flex-col gap-1.5 pt-2">
           <div className="flex justify-between items-center">
             <div>
-              <div className="text-[9px] text-emerald-400 font-bold tracking-widest uppercase flex items-center gap-1">
+              <div className="text-[9px] font-bold tracking-widest uppercase flex items-center gap-1">
                 <span className="relative flex h-1.5 w-1.5">
-                  {telemetry?.status === 'SYNCED' && (
+                  {pulse.status === 'SYNCED' && (
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                   )}
-                  <span className={`relative inline-flex rounded-full h-1.5 w-1.5 ${telemetry?.status === 'SYNCED' ? 'bg-emerald-500' : 'bg-red-500'}`}></span>
+                  <span className={`relative inline-flex rounded-full h-1.5 w-1.5 ${
+                    pulse.status === 'SYNCED' ? 'bg-emerald-500' : pulse.status === 'DEGRADED' ? 'bg-amber-500' : 'bg-red-500'
+                  }`}></span>
                 </span>
-                NEO-SYNC {telemetry?.status || "SYNCING..."}
+                <span className={pulse.status === 'SYNCED' ? 'text-emerald-400' : pulse.status === 'DEGRADED' ? 'text-amber-400' : 'text-red-400'}>
+                  NEO-SYNC {pulse.status}
+                </span>
+                {pulse.latencyMs > 0 && (
+                  <span className="text-[8px] text-slate-500 font-normal ml-0.5">
+                    ({pulse.latencyMs}ms)
+                  </span>
+                )}
               </div>
               <h1 className="text-base font-bold text-slate-100">Logic Forge</h1>
             </div>
-            <span className="text-[9px] px-1.5 py-0.5 border border-cyan-500/40 bg-cyan-950/40 rounded text-cyan-400">
-              v{telemetry?.protocol_version || "26.1"} SHIELD
-            </span>
+            
+            <div className="text-right flex flex-col items-end">
+              <span className="text-[9px] px-1.5 py-0.5 border border-cyan-500/40 bg-cyan-950/40 rounded text-cyan-400 flex items-center gap-1">
+                <Radio className="w-2.5 h-2.5 animate-pulse text-cyan-400" /> v26.1 SHIELD
+              </span>
+              {pulse.latestLedger > 0 && (
+                <span className="text-[8px] text-slate-500 font-mono mt-0.5">
+                  Seq: #{pulse.latestLedger}
+                </span>
+              )}
+            </div>
           </div>
 
           <div className="text-[10px] text-slate-400 flex items-center justify-between bg-slate-900/80 px-2 py-1 rounded border border-slate-800">
