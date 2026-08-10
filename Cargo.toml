@@ -1,5 +1,5 @@
 [workspace]
-members = ["bazaar-republic-alpha/enetwork-verifier",
+members = ["bazaar-genesis-ledger","bazaar-republic-alpha/enetwork-verifier",
     "mesh-contracts"  # 🛡️ MESH CORE: Explicitly maps the Soroban contract sector
 ]
 resolver = "2"        # Enforces modern feature resolution standards

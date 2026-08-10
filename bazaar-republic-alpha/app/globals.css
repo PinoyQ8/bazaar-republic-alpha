@@ -8,11 +8,11 @@
   /* 🛡️ BAZAAR ACCENT LOGIC */
   --mesh-blue: #2563eb;
   --mesh-green: #22c55e;
-  --mesh-amber: #f59e0b; /* Amber injected for Dashboard consistency */
+  --mesh-amber: #f59e0b;
 }
 
-@theme inline {
-  /* Core Mappings */
+@theme {
+  /* Core Color Tokens */
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-mesh-blue: var(--mesh-blue);
@@ -24,27 +24,32 @@
   --font-mono: var(--font-geist-mono);
 
   /* 🛡️ S23 VIEWPORT LOCK MATRIX (384px Master) */
-  --max-width-s23-edge: 384px;      /* True hardware limit */
-  --max-width-bazaar-node: 350px;   /* Padded safe zone */
+  --max-width-s23-edge: 384px;
+  --max-width-bazaar-node: 350px;
   
   /* 🛡️ CUSTOM SPACING LOGIC */
   --spacing-bazaar-mobile: 350px;
-  --spacing-55: 220px; /* Resolves w-55, h-55, p-55 overrides */
+  --spacing-55: 220px;
 }
 
 /* 🛡️ UNIVERSAL UI OVERRIDE & SCROLL LOCK */
 html {
   scroll-behavior: smooth;
+  width: 100%;
+  min-height: 100vh;
+  overflow-x: hidden;
+  background-color: #0a0a0a;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  /* 🛡️ Enforcing Mono for the Neo Protocol terminal aesthetic */
-  font-family: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-family: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  overflow-x: hidden; /* Absolute lockout of horizontal drift */
+  width: 100%;
+  min-height: 100vh;
+  overflow-x: hidden;
 }
 
 /* 🛡️ MESH PROTOCOL CUSTOM SCROLLBAR */
@@ -55,20 +60,14 @@ body {
   background: var(--background);
 }
 ::-webkit-scrollbar-thumb {
-  background: #064e3b; /* Emerald 900 for passive integration */
+  background: #064e3b;
   border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--mesh-green); /* Active sync highlight */
+  background: var(--mesh-green);
 }
 
-/* 🛡️ MESH VIEWPORT CLAMP: Prevent all horizontal scrolling globally */
-html, body {
-  max-width: 100vw;
-  overflow-x: hidden;
-}
-
-/* Ensure long unbroken strings (like wallet addresses or hashes) break instead of stretching the screen */
+/* Prevent all horizontal scrolling and handle unbroken hashes/addresses */
 * {
   overflow-wrap: break-word;
   word-wrap: break-word;
