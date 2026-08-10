@@ -1,18 +1,11 @@
+﻿# docker-compose.yml — Pi Desktop SoloHost Manifest
 services:
-  bazaar-republic:
-    build: .
-    container_name: bazaar-republic-alpha
-    restart: always
+  web:
+    image: docker.io/pinoyq8/pi-app-pinoyq8-bazaar-republic:latest
+    container_name: pi-app-pinoyq8-bazaar-republic
+    restart: unless-stopped
     ports:
-      - "3000:3000"
+      - '3000:3000'
     environment:
       - NODE_ENV=production
-      - MONGODB_URI=mongodb://bazaar-ledger:27017/bazaar_republic
-      - ACTIX_VERIFIER_URL=http://actix-verifier-node:8080
-    networks:
-      - mesh-network
-
-networks:
-  mesh-network:
-    external: true
-    name: mesh-network
+      - MONGODB_URI=${MONGODB_URI}
