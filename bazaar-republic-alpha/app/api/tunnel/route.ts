@@ -7,7 +7,17 @@ import { NextResponse } from 'next/server';
 let pendingRequest: any = null;
 let pendingResponse: any = null;
 
+const MESH_TUNNEL_SECRET = process.env.PI_API_KEY || "MESH_VAULT_KEY_ALPHA";
+
 export async function POST(request: Request) {
+  // 🛡️ SECURITY ADJUDICATION: Verify Node Key Header
+  const nodeKey = request.headers.get("x-bazaar-node-key");
+  if (nodeKey !== MESH_TUNNEL_SECRET) {
+    return NextResponse.json(
+      { error: "MESH ACCESS DENIED: Invalid or missing x-bazaar-node-key." },
+      { status: 401 }
+    );
+  }
   try {
     const authHeader = request.headers.get('x-bazaar-node-key');
     const body = await request.json();

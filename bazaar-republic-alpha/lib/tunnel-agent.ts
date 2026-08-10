@@ -1,9 +1,12 @@
 // PROJECT BAZAAR DAO - PROTOCOL 26.1
-// DAEMON: LOCAL X570 TUNNEL AGENT (HARDENED)
+// DAEMON: LOCAL X570 TUNNEL AGENT (HARDENED + AUTH SHIELD)
 
 const CLOUD_RELAY_URL = 'https://mesh-academy-alpha.vercel.app/api/tunnel';
 const LOCAL_SOLOHOST_RPC = 'http://localhost:31401';
 const PI_TESTNET_RPC = 'https://api.testnet.minepi.com';
+
+// 🛡️ VAULT KEY AUTHENTICATION
+const NODE_SECRET_KEY = process.env.PI_API_KEY || "MESH_VAULT_KEY_ALPHA";
 
 async function startTunnelAgent() {
   console.log(`[BAZAAR TUNNEL] X570 Local Agent online. Polling cloud bridge at: ${CLOUD_RELAY_URL}`);
@@ -22,6 +25,7 @@ async function startTunnelAgent() {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
+          'x-bazaar-node-key': NODE_SECRET_KEY,
           'User-Agent': 'Bazaar-X570-Node-Agent/26.1',
           'Connection': 'keep-alive'
         },
@@ -56,10 +60,12 @@ async function startTunnelAgent() {
             };
           }
 
+          // Return authenticated response payload to Vercel Relay
           await fetch(CLOUD_RELAY_URL, {
             method: 'POST',
             headers: { 
               'Content-Type': 'application/json',
+              'x-bazaar-node-key': NODE_SECRET_KEY,
               'User-Agent': 'Bazaar-X570-Node-Agent/26.1'
             },
             body: JSON.stringify({
@@ -68,14 +74,14 @@ async function startTunnelAgent() {
             }),
           });
         }
+      } else if (pollRes.status === 401) {
+        process.stdout.write(`\n[SECURITY REJECT] Edge relay rejected agent key (401 Unauthorized).`);
       }
     } catch (err: any) {
-      // Cleanly log error details without breaking execution
       const errMsg = err?.cause?.message || err?.message || String(err);
       process.stdout.write(`\n[TUNNEL RETRY] Socket reset (${errMsg}). Auto-reconnecting...`);
     }
 
-    // Adjusted to 750ms polling loop to prevent OS socket exhaustion
     await new Promise((r) => setTimeout(r, 750));
   }
 }
