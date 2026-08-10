@@ -10,6 +10,7 @@ import PioneerVaultCard from "@/app/dashboard/components/PioneerVaultCard";
 import MasterMeshSwitch from "@/app/components/MasterMeshSwitch";
 import { useMeshCurrency } from "@/app/hooks/useMeshCurrency";
 import { useNodePulse } from "@/app/hooks/useNodePulse";
+import { useBazaarTier } from "@/app/hooks/useBazaarTier"; // 🛡️ LIVE ON-CHAIN RBAC HOOK
 
 interface TelemetryData {
   ts: number;
@@ -29,8 +30,9 @@ export default function MasterDashboard() {
   const { pioneer, logout } = useAuth();
   const [telemetry, setTelemetry] = useState<TelemetryData | null>(null);
   
-  // 🛡️ BIND LIVE HEARTBEAT PULSE
+  // 🛡️ BIND LIVE HEARTBEAT PULSE & ON-CHAIN GOVERNANCE
   const pulse = useNodePulse(pioneer?.uid, pioneer?.isAuthenticated);
+  const { tier: onChainTier, loading: tierLoading } = useBazaarTier(pioneer?.uid);
 
   // 🛡️ VIEWPORT TAB STATE
   const [activeTab, setActiveTab] = useState<'sectors' | 'telemetry' | 'sandbox'>('sectors');
@@ -57,7 +59,7 @@ export default function MasterDashboard() {
 
           setTelemetry({
             ts: vaultData.vault?.trust_score || 50,
-            tier: vaultData.vault?.node_tier || vaultData.node_tier || "Genesis",
+            tier: `Tier ${onChainTier} (Founder)`,
             vBase: 20,
             uShield: 35,
             cFlow: vaultData.vault?.activeFuel || vaultData.activeFuel || 15,
@@ -77,7 +79,7 @@ export default function MasterDashboard() {
     fetchLiveTelemetry();
     const telemetryLoop = setInterval(fetchLiveTelemetry, 15000);
     return () => clearInterval(telemetryLoop);
-  }, [pioneer.isAuthenticated, pioneer.uid]);
+  }, [pioneer.isAuthenticated, pioneer.uid, onChainTier]);
 
   const disconnectNode = () => {
     console.log("[MESH-SYNC] Initiating Node Disconnect (Flush RAM)...");
@@ -228,9 +230,9 @@ export default function MasterDashboard() {
                     <p className="text-3xl font-extrabold text-cyan-400 drop-shadow-md">{telemetry.ts}</p>
                   </div>
                   <div className="text-right">
-                    <p className="text-[9px] text-slate-400 uppercase tracking-widest mb-1">Tier Status</p>
+                    <p className="text-[9px] text-slate-400 uppercase tracking-widest mb-1">RBAC Status</p>
                     <p className="px-2 py-0.5 bg-cyan-900/40 text-cyan-400 text-xs font-bold rounded border border-cyan-700/50">
-                      {telemetry.tier}
+                      {tierLoading ? "SYNCING..." : `Tier ${onChainTier} (Active)`}
                     </p>
                   </div>
                 </div>
