@@ -12,7 +12,8 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "prepare": "husky"
+    "prepare": "husky",
+    "tunnel": "tsx lib/tunnel-agent.ts"
   },
   "dependencies": {
     "@ai-sdk/openai": "^0.0.72",
