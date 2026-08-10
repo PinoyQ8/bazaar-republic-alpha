@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ShieldCheck, Zap, LogOut, Wallet, Sliders, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { ShieldCheck, Zap, LogOut, Wallet, Sliders, AlertTriangle, CheckCircle2, Layers, Activity, Cpu } from "lucide-react";
 import { useAuth } from "@/app/context/AuthContext";
 import PioneerAuthGate from "@/app/components/PioneerAuthGate";
 import EpochYieldTracker from '@/app/components/EpochYieldTracker';
@@ -28,6 +28,9 @@ export default function MasterDashboard() {
   const { pioneer, logout } = useAuth();
   const [telemetry, setTelemetry] = useState<TelemetryData | null>(null);
   
+  // 🛡️ VIEWPORT TAB STATE
+  const [activeTab, setActiveTab] = useState<'sectors' | 'telemetry' | 'sandbox'>('sectors');
+
   // 🛡️ MINTING & PENALTY SIMULATION STATES
   const [stakeAmount, setStakeAmount] = useState<number>(100);
   const [simulationStatus, setSimulationStatus] = useState<string>("IDLE");
@@ -37,7 +40,6 @@ export default function MasterDashboard() {
   const { text: piText, symbol: piSymbol } = useMeshCurrency();
 
   useEffect(() => {
-    // Wait until Pioneer is actually authenticated by the AuthGate before syncing telemetry
     if (!pioneer.isAuthenticated) return;
 
     const fetchLiveTelemetry = async () => {
@@ -88,220 +90,252 @@ export default function MasterDashboard() {
 
   return (
     <PioneerAuthGate>
-      <div className="w-full max-w-sm mx-auto overflow-x-hidden space-y-4 p-2 bg-slate-950 min-h-screen font-mono pb-24">
+      <div className="w-full max-w-sm mx-auto overflow-x-hidden space-y-3 p-2 bg-slate-950 min-h-screen font-mono pb-12">
         
-        {/* HEADER BLOCK */}
-        <header className="border-b border-cyan-500/20 pb-3 flex flex-col gap-2 pt-4">
-          <div className="flex justify-between items-center flex-wrap gap-2">
+        {/* COMPACT HEADER BLOCK */}
+        <header className="border-b border-cyan-500/20 pb-2 flex flex-col gap-1.5 pt-2">
+          <div className="flex justify-between items-center">
             <div>
-              <div className="text-[10px] text-emerald-400 font-bold tracking-widest uppercase flex items-center gap-1.5">
-                <span className="relative flex h-2 w-2">
+              <div className="text-[9px] text-emerald-400 font-bold tracking-widest uppercase flex items-center gap-1">
+                <span className="relative flex h-1.5 w-1.5">
                   {telemetry?.status === 'SYNCED' && (
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                   )}
-                  <span className={`relative inline-flex rounded-full h-2 w-2 ${telemetry?.status === 'SYNCED' ? 'bg-emerald-500' : 'bg-red-500'}`}></span>
+                  <span className={`relative inline-flex rounded-full h-1.5 w-1.5 ${telemetry?.status === 'SYNCED' ? 'bg-emerald-500' : 'bg-red-500'}`}></span>
                 </span>
                 NEO-SYNC {telemetry?.status || "SYNCING..."}
               </div>
-              <h1 className="text-lg font-bold text-slate-100 mt-1">Logic Forge</h1>
+              <h1 className="text-base font-bold text-slate-100">Logic Forge</h1>
             </div>
-            <div className="text-right">
-              <span className="text-[10px] px-2 py-0.5 border border-cyan-500/40 bg-cyan-950/40 rounded text-cyan-400">
-                v{telemetry?.protocol_version || "26.1"} SHIELD
-              </span>
-            </div>
+            <span className="text-[9px] px-1.5 py-0.5 border border-cyan-500/40 bg-cyan-950/40 rounded text-cyan-400">
+              v{telemetry?.protocol_version || "26.1"} SHIELD
+            </span>
           </div>
-          {/* IDENTIFY USER VISIBILITY */}
-          <div className="text-[11px] text-slate-400 flex items-center justify-between bg-slate-900/80 px-3 py-1.5 rounded border border-slate-800">
+
+          <div className="text-[10px] text-slate-400 flex items-center justify-between bg-slate-900/80 px-2 py-1 rounded border border-slate-800">
             <span>PIONEER ID:</span>
             <span className="text-cyan-400 font-bold">@{pioneer?.username ? pioneer.username.toUpperCase() : 'PIONEER_NODE'}</span>
           </div>
         </header>
 
-        {/* 🎛️ INJECTED MASTER MESH SWITCH */}
-        <div className="w-full py-1">
+        {/* MASTER MESH SWITCH */}
+        <div className="w-full">
           <MasterMeshSwitch />
         </div>
 
-        {/* 🛡️ PERSONAL VAULT BALANCE & CARD */}
+        {/* PERSONAL VAULT CARD */}
         {pioneer?.uid && (
-          <section className="space-y-2">
-            <div className="flex items-center gap-2 text-cyan-400 text-xs font-bold uppercase tracking-wider px-1">
-              <Wallet className="w-4 h-4" /> Personal Vault Sector
+          <section className="space-y-1">
+            <div className="flex items-center gap-1.5 text-cyan-400 text-[10px] font-bold uppercase tracking-wider px-1">
+              <Wallet className="w-3.5 h-3.5" /> Personal Vault Sector
             </div>
             <PioneerVaultCard pioneerId={pioneer.uid} />
           </section>
         )}
 
-        {/* 🛡️ SECTOR NAVIGATION PORTALS */}
-        <section className="space-y-2 pt-2">
-          <span className="text-[10px] opacity-60 uppercase tracking-wider block text-cyan-400">Operational Sectors</span>
-          
-          <Link href="/consumer" className="block p-3 bg-slate-900/80 border border-slate-800 rounded hover:border-cyan-900 transition space-y-0.5">
-            <div className="text-xs font-bold flex justify-between text-slate-200">
-              <span>Consumer Escrow Portal</span>
-              <span className="text-cyan-400">→</span>
-            </div>
-            <div className="text-[10px] text-slate-400">Initialize 4-step escrow briefs and release locked mBZR.</div>
-          </Link>
+        {/* 🎛️ VIEWPORT TAB SWITCHER */}
+        <div className="grid grid-cols-3 gap-1 bg-slate-900 p-1 rounded-lg border border-slate-800 text-[10px] font-bold">
+          <button
+            onClick={() => setActiveTab('sectors')}
+            className={`py-1.5 rounded text-center transition-all flex items-center justify-center gap-1 uppercase ${
+              activeTab === 'sectors' 
+                ? 'bg-cyan-600 text-slate-950 shadow-md font-extrabold' 
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Layers className="w-3 h-3" /> Sectors
+          </button>
+          <button
+            onClick={() => setActiveTab('telemetry')}
+            className={`py-1.5 rounded text-center transition-all flex items-center justify-center gap-1 uppercase ${
+              activeTab === 'telemetry' 
+                ? 'bg-cyan-600 text-slate-950 shadow-md font-extrabold' 
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Activity className="w-3 h-3" /> Metrics
+          </button>
+          <button
+            onClick={() => setActiveTab('sandbox')}
+            className={`py-1.5 rounded text-center transition-all flex items-center justify-center gap-1 uppercase ${
+              activeTab === 'sandbox' 
+                ? 'bg-cyan-600 text-slate-950 shadow-md font-extrabold' 
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Cpu className="w-3 h-3" /> Sandbox
+          </button>
+        </div>
 
-          <Link href="/provider" className="block p-3 bg-slate-900/80 border border-slate-800 rounded hover:border-cyan-900 transition space-y-0.5">
-            <div className="text-xs font-bold flex justify-between text-slate-200">
-              <span>Service Provider Dashboard</span>
-              <span className="text-cyan-400">→</span>
-            </div>
-            <div className="text-[10px] text-slate-400">Monitor staked bond tiers, accept briefs, and submit deliverables.</div>
-          </Link>
+        {/* TAB 1: OPERATIONAL SECTORS */}
+        {activeTab === 'sectors' && (
+          <section className="space-y-2 animate-in fade-in duration-150">
+            <Link href="/consumer" className="block p-2.5 bg-slate-900/80 border border-slate-800 rounded-lg hover:border-cyan-900 transition space-y-0.5">
+              <div className="text-xs font-bold flex justify-between text-slate-200">
+                <span>Consumer Escrow Portal</span>
+                <span className="text-cyan-400">→</span>
+              </div>
+              <div className="text-[10px] text-slate-400">Initialize 4-step escrow briefs and release locked mBZR.</div>
+            </Link>
 
-          <Link href="/adjudicator/queue" className="block p-3 bg-slate-900/80 border border-slate-800 rounded hover:border-amber-900 transition space-y-0.5">
-            <div className="text-xs font-bold flex justify-between text-slate-200">
-              <span>Adjudicator Arbitration Queue</span>
-              <span className="text-amber-400">⚖️</span>
-            </div>
-            <div className="text-[10px] text-slate-400">Review timelock anomalies, slash bonds, and cast 3/5 consensus votes.</div>
-          </Link>
-        </section>
+            <Link href="/provider" className="block p-2.5 bg-slate-900/80 border border-slate-800 rounded-lg hover:border-cyan-900 transition space-y-0.5">
+              <div className="text-xs font-bold flex justify-between text-slate-200">
+                <span>Service Provider Dashboard</span>
+                <span className="text-cyan-400">→</span>
+              </div>
+              <div className="text-[10px] text-slate-400">Monitor staked bond tiers, accept briefs, and submit deliverables.</div>
+            </Link>
 
-        {/* 🛡️ MINTING & WITHDRAWAL PENALTY SIMULATOR */}
-        <section className="p-3 border border-amber-500/30 bg-slate-900/60 rounded-lg space-y-3">
-          <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-            <span className="text-xs text-amber-400 font-bold uppercase tracking-wider flex items-center gap-1.5">
-              <Sliders className="w-4 h-4" /> Economic Mint Simulator
-            </span>
-            <span className="text-[10px] bg-amber-950/60 text-amber-300 px-2 py-0.5 rounded border border-amber-800/50">
-              SANDBOX
-            </span>
-          </div>
-          
-          <div className="space-y-2 text-xs">
-            <div className="flex justify-between text-slate-300">
-              <span>Target Stake Allocation:</span>
-              <span className="text-cyan-400 font-bold">{stakeAmount} {piSymbol}</span>
-            </div>
-            <input 
-              type="range" 
-              min="10" 
-              max="1000" 
-              step="10"
-              value={stakeAmount}
-              onChange={(e) => {
-                setStakeAmount(Number(e.target.value));
-                setPenaltyWarning(Number(e.target.value) > 500);
-              }}
-              className="w-full accent-cyan-500 bg-slate-800 rounded-lg cursor-pointer h-2"
+            <Link href="/adjudicator/queue" className="block p-2.5 bg-slate-900/80 border border-slate-800 rounded-lg hover:border-amber-900 transition space-y-0.5">
+              <div className="text-xs font-bold flex justify-between text-slate-200">
+                <span>Adjudicator Arbitration Queue</span>
+                <span className="text-amber-400">⚖️</span>
+              </div>
+              <div className="text-[10px] text-slate-400">Review timelock anomalies, slash bonds, and cast consensus votes.</div>
+            </Link>
+          </section>
+        )}
+
+        {/* TAB 2: TELEMETRY & METRICS */}
+        {activeTab === 'telemetry' && (
+          <section className="space-y-3 animate-in fade-in duration-150">
+            {telemetry && (
+              <div className="p-3 border border-cyan-900/80 bg-slate-900/60 rounded-lg space-y-3">
+                <div className="flex justify-between items-center border-b border-slate-800 pb-2">
+                  <div>
+                    <p className="text-[9px] text-slate-400 uppercase tracking-widest">TrustScore</p>
+                    <p className="text-3xl font-extrabold text-cyan-400 drop-shadow-md">{telemetry.ts}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[9px] text-slate-400 uppercase tracking-widest mb-1">Tier Status</p>
+                    <p className="px-2 py-0.5 bg-cyan-900/40 text-cyan-400 text-xs font-bold rounded border border-cyan-700/50">
+                      {telemetry.tier}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <div>
+                    <div className="flex justify-between text-[10px] mb-0.5 text-slate-300">
+                      <span>Identity (V_base)</span>
+                      <span>{telemetry.vBase} / 20</span>
+                    </div>
+                    <div className="h-1.5 w-full bg-slate-800 rounded overflow-hidden">
+                      <div className="h-full bg-blue-500" style={{ width: `${(telemetry.vBase / 20) * 100}%` }}></div>
+                    </div>
+                  </div>
+                  <div>
+                    <div className="flex justify-between text-[10px] mb-0.5 text-slate-300">
+                      <span>Uptime (U_shield)</span>
+                      <span>{telemetry.uShield} / 40</span>
+                    </div>
+                    <div className="h-1.5 w-full bg-slate-800 rounded overflow-hidden">
+                      <div className="h-full bg-emerald-500" style={{ width: `${(telemetry.uShield / 40) * 100}%` }}></div>
+                    </div>
+                  </div>
+                  <div>
+                    <div className="flex justify-between text-[10px] mb-0.5 text-slate-300">
+                      <span>Velocity (C_flow)</span>
+                      <span>{telemetry.cFlow} Fuel</span>
+                    </div>
+                    <div className="h-1.5 w-full bg-slate-800 rounded overflow-hidden">
+                      <div className="h-full bg-cyan-500" style={{ width: `${Math.min((telemetry.cFlow / 100) * 100, 100)}%` }}></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <EpochYieldTracker 
+              stakeWeight={0.015} 
+              epochDaysRemaining={14} 
+              initialNetworkBufferPi={1420.50} 
             />
-            
-            {penaltyWarning && (
-              <div className="p-2 bg-red-950/30 border border-red-900/50 rounded flex items-start gap-2 text-[10px] text-red-300">
-                <AlertTriangle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
-                <span><strong>High Allocation Warning:</strong> Early withdrawal before the 30-day epoch snapshot will trigger a strict 15% slashing penalty.</span>
+          </section>
+        )}
+
+        {/* TAB 3: SANDBOX & GOVERNANCE */}
+        {activeTab === 'sandbox' && (
+          <section className="space-y-3 animate-in fade-in duration-150">
+            {/* MINT SIMULATOR */}
+            <div className="p-3 border border-amber-500/30 bg-slate-900/60 rounded-lg space-y-2.5">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-1.5">
+                <span className="text-xs text-amber-400 font-bold uppercase tracking-wider flex items-center gap-1">
+                  <Sliders className="w-3.5 h-3.5" /> Economic Mint Simulator
+                </span>
+                <span className="text-[9px] bg-amber-950/60 text-amber-300 px-1.5 py-0.5 rounded border border-amber-800/50">
+                  SANDBOX
+                </span>
+              </div>
+              
+              <div className="space-y-2 text-xs">
+                <div className="flex justify-between text-slate-300">
+                  <span>Target Stake Allocation:</span>
+                  <span className="text-cyan-400 font-bold">{stakeAmount} {piSymbol}</span>
+                </div>
+                <input 
+                  type="range" 
+                  min="10" 
+                  max="1000" 
+                  step="10"
+                  value={stakeAmount}
+                  onChange={(e) => {
+                    setStakeAmount(Number(e.target.value));
+                    setPenaltyWarning(Number(e.target.value) > 500);
+                  }}
+                  className="w-full accent-cyan-500 bg-slate-800 rounded-lg cursor-pointer h-1.5"
+                />
+                
+                {penaltyWarning && (
+                  <div className="p-1.5 bg-red-950/30 border border-red-900/50 rounded flex items-start gap-1.5 text-[10px] text-red-300">
+                    <AlertTriangle className="w-3.5 h-3.5 text-red-400 shrink-0 mt-0.5" />
+                    <span><strong>Warning:</strong> Early withdrawal triggers a 15% penalty.</span>
+                  </div>
+                )}
+
+                <button
+                  onClick={handleSimulateMint}
+                  disabled={simulationStatus === "MINTING..."}
+                  className="w-full py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded text-xs transition-colors uppercase tracking-wider flex items-center justify-center gap-1"
+                >
+                  {simulationStatus === "MINTING..." ? "Simulating Soroban Mint..." : simulationStatus === "SUCCESS" ? "Mint Simulation Active" : "Simulate Stake Mint"}
+                </button>
+              </div>
+            </div>
+
+            {/* GOVERNANCE VOTING */}
+            {telemetry && (
+              <div className="p-3 border border-cyan-900/80 bg-slate-900/80 rounded-lg flex flex-col gap-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-xs text-slate-400 uppercase tracking-wide">Voting Power</span>
+                  <span className="text-base font-bold text-cyan-400">{telemetry.votingPower} VP</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <Link 
+                    href="/dashboard/proposals" 
+                    className="py-1.5 bg-cyan-600 hover:bg-cyan-500 text-slate-950 text-xs font-bold rounded transition-colors uppercase tracking-wider text-center"
+                  >
+                    Vote Pool
+                  </Link>
+                  <button 
+                    disabled 
+                    className="py-1.5 bg-slate-800 text-slate-500 text-xs font-bold rounded cursor-not-allowed uppercase tracking-wider"
+                  >
+                    Cooldown
+                  </button>
+                </div>
               </div>
             )}
 
+            {/* DISCONNECT BUTTON */}
             <button
-              onClick={handleSimulateMint}
-              disabled={simulationStatus === "MINTING..."}
-              className="w-full py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded text-xs transition-colors uppercase tracking-wider flex items-center justify-center gap-2"
+              onClick={disconnectNode}
+              className="w-full py-2.5 border border-red-500/30 text-red-400 hover:bg-red-500/10 font-bold text-xs rounded-lg flex items-center justify-center gap-2 transition-all uppercase"
             >
-              {simulationStatus === "MINTING..." ? "Simulating Soroban Mint..." : simulationStatus === "SUCCESS" ? "Mint Simulation Active" : "Simulate Stake Mint"}
+              <LogOut className="w-3.5 h-3.5" /> Disconnect Node
             </button>
-            {simulationStatus === "SUCCESS" && (
-              <div className="text-[10px] text-emerald-400 text-center flex items-center justify-center gap-1">
-                <CheckCircle2 className="w-3 h-3" /> Node weight successfully anchored to mock ledger.
-              </div>
-            )}
-          </div>
-        </section>
-
-        {/* 🛡️ TS CORE ANCHOR & MATRIX */}
-        {telemetry && (
-          <section className="p-3 border border-cyan-900/80 bg-slate-900/60 rounded-lg space-y-4">
-            <div className="flex justify-between items-center border-b border-slate-800 pb-3">
-              <div>
-                <p className="text-[10px] text-slate-400 uppercase tracking-widest">TrustScore</p>
-                <p className="text-4xl font-extrabold text-cyan-400 drop-shadow-md">{telemetry.ts}</p>
-              </div>
-              <div className="text-right">
-                <p className="text-[10px] text-slate-400 uppercase tracking-widest mb-1">Tier Status</p>
-                <p className="px-2 py-1 bg-cyan-900/40 text-cyan-400 text-xs font-bold rounded border border-cyan-700/50">
-                  {telemetry.tier}
-                </p>
-              </div>
-            </div>
-
-            <div className="space-y-3">
-              <div>
-                <div className="flex justify-between text-[10px] mb-1 text-slate-300">
-                  <span>Identity (V_base)</span>
-                  <span>{telemetry.vBase} / 20</span>
-                </div>
-                <div className="h-1.5 w-full bg-slate-800 rounded overflow-hidden">
-                  <div className="h-full bg-blue-500" style={{ width: `${(telemetry.vBase / 20) * 100}%` }}></div>
-                </div>
-              </div>
-              <div>
-                <div className="flex justify-between text-[10px] mb-1 text-slate-300">
-                  <span>Uptime (U_shield)</span>
-                  <span>{telemetry.uShield} / 40</span>
-                </div>
-                <div className="h-1.5 w-full bg-slate-800 rounded overflow-hidden">
-                  <div className="h-full bg-emerald-500" style={{ width: `${(telemetry.uShield / 40) * 100}%` }}></div>
-                </div>
-              </div>
-              <div>
-                <div className="flex justify-between text-[10px] mb-1 text-slate-300">
-                  <span>Velocity (C_flow)</span>
-                  <span>{telemetry.cFlow} Fuel</span>
-                </div>
-                <div className="h-1.5 w-full bg-slate-800 rounded overflow-hidden">
-                  <div className="h-full bg-cyan-500" style={{ width: `${Math.min((telemetry.cFlow / 100) * 100, 100)}%` }}></div>
-                </div>
-              </div>
-            </div>
           </section>
         )}
-
-        {/* 🛡️ EPOCH YIELD TELEMETRY */}
-        <EpochYieldTracker 
-          stakeWeight={0.015} 
-          epochDaysRemaining={14} 
-          initialNetworkBufferPi={1420.50} 
-        />
-
-        {/* 🛡️ THE GOVERNANCE VOTING SIMULATION GATE */}
-        {telemetry && (
-          <section className="p-3 border border-cyan-900/80 bg-slate-900/80 rounded-lg flex flex-col gap-3">
-            <div className="flex justify-between items-center">
-              <span className="text-xs text-slate-400 uppercase tracking-wide">Active Governance Voting Power</span>
-              <span className="text-lg font-bold text-cyan-400">{telemetry.votingPower} VP</span>
-            </div>
-            <p className="text-[10px] text-slate-400 leading-relaxed">
-              Simulate DAO consensus casting for active node proposals using your live TrustScore weight.
-            </p>
-            <div className="grid grid-cols-2 gap-2">
-              <Link 
-                href="/dashboard/proposals" 
-                className="py-2 bg-cyan-600 hover:bg-cyan-500 text-slate-950 text-xs font-bold rounded transition-colors uppercase tracking-wider text-center"
-              >
-                Vote Pool
-              </Link>
-              <button 
-                disabled 
-                className="py-2 bg-slate-800 text-slate-500 text-xs font-bold rounded cursor-not-allowed uppercase tracking-wider"
-              >
-                Cooldown Active
-              </button>
-            </div>
-          </section>
-        )}
-
-        {/* Disconnect Button */}
-        <button
-          onClick={disconnectNode}
-          className="w-full mt-2 py-3 border border-red-500/30 text-red-400 hover:bg-red-500/10 font-bold text-xs rounded-xl flex items-center justify-center gap-2 transition-all"
-        >
-          <LogOut className="w-4 h-4" /> DISCONNECT NODE
-        </button>
 
       </div>
     </PioneerAuthGate>
