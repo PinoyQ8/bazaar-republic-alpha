@@ -23,10 +23,13 @@ export default function MasterMeshSwitch() {
     }
   }, []);
 
-  const handleSwitch = (targetDeployment?: DeploymentMode, targetNetwork?: NetworkMode) => {
+  const handleSwitch = async (targetDeployment?: DeploymentMode, targetNetwork?: NetworkMode) => {
     if (!hasClearance) return;
     
     setIsSwapping(true);
+
+    const activeDeployment = targetDeployment || config.deployment;
+    const activeNetwork = targetNetwork || config.network;
 
     if (targetDeployment) {
       localStorage.setItem("mesh_deployment_mode", targetDeployment);
@@ -37,12 +40,32 @@ export default function MasterMeshSwitch() {
       setNetworkMode(targetNetwork);
     }
 
+    // 🛡️ TUNNEL DISPATCH: Trigger live RPC verification payload to X570 Local Agent
+    try {
+      await fetch("/api/tunnel", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          targetHost: activeDeployment === "SOLOHOST" ? "solohost" : "pi_testnet",
+          endpoint: "/health",
+          method: "GET",
+          payload: { 
+            switchedDeployment: activeDeployment, 
+            switchedNetwork: activeNetwork,
+            timestamp: Date.now() 
+          }
+        }),
+      });
+    } catch (err) {
+      console.warn("[TUNNEL SWITCH FAULT] Could not dispatch tunnel ping:", err);
+    }
+
     setTimeout(() => {
       setIsSwapping(false);
       // 🛡️ PRESERVE ROUTE: Soft refresh on active route with salted cache-buster
       const currentPath = window.location.pathname;
       window.location.href = `${currentPath}?v=FORCE_SYNC`;
-    }, 500);
+    }, 600);
   };
 
   // 🔒 LOCKDOWN VIEW: Deny access if security clearance is absent
