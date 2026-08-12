@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, Suspense } from "react";
+import React, { useState, useEffect, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 
@@ -24,6 +24,31 @@ function DeployFormContent() {
   const [estimatedHours, setEstimatedHours] = useState("12");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // 🛡️ Auto-authenticate if no local session exists
+  useEffect(() => {
+    const cachedUser = localStorage.getItem("pi_auth_user");
+    if (!cachedUser && typeof window !== "undefined" && window.Pi) {
+      console.log("[MESH-SCAN] No session detected. Triggering Pi.authenticate()...");
+      window.Pi.authenticate(
+        ["username", "payments"],
+        (incompletePayment: any) => {
+          console.warn("[MESH-SCAN] Incomplete payment detected:", incompletePayment);
+        },
+        (authResult: any) => {
+          console.log("[MESH-SCAN] Authentication Success:", authResult.user.username);
+          localStorage.setItem("pi_auth_user", JSON.stringify({
+            uid: authResult.user.uid,
+            username: authResult.user.username,
+            accessToken: authResult.accessToken
+          }));
+        },
+        (error: any) => {
+          console.error("[MESH-SCAN] Pi Authentication Fault:", error);
+        }
+      );
+    }
+  }, []);
+
   const handleExecuteBroadcast = async (e: React.SyntheticEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -31,8 +56,19 @@ function DeployFormContent() {
     
     setIsSubmitting(true);
     
+    // Retrieve stored access token for API gate authorization
+    let accessToken = "";
+    try {
+      const cached = localStorage.getItem("pi_auth_user");
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        accessToken = parsed.accessToken || "";
+      }
+    } catch (err) {
+      console.error("[MESH-SCAN] Failed to parse local session cache:", err);
+    }
+
     // Calculate Escrow Allocation (Base Rate * Hours)
-    // Fallback to 0.01 Pi minimum if testing with rate 0 to prevent SDK crash
     const rateVal = parseFloat(baseRate) || 0;
     const hoursVal = parseFloat(estimatedHours) || 0;
     const totalEscrow = Math.max(0.01, rateVal * hoursVal).toFixed(2);
@@ -63,7 +99,10 @@ function DeployFormContent() {
           try {
             const res = await fetch("/api/pi/approve", {
               method: "POST",
-              headers: { "Content-Type": "application/json" },
+              headers: { 
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${accessToken}` 
+              },
               body: JSON.stringify({ paymentId }),
             });
             if (!res.ok) throw new Error("Approval Gate Rejected");
@@ -78,7 +117,10 @@ function DeployFormContent() {
           try {
             const res = await fetch("/api/pi/complete", {
               method: "POST",
-              headers: { "Content-Type": "application/json" },
+              headers: { 
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${accessToken}` 
+              },
               body: JSON.stringify({ paymentId, txid }),
             });
             if (!res.ok) throw new Error("Completion Gate Rejected");

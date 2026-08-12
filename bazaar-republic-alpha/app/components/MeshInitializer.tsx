@@ -4,6 +4,13 @@ import { createContext, useContext, useEffect, useState, useRef } from "react";
 import { useAuth } from "@/app/context/AuthContext"; 
 import { Loader2 } from "lucide-react";
 
+// Declare window.Pi for TypeScript safety
+declare global {
+  interface Window {
+    Pi: any;
+  }
+}
+
 interface PioneerIdentity { 
   uid: string; 
   username: string; 
@@ -37,6 +44,18 @@ export function MeshInitializer({ children }: { children: React.ReactNode }) {
     const initMesh = async () => {
       try {
         // ====================================================================
+        // 🛡️ CRITICAL FIX: Initialize Pi SDK Globally in Sandbox Mode
+        // ====================================================================
+        if (typeof window !== "undefined" && window.Pi) {
+          try {
+            window.Pi.init({ version: "2.0", sandbox: true });
+            console.log("[MESH-SCAN] Pi SDK Successfully Initialized (Sandbox Mode).");
+          } catch (sdkError) {
+            console.warn("[MESH-SCAN] Pi.init() warning or already initialized:", sdkError);
+          }
+        }
+
+        // ====================================================================
         // 🛡️ RE-ENTRY SHIELD: Check local cache BEFORE triggering Pi SDK loop
         // ====================================================================
         const cachedUser = localStorage.getItem("pi_auth_user");
@@ -60,14 +79,7 @@ export function MeshInitializer({ children }: { children: React.ReactNode }) {
           return; 
         }
 
-        // ====================================================================
-        // 🛡️ DELEGATION PROTOCOL: Hand off Pi SDK execution to PioneerAuthGate
-        // ====================================================================
-        // We no longer attempt to call Pi.init() or Pi.authenticate() here in the Root Layout.
-        // If there is no cache, we simply drop the Genesis Shield and let the children render.
-        // The PioneerAuthGate component will safely handle the Pi SDK execution using safePi.ts.
-        
-        console.log("[MESH-SCAN] No cache found. Dropping Genesis Shield. Delegating to AuthGate.");
+        console.log("[MESH-SCAN] No cache found. Genesis Shield Active.");
 
       } catch (error) {
         console.error("[MESH-BRIDGE] Initializer Fracture:", error);
