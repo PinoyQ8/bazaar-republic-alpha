@@ -1,0 +1,23 @@
+[package]
+name = "bazaar_vending_machine"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+path = "src/vending_machine.rs"
+
+[dependencies]
+soroban-sdk = "21.6.0"
+
+[profile.release]
+opt-level = "z"
+overflow-checks = true
+debug = 0
+strip = "symbols"
+debug-assertions = false
+panic = "abort"
+codegen-units = 1
+lto = true
+
+[workspace]
