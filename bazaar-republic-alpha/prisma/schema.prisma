@@ -129,7 +129,7 @@ model MeshLedger {
   meltBurnAmount Float        @default(0) // mBZR sent to burn address
   yieldAmount    Float        @default(0) // mBZR redistributed to stakers
   status         String       @default("CONFIRMED") // Micro-settlement status
-  createdAt      DateTime     @default(now())
+  createdAt      DateTime?    @default(now()) // 🛡️ Updated to allow null historical records
 
   @@index([walletId])
   @@index([txType])
@@ -201,7 +201,7 @@ model DaoVote {
 // 🛡️ E-NETWORK MODULE: Service Provider Directory
 // ----------------------------------------------------------------------
 model ServiceProvider {
-  id               String   @id @default(auto()) @map("_id") @db.ObjectId
+  id               String       @id @default(auto()) @map("_id") @db.ObjectId
   businessName     String
   category         String
   description      String
@@ -209,11 +209,14 @@ model ServiceProvider {
   sectorLocation   String
   mbzrRate         Float
   unitLabel        String
-  isVerified       Boolean  @default(false)
-  totalSettlements Int      @default(0)
-  rating           Float    @default(5.0)
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  isVerified       Boolean      @default(false)
+  totalSettlements Int          @default(0)
+  rating           Float        @default(5.0)
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  // 🛡️ Relation to Escrow Locks
+  escrowLocks      EscrowLock[]
 
   @@index([category, isVerified])
 }
@@ -275,4 +278,20 @@ model LedgerLog {
   txHash    String   @unique
   status    String
   timestamp DateTime @default(now())
+}
+
+// ----------------------------------------------------------------------
+// 🛡️ ESCROW PROTOCOL: Zero-Key Settlement Channel
+// ----------------------------------------------------------------------
+model EscrowLock {
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  paymentId      String   @unique
+  txid           String   @unique
+  providerId     String   @db.ObjectId
+  amount         Float
+  status         String   @default("LOCKED")
+  createdAt      DateTime @default(now())
+
+  // 🛡️ Link the escrow to the target Service Provider
+  provider       ServiceProvider @relation(fields: [providerId], references: [id])
 }
