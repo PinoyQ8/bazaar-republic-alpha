@@ -56,24 +56,25 @@ enum LedgerTxType {
 // 🛡️ MESH LEDGER: Identity & State
 // ----------------------------------------------------------------------
 model PioneerNode {
-  id                    String     @id @default(auto()) @map("_id") @db.ObjectId
-  uid                   String     @unique
-  username              String?    @unique
-  walletAddress         String?    @unique
-  tier                  Tier       @default(CITIZEN)
-  status                NodeStatus @default(SYNCING)
-  isFrozen              Boolean    @default(false)
-  freezeReason          String?
-  trustScore            Int        @default(0)
-  stakedPi              Float      @default(0)
-  mbzrBalance           Float      @default(0) // 🛡️ Synthetic Gold State
-  signature             String?
-  ledgerHeight          Int        @default(0)
-  syncState             String     @default("Unknown")
-  activePeers           Int        @default(0)
-  protocol              String     @default("24")
-  isUnderRemoteRescue   Boolean    @default(false)
-  
+  id                  String     @id @default(auto()) @map("_id") @db.ObjectId
+  uid                 String     @unique
+  username            String?    @unique
+  walletAddress       String?    @unique
+  tier                Tier       @default(CITIZEN)
+  status              NodeStatus @default(SYNCING)
+  isFrozen            Boolean    @default(false)
+  freezeReason        String?
+  trustScore          Int        @default(0)
+  stakedPi            Float      @default(0)
+  mbzrBalance         Float      @default(0) // 🛡️ Velocity & Stake-Weighted Asset
+  mintedPiTotal       Float      @default(0) // 🛡️ Tracks lifetime Pi spent toward the 1,000 Pi cap
+  signature           String?
+  ledgerHeight        Int        @default(0)
+  syncState           String     @default("Unknown")
+  activePeers         Int        @default(0)
+  protocol            String     @default("24")
+  isUnderRemoteRescue Boolean    @default(false)
+
   // 🛡️ SAFE HARBOR PROTOCOL (DORMANCY VAULT)
   quarantineStatus      String     @default("NONE") // States: "NONE", "QUARANTINED", "ABANDONED"
   migrationHash         String?                     // Cryptographic Bridge Key for banned nodes
@@ -92,7 +93,7 @@ model PioneerNode {
   updatedAt             DateTime   @updatedAt
 
   // RELATIONS
-  paymentsMade Payment[] @relation("PaymentsMade")
+  paymentsMade          Payment[]  @relation("PaymentsMade")
 
   @@index([status, trustScore])
   @@index([quarantineStatus])
