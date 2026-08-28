@@ -1,7 +1,7 @@
 /**
  * @file AuthContext.tsx
  * @package Bazaar Republic Layer-2 DePIN Infrastructure
- * @version 1.0.1
+ * @version 1.0.2
  * @summary Production-grade React Context for Decentralized Web3 Onboarding & Warm Session Routing.
  * 
  * Implements:
@@ -14,7 +14,10 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { 
-  SovereignPassport, \n  SovereignTier, \n  TierPermissions \n} from "../types/identity"; // Updated for production folder mapping
+  SovereignPassport, 
+  SovereignTier, 
+  TierPermissions 
+} from "../types/identity"; // Updated for production folder mapping
 
 // Client OAuth Credentials (Safe to disclose - official public identifiers)
 const PI_OAUTH_CLIENT_ID = "FtbUB9fO3zfZZG3cp2SEpEdgzTNEgqpliDl8Q7Jr9Nc";
