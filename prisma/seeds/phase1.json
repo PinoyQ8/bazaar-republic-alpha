@@ -1,0 +1,74 @@
+[
+  {
+    "phase": 1,
+    "category": "Passkey Enclave",
+    "text": "Where are WebAuthn / Samsung Knox passkey private keys stored during Layer-2 authentication?",
+    "options": [
+      { "id": "opt_a", "text": "In browser LocalStorage." },
+      { "id": "opt_b", "text": "Inside the isolated hardware enclave chip on your device." },
+      { "id": "opt_c", "text": "In a centralized PostgreSQL database." },
+      { "id": "opt_d", "text": "In plain text within Next.js API cookies." }
+    ],
+    "correctOptionId": "opt_b"
+  },
+  {
+    "phase": 1,
+    "category": "Escrow Vaults",
+    "text": "What is the primary purpose of the 48-hour timelock window in MESH Escrow Vaults?",
+    "options": [
+      { "id": "opt_a", "text": "To double the yield payout automatically." },
+      { "id": "opt_b", "text": "To enforce a circuit breaker allowing Elder Council dispute intervention." },
+      { "id": "opt_c", "text": "To slow down the database server during high traffic." },
+      { "id": "opt_d", "text": "To convert Pi Testnet coins directly into Bitcoin." }
+    ],
+    "correctOptionId": "opt_b"
+  },
+  {
+    "phase": 1,
+    "category": "Architecture",
+    "text": "Why does the MESH Protocol utilize HTTP Permissions-Policy headers?",
+    "options": [
+      { "id": "opt_a", "text": "To compress image files uploaded by merchants." },
+      { "id": "opt_b", "text": "To allow or block WebAuthn passkey capabilities inside Pi Browser iframes." },
+      { "id": "opt_c", "text": "To speed up Next.js server-side page rendering." },
+      { "id": "opt_d", "text": "To encrypt local Wi-Fi router traffic." }
+    ],
+    "correctOptionId": "opt_b"
+  },
+  {
+    "phase": 1,
+    "category": "Security",
+    "text": "What happens if a malicious script attempts to extract private keys from a WebAuthn passkey?",
+    "options": [
+      { "id": "opt_a", "text": "It fails because private keys never leave the hardware enclave processor." },
+      { "id": "opt_b", "text": "The browser downloads the key as a text file." },
+      { "id": "opt_c", "text": "The key is emailed to the MESH Adjudicator." },
+      { "id": "opt_d", "text": "The phone automatically resets to factory settings." }
+    ],
+    "correctOptionId": "opt_a"
+  },
+  {
+    "phase": 1,
+    "category": "AMM Swap",
+    "text": "In the MESH AMM Liquidity Engine, what protocol fee split is enforced on every swap?",
+    "options": [
+      { "id": "opt_a", "text": "10% to external miners." },
+      { "id": "opt_b", "text": "0.3% total fee (70% Node Yield Matrix / 30% Treasury POL Buffer)." },
+      { "id": "opt_c", "text": "5% flat fee to the developer wallet." },
+      { "id": "opt_d", "text": "0% zero fee on all transactions." }
+    ],
+    "correctOptionId": "opt_b"
+  },
+  {
+    "phase": 1,
+    "category": "Pioneer Operations",
+    "text": "What is the requirement to pass the Phase 1 assessment in MESH Academy?",
+    "options": [
+      { "id": "opt_a", "text": "50% score with 3 retries permitted." },
+      { "id": "opt_b", "text": "100% score across 5 randomly selected & option-shuffled questions." },
+      { "id": "opt_c", "text": "Pay a 10 PI exam fee." },
+      { "id": "opt_d", "text": "Wait 24 hours between each question." }
+    ],
+    "correctOptionId": "opt_b"
+  }
+]

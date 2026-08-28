@@ -1,0 +1,10 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("BZR_MONGO_URI")
+}
+
+// ... keep your existing models below ...

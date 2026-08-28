@@ -1,0 +1,74 @@
+﻿version: "3.8"
+
+services:
+  # ==========================================
+  # CORE INFRASTRUCTURE (Always Active)
+  # ==========================================
+  mongo:
+    image: mongo:7.0
+    container_name: bazaar-mongodb
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_DATABASE: bazaar-republic
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - mesh-net
+
+  # ==========================================
+  # PRODUCTION WEB CONTAINER (Profile: prod)
+  # Only runs when --profile prod is passed
+  # ==========================================
+  bazaar-web-prod:
+    profiles: ["prod"]
+    container_name: bazaar-alpha-web-prod
+    image: ghcr.io/pinoyq8/bazaar-republic-alpha:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=mongodb://mongo:27017/bazaar-republic?directConnection=true
+      - NODE_ID=Node-001-X570-Taichi
+      - PORT=3000
+    depends_on:
+      - mongo
+    networks:
+      - mesh-net
+
+  # ==========================================
+  # OPTIONAL: ISOLATED CONTAINERIZED DEV (Profile: dev-box)
+  # Runs on Port 3005 to avoid host port 3000
+  # ==========================================
+  bazaar-web-devbox:
+    profiles: ["dev-box"]
+    container_name: bazaar-alpha-web-devbox
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - /app/.next
+    ports:
+      - "3005:3000"
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=mongodb://mongo:27017/bazaar-republic?directConnection=true
+    depends_on:
+      - mongo
+    networks:
+      - mesh-net
+
+volumes:
+  mongo_data:
+    driver: local
+
+networks:
+  mesh-net:
+    driver: bridge

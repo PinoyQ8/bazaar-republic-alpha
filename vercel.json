@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/mesh-admin/cron-trigger",
+      "schedule": "0 0 1 * *"
+    }
+  ]
+}

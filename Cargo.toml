@@ -1,0 +1,33 @@
+﻿[workspace]
+resolver = "2"
+members = [
+    "contracts/bazaar-vault",
+    "contracts/mesh-vaults",
+    "contracts/mesh-unbounding",
+    "contracts/mesh-token"
+]
+
+[workspace.package]
+version = "0.27.1"
+edition = "2021"
+authors = ["Bazaar Tech <mesh@projectbazaar.dao>"]
+license = "MIT"
+publish = false
+
+[workspace.dependencies]
+soroban-sdk = { version = "22.0.0", default-features = false }
+soroban-sdk-auth = { version = "22.0.0", default-features = false }
+soroban-sdk-test = { version = "22.0.0" }
+
+[profile.release]
+opt-level = "z"
+overflow-checks = true
+debug = false
+debug-assertions = false
+panic = "abort"
+codegen-units = 1
+lto = true
+
+[profile.release-with-logs]
+inherits = "release"
+debug-assertions = true

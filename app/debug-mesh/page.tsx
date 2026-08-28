@@ -1,0 +1,1 @@
+export default function DebugPage() { return <h1>MESH ROUTER ACTIVE</h1>; }

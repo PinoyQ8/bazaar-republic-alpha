@@ -1,0 +1,50 @@
+﻿name: Soroban Nexus CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test:
+    name: Build & Test Contracts
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Codebase
+      uses: actions/checkout@v4
+
+    - name: Install Rust Toolchain
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        toolchain: stable
+        targets: wasm32v1-none
+
+    - name: Cache Cargo Dependencies
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cargo/bin/
+          ~/.cargo/registry/index/
+          ~/.cargo/registry/cache/
+          ~/.cargo/git/db/
+          target/
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-
+
+    - name: Handle ed25519-dalek Dependency Downgrade
+      run: |
+        # Force downgrade of transitive ed25519-dalek dependency to prevent CryptoRng trait compilation errors
+        cargo update -p ed25519-dalek@3.0.0 --precise 2.1.0 || true
+        cargo update -p ed25519-dalek --precise 2.1.0 || true
+
+    - name: Build Soroban Contracts
+      run: cargo build --target wasm32v1-none --release
+
+    - name: Run Workspace Unit Tests
+      run: cargo test --workspace

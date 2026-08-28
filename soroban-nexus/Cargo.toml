@@ -1,0 +1,24 @@
+[workspace]
+resolver = "2"
+members = [
+    "contracts/bazaar-vault",
+]
+
+[workspace.package]
+version = "1.0.0"
+edition = "2021"
+authors = ["Bazaar Tech <mesh@projectbazaar.dao>"]
+license = "MIT"
+publish = false
+
+[workspace.dependencies]
+soroban-sdk = { version = "22.0.0", default-features = false }
+
+[profile.release]
+opt-level = "z"
+overflow-checks = true
+debug = false
+debug-assertions = false
+panic = "abort"
+codegen-units = 1
+lto = true

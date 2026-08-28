@@ -1,0 +1,22 @@
+module.exports = {
+  apps: [
+    {
+      name: "bazaar-ttl-keeper",
+      script: "npx",
+      args: "tsx soroban-nexus/scripts/ttl-keeper.ts",
+      interpreter: "none",
+      env: {
+        NODE_ENV: "production",
+      },
+      // Restart settings
+      autorestart: true,
+      watch: false,
+      max_memory_restart: "300M",
+      // Logging
+      out_file: "./logs/keeper-out.log",
+      error_file: "./logs/keeper-error.log",
+      merge_logs: true,
+      time: true,
+    },
+  ],
+};

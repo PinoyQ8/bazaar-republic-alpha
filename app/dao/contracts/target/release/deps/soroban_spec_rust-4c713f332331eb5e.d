@@ -1,0 +1,10 @@
+J:\Project-Bazaar\bazaar-republic\bazaar-republic-alpha\app\dao\contracts\target\release\deps\soroban_spec_rust-4c713f332331eb5e.d: C:\Users\josep\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\soroban-spec-rust-27.0.5\src\lib.rs C:\Users\josep\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\soroban-spec-rust-27.0.5\src\syn_ext.rs C:\Users\josep\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\soroban-spec-rust-27.0.5\src\trait.rs C:\Users\josep\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\soroban-spec-rust-27.0.5\src\types.rs
+
+J:\Project-Bazaar\bazaar-republic\bazaar-republic-alpha\app\dao\contracts\target\release\deps\libsoroban_spec_rust-4c713f332331eb5e.rlib: C:\Users\josep\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\soroban-spec-rust-27.0.5\src\lib.rs C:\Users\josep\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\soroban-spec-rust-27.0.5\src\syn_ext.rs C:\Users\josep\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\soroban-spec-rust-27.0.5\src\trait.rs C:\Users\josep\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\soroban-spec-rust-27.0.5\src\types.rs
+
+J:\Project-Bazaar\bazaar-republic\bazaar-republic-alpha\app\dao\contracts\target\release\deps\libsoroban_spec_rust-4c713f332331eb5e.rmeta: C:\Users\josep\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\soroban-spec-rust-27.0.5\src\lib.rs C:\Users\josep\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\soroban-spec-rust-27.0.5\src\syn_ext.rs C:\Users\josep\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\soroban-spec-rust-27.0.5\src\trait.rs C:\Users\josep\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\soroban-spec-rust-27.0.5\src\types.rs
+
+C:\Users\josep\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\soroban-spec-rust-27.0.5\src\lib.rs:
+C:\Users\josep\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\soroban-spec-rust-27.0.5\src\syn_ext.rs:
+C:\Users\josep\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\soroban-spec-rust-27.0.5\src\trait.rs:
+C:\Users\josep\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\soroban-spec-rust-27.0.5\src\types.rs:

@@ -1,0 +1,1 @@
+J:\Project-Bazaar\bazaar-republic\bazaar-republic-alpha\app\dao\contracts\target\wasm32v1-none\release\bazaar_vending_machine.wasm: J:\Project-Bazaar\bazaar-republic\bazaar-republic-alpha\app\dao\contracts\src\vending_machine.rs

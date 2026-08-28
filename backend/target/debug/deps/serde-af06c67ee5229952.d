@@ -1,0 +1,14 @@
+J:\Project-Bazaar\bazaar-republic\bazaar-republic-alpha\backend\target\debug\deps\serde-af06c67ee5229952.d: C:\Users\josep\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.229\src\lib.rs C:\Users\josep\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.229\src\integer128.rs C:\Users\josep\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.229\src\private\mod.rs C:\Users\josep\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.229\src\private\de.rs C:\Users\josep\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.229\src\private\ser.rs J:\Project-Bazaar\bazaar-republic\bazaar-republic-alpha\backend\target\debug\build\serde-eae8cc94797749da\out/private.rs
+
+J:\Project-Bazaar\bazaar-republic\bazaar-republic-alpha\backend\target\debug\deps\libserde-af06c67ee5229952.rlib: C:\Users\josep\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.229\src\lib.rs C:\Users\josep\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.229\src\integer128.rs C:\Users\josep\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.229\src\private\mod.rs C:\Users\josep\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.229\src\private\de.rs C:\Users\josep\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.229\src\private\ser.rs J:\Project-Bazaar\bazaar-republic\bazaar-republic-alpha\backend\target\debug\build\serde-eae8cc94797749da\out/private.rs
+
+J:\Project-Bazaar\bazaar-republic\bazaar-republic-alpha\backend\target\debug\deps\libserde-af06c67ee5229952.rmeta: C:\Users\josep\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.229\src\lib.rs C:\Users\josep\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.229\src\integer128.rs C:\Users\josep\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.229\src\private\mod.rs C:\Users\josep\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.229\src\private\de.rs C:\Users\josep\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.229\src\private\ser.rs J:\Project-Bazaar\bazaar-republic\bazaar-republic-alpha\backend\target\debug\build\serde-eae8cc94797749da\out/private.rs
+
+C:\Users\josep\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.229\src\lib.rs:
+C:\Users\josep\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.229\src\integer128.rs:
+C:\Users\josep\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.229\src\private\mod.rs:
+C:\Users\josep\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.229\src\private\de.rs:
+C:\Users\josep\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.229\src\private\ser.rs:
+J:\Project-Bazaar\bazaar-republic\bazaar-republic-alpha\backend\target\debug\build\serde-eae8cc94797749da\out/private.rs:
+
+# env-dep:OUT_DIR=J:\\Project-Bazaar\\bazaar-republic\\bazaar-republic-alpha\\backend\\target\\debug\\build\\serde-eae8cc94797749da\\out

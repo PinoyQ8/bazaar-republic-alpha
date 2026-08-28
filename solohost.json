@@ -1,0 +1,64 @@
+{
+  "name": "bazaar-republic-alpha",
+  "displayName": "Bazaar Republic Alpha",
+  "version": "0.1.1",
+  "description": "The alpha genesis release of Bazaar Republic—a decentralized autonomous organization (DAO) and secure E-Network marketplace built natively on the Pi Network infrastructure. Powered by the MESH Protocol for decentralized coordination and secure local node validation.",
+  "author": "Bazaar Tech (PinoyQ8)",
+  "repository": "https://github.com/PinoyQ8/bazaar-republic-alpha",
+  "category": "Utility",
+  "runtime": {
+    "type": "docker",
+    "image": "docker.io/pinoyq8/bazaar-republic-alpha:latest",
+    "composeFile": "docker-compose.yml",
+    "port": 3000,
+    "pull_policy": "always"
+  },
+  "permissions": [
+    "pi-sign-in",
+    "local-network-bridge"
+  ],
+  "environment": {
+    "NODE_ENV": "production",
+    "NEXT_PUBLIC_PI_SANDBOX": "true",
+    "DATABASE_URL": "mongodb://host.docker.internal:27017/bazaar_republic?directConnection=true",
+    "MONGODB_URI": "mongodb://host.docker.internal:27017/bazaar_republic?directConnection=true",
+    "REQUIRED_VARS": ["MONGODB_URI"]
+  }
+}
+```[cite: 1, 4]
+
+---
+
+**2. Companion `docker-compose.yml` for SoloHost Packaging**
+
+Ensure your bundled `docker-compose.yml` mirrors the registry pull policy and extra hosts mapping[cite: 1]:
+
+```yaml
+services:
+  web:
+    image: docker.io/pinoyq8/bazaar-republic-alpha:latest
+    pull_policy: always
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_PI_SANDBOX=true
+      - DATABASE_URL=mongodb://host.docker.internal:27017/bazaar_republic?directConnection=true
+      - MONGODB_URI=mongodb://host.docker.internal:27017/bazaar_republic?directConnection=true
+      - NEXT_PUBLIC_BAZAAR_VAULT_CONTRACT_ID=CB5CQFNEPLQRZGNWXIXOXEK4L2LPYUJ3QCCCVHVKE5CSZFJXZ2HZQHIQ
+      - NEXT_PUBLIC_SOROBAN_RPC_URL=https://soroban-testnet.stellar.org
+      - NEXT_PUBLIC_STELLAR_NETWORK_PASSPHRASE=Test SDF Network ; September 2015
+```[cite: 1, 4]
+
+---
+
+**3. Node Operator Workflow Verification**
+
+| Trigger Action | Pi Desktop / SoloHost Execution | Result |
+| :--- | :--- | :--- |
+| **X570 Build Push**[cite: 1] | Developer pushes `latest` tag digest to Docker Hub[cite: 1, 4]. | Upstream digest updated on registry[cite: 1, 4]. |
+| **SoloHost App Restart** | Operator clicks **Stop** and **Start** in SoloHost UI[cite: 1]. | SoloHost detects newer digest via `pull_policy: always`, downloads new layers, and recreates the container on port 3000 automatically[cite: 1, 4]. |
+| **Data Persistence** | Container mounts to host gateway `27017`[cite: 1, 4]. | Node restarts into `CONNECTED` / `HEALTHY` state without data wiping[cite: 4]. |

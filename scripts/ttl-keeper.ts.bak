@@ -1,0 +1,204 @@
+// Location: scripts/ttl-keeper.ts
+import dotenv from 'dotenv';
+dotenv.config({ path: '.env.local' });
+
+import {
+  Address,
+  BASE_FEE,
+  Keypair,
+  Networks,
+  Operation,
+  rpc as StellarRpc,
+  SorobanDataBuilder,
+  TransactionBuilder,
+  xdr,
+} from "@stellar/stellar-sdk";
+
+// -----------------------------------------------------------------------------
+// 1. CONFIGURATION & CONSTANTS
+// -----------------------------------------------------------------------------
+const RPC_URL = process.env.SOROBAN_RPC_URL || "https://soroban-testnet.stellar.org";
+const NETWORK_PASSPHRASE = process.env.STELLAR_NETWORK_PASSPHRASE || Networks.TESTNET;
+
+const CONTRACT_ID =
+  process.env.NEXT_PUBLIC_BAZAAR_VAULT_CONTRACT_ID ||
+  process.env.BAZAAR_VAULT_CONTRACT_ID ||
+  process.env.CONTRACT_ID ||
+  "";
+
+const KEEPER_SECRET =
+  process.env.KEEPER_SIGNER_SECRET ||
+  process.env.STELLAR_VAULT_SEED ||
+  process.env.STELLAR_DEPLOYER_SECRET ||
+  "";
+
+// Safety thresholds in ledgers (~5s per ledger)
+const SAFETY_THRESHOLD_LEDGERS = 10_000; // ~14 hours
+const TARGET_EXTEND_TO_LEDGERS = 100_000; // ~5.7 days
+
+// -----------------------------------------------------------------------------
+// 2. HELPER FUNCTIONS
+// -----------------------------------------------------------------------------
+function buildInstanceKey(contractId: string): xdr.LedgerKey {
+  return xdr.LedgerKey.contractData(
+    new xdr.LedgerKeyContractData({
+      contract: Address.fromString(contractId).toScAddress(),
+      key: xdr.ScVal.scvLedgerKeyContractInstance(),
+      durability: xdr.ContractDataDurability.persistent(),
+    })
+  );
+}
+
+function buildPersistentStorageKey(contractId: string, symbolKey: string): xdr.LedgerKey {
+  return xdr.LedgerKey.contractData(
+    new xdr.LedgerKeyContractData({
+      contract: Address.fromString(contractId).toScAddress(),
+      key: xdr.ScVal.scvSymbol(symbolKey),
+      durability: xdr.ContractDataDurability.persistent(),
+    })
+  );
+}
+
+// -----------------------------------------------------------------------------
+// 3. MAIN KEEPER DAEMON
+// -----------------------------------------------------------------------------
+async function runTtlKeeper() {
+  console.log("🤖 [KEEPER-BOT] Initializing Soroban State TTL Monitoring Daemon...");
+
+  if (!CONTRACT_ID || !KEEPER_SECRET) {
+    console.error("❌ [KEEPER-BOT] Missing CONTRACT_ID or KEEPER_SIGNER_SECRET in environment.");
+    console.error("   - CONTRACT_ID:", CONTRACT_ID ? "FOUND" : "MISSING");
+    console.error("   - KEEPER_SECRET:", KEEPER_SECRET ? "FOUND" : "MISSING");
+    process.exit(1);
+  }
+
+  const server = new StellarRpc.Server(RPC_URL, {
+    allowHttp: RPC_URL.startsWith("http://"),
+  });
+  const keeperKeypair = Keypair.fromSecret(KEEPER_SECRET);
+
+  try {
+    const latestLedgerResponse = await server.getLatestLedger();
+    const currentLedger = latestLedgerResponse.sequence;
+    console.log(`📡 [KEEPER-BOT] Current Network Ledger Sequence: ${currentLedger}`);
+
+    // Build Footprint Keys to Monitor & Extend
+    const instanceKey = buildInstanceKey(CONTRACT_ID);
+    const nullifierStorageKey = buildPersistentStorageKey(CONTRACT_ID, "NULLIFIER");
+
+    // Fetch live entries from ledger (variadic argument syntax)
+    const ledgerEntriesResponse = await server.getLedgerEntries(instanceKey, nullifierStorageKey);
+    const entries = ledgerEntriesResponse.entries ?? [];
+
+    if (entries.length === 0) {
+      console.warn("⚠️ [KEEPER-BOT] No active ledger entries returned for contract ID. Checking instance...");
+    }
+
+    // Inspect remaining TTL with strict undefined fallback
+    let minimumRemainingTtl = Infinity;
+
+    for (const entry of entries) {
+      const currentLiveUntil = entry.liveUntilLedgerSeq ?? 0;
+      const remainingTtl = currentLiveUntil > currentLedger ? currentLiveUntil - currentLedger : 0;
+
+      if (remainingTtl < minimumRemainingTtl) {
+        minimumRemainingTtl = remainingTtl;
+      }
+    }
+
+    console.log(
+      `🔍 [KEEPER-BOT] Monitored Entries TTL Minimum: ${
+        minimumRemainingTtl === Infinity ? "N/A" : `${minimumRemainingTtl} ledgers`
+      }`
+    );
+
+    const needsExtension = minimumRemainingTtl <= SAFETY_THRESHOLD_LEDGERS || entries.length === 0;
+
+    if (needsExtension) {
+      console.log(`⚠️ [KEEPER-BOT] State TTL threshold triggered. Assembling batched footprint extension...`);
+
+      const account = await server.getAccount(keeperKeypair.publicKey());
+
+      // Batch keys into read-only footprint
+      const readOnlyFootprint: xdr.LedgerKey[] = [instanceKey, nullifierStorageKey];
+
+      // Retrieve WASM Code Key directly from deserialized LedgerEntryData
+      if (entries.length > 0 && entries[0].val) {
+        try {
+          const entryVal: any = entries[0].val;
+          let ledgerEntryData: xdr.LedgerEntryData;
+
+          // If entry.val is already an XDR object, use directly; if string/Buffer, deserialize
+          if (typeof entryVal === 'string' || Buffer.isBuffer(entryVal)) {
+            ledgerEntryData = xdr.LedgerEntryData.fromXDR(entryVal as any, 'base64');
+          } else {
+            ledgerEntryData = entryVal as xdr.LedgerEntryData;
+          }
+
+          const contractData = ledgerEntryData.contractData();
+          const instance = contractData.val().instance();
+          const wasmHashBuffer = instance.executable().wasmHash();
+
+          if (wasmHashBuffer) {
+            const wasmCodeKey = xdr.LedgerKey.contractCode(
+              new xdr.LedgerKeyContractCode({ hash: wasmHashBuffer })
+            );
+            readOnlyFootprint.push(wasmCodeKey);
+          }
+        } catch {
+          // Skip WASM code key if not present (e.g., built-in contract or parse fail)
+        }
+      }
+
+      const sorobanData = new SorobanDataBuilder()
+        .setReadOnly(readOnlyFootprint)
+        .build();
+
+      let tx = new TransactionBuilder(account, {
+        fee: BASE_FEE,
+        networkPassphrase: NETWORK_PASSPHRASE,
+      })
+        .setSorobanData(sorobanData)
+        .addOperation(
+          Operation.extendFootprintTtl({
+            extendTo: TARGET_EXTEND_TO_LEDGERS,
+          })
+        )
+        .setTimeout(30)
+        .build();
+
+      console.log("⚡ [KEEPER-BOT] Simulating and preparing transaction resources via RPC...");
+      tx = await server.prepareTransaction(tx);
+
+      tx.sign(keeperKeypair);
+
+      const sendResponse = await server.sendTransaction(tx);
+
+      if (sendResponse.status === "ERROR") {
+        console.error("❌ [KEEPER-BOT] Transaction rejected:", JSON.stringify(sendResponse.errorResult));
+        return;
+      }
+
+      console.log(`⏳ [KEEPER-BOT] Broadcasted successfully. Tx Hash: ${sendResponse.hash}`);
+
+      // Poll until confirmed in a closed ledger
+      let txStatus = await server.getTransaction(sendResponse.hash);
+      while (txStatus.status === StellarRpc.Api.GetTransactionStatus.NOT_FOUND) {
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+        txStatus = await server.getTransaction(sendResponse.hash);
+      }
+
+      if (txStatus.status === StellarRpc.Api.GetTransactionStatus.SUCCESS) {
+        console.log(`✅ [KEEPER-BOT] State TTL successfully bumped to +${TARGET_EXTEND_TO_LEDGERS} ledgers!`);
+      } else {
+        console.error("❌ [KEEPER-BOT] Ledger inclusion failed:", txStatus);
+      }
+    } else {
+      console.log("✨ [KEEPER-BOT] All monitored contract entries are within safe operational limits.");
+    }
+  } catch (error: any) {
+    console.error("❌ [KEEPER-BOT] Execution fault during TTL sweep:", error?.message || error);
+  }
+}
+
+runTtlKeeper();

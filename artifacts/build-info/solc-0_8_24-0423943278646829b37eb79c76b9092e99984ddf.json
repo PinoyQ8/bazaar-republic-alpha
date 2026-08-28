@@ -1,0 +1,46 @@
+{
+  "_format": "hh3-sol-build-info-1",
+  "id": "solc-0_8_24-0423943278646829b37eb79c76b9092e99984ddf",
+  "solcVersion": "0.8.24",
+  "solcLongVersion": "0.8.24+commit.e11b9ed9",
+  "compilerType": "solc",
+  "userSourceNameMap": {
+    "contracts/RepublicHeirSuccession.sol": "project/contracts/RepublicHeirSuccession.sol",
+    "contracts/RepublicPassportGate.sol": "project/contracts/RepublicPassportGate.sol"
+  },
+  "input": {
+    "language": "Solidity",
+    "settings": {
+      "evmVersion": "shanghai",
+      "outputSelection": {
+        "*": {
+          "": [
+            "ast"
+          ],
+          "*": [
+            "abi",
+            "evm.bytecode.linkReferences",
+            "evm.bytecode.object",
+            "evm.bytecode.opcodes",
+            "evm.bytecode.sourceMap",
+            "evm.deployedBytecode.immutableReferences",
+            "evm.deployedBytecode.linkReferences",
+            "evm.deployedBytecode.object",
+            "evm.deployedBytecode.opcodes",
+            "evm.deployedBytecode.sourceMap",
+            "evm.methodIdentifiers"
+          ]
+        }
+      },
+      "remappings": []
+    },
+    "sources": {
+      "project/contracts/RepublicHeirSuccession.sol": {
+        "content": "// SPDX-License-Identifier: MIT\r\npragma solidity ^0.8.20;\r\n\r\n/**\r\n * @title RepublicHeirSuccession\r\n * @notice On-Chain Dead-Man's Switch and Heir Declaration Protocol for Project Bazaar\r\n */\r\ncontract RepublicHeirSuccession {\r\n\r\n    address public founder;\r\n    uint256 public lastCheckIn;\r\n    uint256 public inactivityThreshold = 90 days; // Time window before succession activates\r\n    uint256 public gracePeriod = 14 days;         // Warning window after threshold is met\r\n    \r\n    bool public successionTriggered = false;\r\n    bool public successionExecuted = false;\r\n\r\n    // Declared Heirs & Multi-Sig Quorum requirements\r\n    address[] public designatedHeirs;\r\n    uint256 public requiredSignatures;\r\n    mapping(address => bool) public isHeir;\r\n    mapping(address => mapping(address => bool)) public heirApprovals; // heir => targetFounder => approved\r\n    mapping(address => uint256) public approvalCounts;\r\n\r\n    event FounderCheckIn(address indexed founder, uint256 timestamp);\r\n    event InactivityAlertTriggered(uint256 timestamp);\r\n    event SuccessionAborted(uint256 timestamp);\r\n    event SuccessionClaimed(address indexed heir, uint256 timestamp);\r\n    event FounderSuccessionCompleted(address indexed newFounder, uint256 timestamp);\r\n\r\n    modifier onlyFounder() {\r\n        require(msg.sender == founder, \"Unauthorized: Caller is not the Founder\");\r\n        _;\r\n    }\r\n\r\n    modifier onlyHeir() {\r\n        require(isHeir[msg.sender], \"Unauthorized: Caller is not a declared heir\");\r\n        _;\r\n    }\r\n\r\n    constructor(address[] memory _heirs, uint256 _requiredSignatures) {\r\n        require(_heirs.length >= _requiredSignatures, \"Invalid quorum parameters\");\r\n        founder = msg.sender;\r\n        lastCheckIn = block.timestamp;\r\n        designatedHeirs = _heirs;\r\n        requiredSignatures = _requiredSignatures;\r\n\r\n        for (uint256 i = 0; i < _heirs.length; i++) {\r\n            isHeir[_heirs[i]] = true;\r\n        }\r\n    }\r\n\r\n    /**\r\n     * @notice Periodic ping by the founder to reset the inactivity timer or abort an active trigger\r\n     */\r\n    function founderCheckIn() external onlyFounder {\r\n        require(!successionExecuted, \"Succession already executed\");\r\n        \r\n        lastCheckIn = block.timestamp;\r\n        \r\n        // If a trigger was pulled but founder checked back in during grace period, abort succession\r\n        if (successionTriggered) {\r\n            successionTriggered = false;\r\n            emit SuccessionAborted(block.timestamp);\r\n        }\r\n\r\n        emit FounderCheckIn(founder, block.timestamp);\r\n    }\r\n\r\n    /**\r\n     * @notice Anyone can trigger the succession check if the inactivity window has elapsed\r\n     */\r\n    function triggerInactivitySwitch() external {\r\n        require(!successionTriggered, \"Already triggered\");\r\n        require(!successionExecuted, \"Already executed\");\r\n        require(block.timestamp >= lastCheckIn + inactivityThreshold, \"Inactivity threshold not yet reached\");\r\n        \r\n        successionTriggered = true;\r\n        emit InactivityAlertTriggered(block.timestamp);\r\n    }\r\n\r\n    /**\r\n     * @notice Declared heirs co-sign to claim and transfer Founder governance privileges\r\n     */\r\n    function claimSuccession(address newFounderRepresentative) external onlyHeir {\r\n        require(successionTriggered, \"Succession has not been triggered\");\r\n        require(!successionExecuted, \"Succession already finalized\");\r\n        require(block.timestamp >= lastCheckIn + inactivityThreshold + gracePeriod, \"Grace period still active\");\r\n        require(!heirApprovals[msg.sender][newFounderRepresentative], \"Already signed\");\r\n\r\n        heirApprovals[msg.sender][newFounderRepresentative] = true;\r\n        approvalCounts[newFounderRepresentative]++;\r\n\r\n        emit SuccessionClaimed(msg.sender, block.timestamp);\r\n\r\n        if (approvalCounts[newFounderRepresentative] >= requiredSignatures) {\r\n            successionExecuted = true;\r\n            founder = newFounderRepresentative;\r\n            emit FounderSuccessionCompleted(newFounderRepresentative, block.timestamp);\r\n        }\r\n    }\r\n}"
+      },
+      "project/contracts/RepublicPassportGate.sol": {
+        "content": "// SPDX-License-Identifier: MIT\r\npragma solidity ^0.8.20;\r\n\r\n/**\r\n * @title RepublicPassportGate\r\n * @notice Academy Custodian & Mainnet Gating Protocol for Project Bazaar\r\n */\r\ncontract RepublicPassportGate {\r\n    \r\n    address public academyCustodian;\r\n    address public founder;\r\n\r\n    struct Passport {\r\n        bool isIssued;\r\n        uint256 issuedAt;\r\n        uint256 tierLevel; // Corresponding to the 5-Tier Republic Matrix\r\n        bool isRevoked;\r\n    }\r\n\r\n    mapping(address => Passport) public passports;\r\n\r\n    event PassportIssued(address indexed pioneer, uint256 tierLevel, uint256 timestamp);\r\n    event PassportRevoked(address indexed pioneer, uint256 timestamp);\r\n    event CustodianUpdated(address indexed newCustodian);\r\n\r\n    modifier onlyCustodian() {\r\n        require(msg.sender == academyCustodian, \"Unauthorized: Caller is not the Academy Custodian\");\r\n        _;\r\n    }\r\n\r\n    modifier onlyFounder() {\r\n        require(msg.sender == founder, \"Unauthorized: Caller is not the Founder\");\r\n        _;\r\n    }\r\n\r\n    constructor(address _academyCustodian) {\r\n        founder = msg.sender;\r\n        academyCustodian = _academyCustodian;\r\n    }\r\n\r\n    /**\r\n     * @notice Updates the authorized Academy Custodian address\r\n     */\r\n    function setAcademyCustodian(address _newCustodian) external onlyFounder {\r\n        academyCustodian = _newCustodian;\r\n        emit CustodianUpdated(_newCustodian);\r\n    }\r\n\r\n    /**\r\n     * @notice Issues or updates a Soulbound Republic Passport once exam parameters are satisfied\r\n     */\r\n    function issuePassport(address pioneer, uint256 tierLevel) external onlyCustodian {\r\n        require(tierLevel >= 1 && tierLevel <= 5, \"Invalid tier level specification\");\r\n        \r\n        // Allows re-issuance/upgrade if previously revoked or updating existing tiers\r\n        passports[pioneer] = Passport({\r\n            isIssued: true,\r\n            issuedAt: block.timestamp,\r\n            tierLevel: tierLevel,\r\n            isRevoked: false\r\n        });\r\n\r\n        emit PassportIssued(pioneer, tierLevel, block.timestamp);\r\n    }\r\n\r\n    /**\r\n     * @notice Revokes a passport in the event of compliance breaches or malicious telemetry\r\n     */\r\n    function revokePassport(address pioneer) external onlyCustodian {\r\n        require(passports[pioneer].isIssued && !passports[pioneer].isRevoked, \"No active passport found\");\r\n        passports[pioneer].isRevoked = true;\r\n\r\n        emit PassportRevoked(pioneer, block.timestamp);\r\n    }\r\n\r\n    /**\r\n     * @notice Verifies if a given node address holds an active, unrevoked Mainnet passport\r\n     */\r\n    function verifyMainnetAccess(address pioneer) external view returns (bool) {\r\n        Passport memory p = passports[pioneer];\r\n        return p.isIssued && !p.isRevoked;\r\n    }\r\n}"
+      }
+    }
+  }
+}
