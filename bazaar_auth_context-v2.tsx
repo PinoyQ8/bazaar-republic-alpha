@@ -1,7 +1,7 @@
 /**
- * @file bazaar_auth_context.tsx
+ * @file AuthContext.tsx
  * @package Bazaar Republic Layer-2 DePIN Infrastructure
- * @version 1.0.0
+ * @version 1.0.1
  * @summary Production-grade React Context for Decentralized Web3 Onboarding & Warm Session Routing.
  * 
  * Implements:
@@ -14,29 +14,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { 
-  SovereignPassport, 
-  SovereignTier, 
-  TierPermissions 
-} from "./types_identity-v4";
-
-// Declare global window types to safely bind Pi SDK inside browser viewports
-declare global {
-  interface Window {
-    Pi?: {
-      init: (options: { sandbox: boolean; version: string }) => void;
-      authenticate: (
-        scopes: string[],
-        onIncompletePaymentFound: (payment: any) => void
-      ) => Promise<{
-        accessToken: string;
-        user: {
-          uid: string;
-          username: string;
-        };
-      }>;
-    };
-  }
-}
+  SovereignPassport, \n  SovereignTier, \n  TierPermissions \n} from "../types/identity"; // Updated for production folder mapping
 
 // Client OAuth Credentials (Safe to disclose - official public identifiers)
 const PI_OAUTH_CLIENT_ID = "FtbUB9fO3zfZZG3cp2SEpEdgzTNEgqpliDl8Q7Jr9Nc";
@@ -79,9 +57,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({
   useEffect(() => {
     const initPiSDK = async () => {
       try {
-        if (typeof window !== "undefined" && window.Pi) {
+        if (typeof window !== "undefined" && (window as any).Pi) {
           console.log("[AUTH-INIT] Initializing Pi SDK version 2.0...");
-          window.Pi.init({ sandbox: isSandboxMode, version: "2.0" });
+          (window as any).Pi.init({ sandbox: isSandboxMode, version: "2.0" });
         } else {
           console.warn("[AUTH-INIT] Pi Browser SDK not detected. Operating in standard Web Companion mode.");
         }
@@ -135,11 +113,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({
       let activeWallet = "";
 
       // PATH A: Native Pi Browser SDK Flow
-      if (typeof window !== "undefined" && window.Pi) {
+      if (typeof window !== "undefined" && (window as any).Pi) {
         console.log("[AUTH-RUN] Routing through native Pi Browser SDK vector...");
         const scopes = ["username", "payments", "wallet_address"];
         
-        const authResult = await window.Pi.authenticate(scopes, onIncompletePaymentFound);
+        const authResult = await (window as any).Pi.authenticate(scopes, onIncompletePaymentFound);
         activeToken = authResult.accessToken;
         
         // Retrieve temporary testnet wallet address from the Pi SDK shell
