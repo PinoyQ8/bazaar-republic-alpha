@@ -70,3 +70,28 @@ test-db.js
 
 mesh-structure.txt
 oracle-node/
+
+# =====================================================================
+# Post-Quantum Cryptography (libqsafe / pyqsafe) Local Ignored Files
+# =====================================================================
+
+# Python Virtual Environments, packaging, and bytecode caches
+.venv/
+venv/
+env/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+
+# Compiled C binaries, object files, and shared libraries
+/libqsafe/vsf_engine
+/libqsafe/vsf_engine.exe
+/libqsafe/qsd_symplectic
+/libqsafe/qsd_symplectic.exe
+*.o
+*.obj
+*.so
+*.dll
+*.dylib

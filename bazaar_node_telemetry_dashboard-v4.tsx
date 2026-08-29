@@ -1,7 +1,7 @@
 /**
  * @file page.tsx (app/dashboard/telemetry)
  * @package Bazaar Republic Layer-2 DePIN Infrastructure
- * @version 1.1.0
+ * @version 1.3.0
  * @summary Production-ready Next.js Server Page (Server Component) for the MESH Node Telemetry Dashboard.
  * Queries 'bzr-db' via Prisma to aggregate rolling SLA stats, CPU/RAM utilization, and quarantine statuses
  * across our 51-node deployment. Implements touch-safe, high-contrast Tailwind UI designed to perform
@@ -10,7 +10,6 @@
 
 import React from "react";
 import { PrismaClient } from "bzr-db";
-import { SovereignTier } from "./types_identity-v4";
 
 // Force dynamic fetching on every request to keep telemetry fresh
 export const revalidate = 0;
@@ -43,7 +42,7 @@ async function fetchTelemetryData(): Promise<{
     ssdLatency: string;
     accumulatedDowntime: number;
     trustScore: number;
-    status: "ACTIVE" | "MAINTENANCE" | "QUARANTINED";
+    status: "ACTIVE" | "MAINTENANCE" | "QUARANTINED" | "SYNCING" | "FROZEN" | "SUSPENDED" | "OFFLINE";
     countryCode: string;
     pppMultiplier: number;
   }>;
@@ -91,16 +90,16 @@ async function fetchTelemetryData(): Promise<{
 
       return {
         id: node.id,
-        walletAddress: node.walletAddress,
-        pioneerUid: node.pioneerUid,
-        mbzrBalanceFormatted: node.mbzrBalanceFormatted,
+        walletAddress: node.walletAddress ?? "",
+        pioneerUid: node.uid,
+        mbzrBalanceFormatted: node.mbzrBalanceFormatted ?? "0.0000000",
         cpuUsage: node.cpuUsage,
         ramUsage: node.ramUsage,
-        ssdLatency: node.ssdLatency,
+        ssdLatency: node.ssdLatency ?? "100 MB/s",
         accumulatedDowntime: node.accumulatedDowntime,
         trustScore: node.trustScore,
-        status: node.status as "ACTIVE" | "MAINTENANCE" | "QUARANTINED",
-        countryCode: node.countryCode,
+        status: node.status as any,
+        countryCode: node.countryCode ?? "US",
         pppMultiplier: node.pppMultiplier,
       };
     });
@@ -304,7 +303,7 @@ export default async function TelemetryDashboardPage() {
                               </span>
                             )}
                           </span>
-                          <span className="text-[10px] text-slate-500 font-mono truncate max-w-[150px] md:max-w-xs mt-0.5">
+                          <span className="text-[10px] text-slate-500 font-mono truncate max-w-37.5 mt-0.5">
                             {node.walletAddress}
                           </span>
                         </div>
@@ -387,8 +386,8 @@ export default async function TelemetryDashboardPage() {
           <span>In code we trust.</span>
         </div>
         <div className="flex gap-4">
-          <span className="text-slate-700">Platform: Acer Nitro 5 Failover Sync</span>
-          <span className="text-slate-700">Database Engine: Prisma/MongoDB</span>
+          <span className="text-slate-700 font-bold">Platform: Acer Nitro 5 Failover Sync</span>
+          <span className="text-slate-700 font-bold">Database Engine: Prisma/MongoDB</span>
         </div>
       </footer>
     </div>
