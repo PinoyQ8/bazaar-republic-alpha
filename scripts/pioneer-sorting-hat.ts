@@ -1,5 +1,5 @@
 // Location: scripts/pioneer-sorting-hat.ts
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient } from @/lib/db;
 
 const prisma = new PrismaClient();
 

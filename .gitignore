@@ -1,97 +1,82 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+# =========================================================================================
+# @file .gitignore
+# @package Bazaar Republic Layer-2 DePIN Infrastructure
+# @summary Standardized, production-ready Git Ignore rules for the reorganized 
+#          Bazaar Republic Alpha repository (Next.js + Prisma + Docker + Rust).
+# =========================================================================================
 
-# dependencies
-/node_modules
-/.pnp
-.pnp.*
-.yarn/*
-!.yarn/patches
-!.yarn/plugins
-!.yarn/releases
-!.yarn/versions
+# ---> Dependency Directories
+node_modules/
+jspm_packages/
+web_modules/
 
-# testing
-/coverage
+# ---> Next.js Build & Compilation Outputs
+.next/
+out/
+build/
+dist/
 
-# next.js
-/.next/
-/out/
+# ---> Prisma Generated Clients & Assets
+# Ignore custom generated database client folder to keep Git size small
+# Note: These are automatically re-compiled on npm install / prisma generate
+app/lib/generated/
+generated/client/
+bzr-db/
 
-# production
-/build
+# ---> Environment Variables & Workstation Secrets
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env*.local
+config_options.yml
+config_options.local.yml
 
-# misc
-.DS_Store
-*.pem
-
-# debug
+# ---> Docker & Database Logs/Caches
+.docker/
+*.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-.pnpm-debug.log*
+pnpm-debug.log*
+lerna-debug.log*
+docker-compose.override.yml
 
-# env files (can opt-in for committing if needed)
-.env*
+# Local directory mapping for MongoDB volume storage (prevent syncing massive database files)
+mongodb_data/
+bazaar_ledger_data/
 
-# vercel
-.vercel
-
-# typescript
-*.tsbuildinfo
-next-env.d.ts
-
-.vercel
-
-# Ignore local build artifacts
-/target/
+# ---> Rust (Soroban Smart Contracts) Compilation Outputs
+# Cargo output directory inside contracts or root
+contracts/target/
+target/
 **/*.rs.bk
-Cargo.lock
 
-# Prisma Generated Clients
-lib/generated/
-prisma/generated/
-.env*.local
-
-mesh-scan.js
-forge-*.js
-monitor-faucet.js
-forge-lifeboat-keys.js
-forge-evacuation-phase2.js
-forge-evacuation-phase3.js
-
-# Sensitive Scripts
-scripts/seed-genesis.ts
-# Or, if you want to ignore the whole scripts folder for safety:
-# scripts/
-scripts/seed-genesis.ts
-scripts/*.secret.ts
-
-test-db.js
-
-mesh-structure.txt
-oracle-node/
-
-# =====================================================================
-# Post-Quantum Cryptography (libqsafe / pyqsafe) Local Ignored Files
-# =====================================================================
-
-# Python Virtual Environments, packaging, and bytecode caches
-.venv/
-venv/
-env/
+# ---> Python Bytecode & Simulation Caches
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
 .pytest_cache/
 
-# Compiled C binaries, object files, and shared libraries
-/libqsafe/vsf_engine
-/libqsafe/vsf_engine.exe
-/libqsafe/qsd_symplectic
-/libqsafe/qsd_symplectic.exe
-*.o
-*.obj
-*.so
-*.dll
-*.dylib
+# ---> Workstation & IDE Configuration Logs
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
+
+# ---> OS Specific (Windows / macOS) Caches
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+Desktop.ini
+.DS_Store
+
+# ---> Script Workspace Output & Diagnostics
+# Keep main diagnostic scripts, ignore local verification session results
+bazaar_e2e_test_execution.log
+node_modules
