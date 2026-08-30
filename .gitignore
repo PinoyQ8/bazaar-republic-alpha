@@ -80,3 +80,12 @@ Desktop.ini
 # Keep main diagnostic scripts, ignore local verification session results
 bazaar_e2e_test_execution.log
 node_modules
+
+# Local Prisma generated client types
+prisma/generated/
+
+# Vercel deployment metadata
+.vercel/
+
+# TypeScript build metadata cache
+tsconfig.tsbuildinfo
