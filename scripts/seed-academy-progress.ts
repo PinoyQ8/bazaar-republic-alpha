@@ -1,5 +1,5 @@
 // Location: scripts/seed-academy-progress.ts
-import { PrismaClient } from @/lib/db;
+import { PrismaClient } from "@prisma/client"
 
 const prisma = new PrismaClient();
 
