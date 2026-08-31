@@ -1,18 +1,5 @@
 // Location: seed.ts
-import { PrismaClient } from "@prisma/client";
-
-/**
- * PROJECT BAZAAR SEED SCRIPT (Schema v2.7.2)
- * -----------------------------------------------------------------------------
- * Seeds the "@prisma/client" MongoDB database with initial data representing
- * the active Genesis Cohort of Pioneer Nodes, regional PPP multipliers,
- * pending bridge transactions, dispute cases, elder votes, and system state logs.
- *
- * Enforces:
- * 1. 7-decimal currency precision (BigInt scaling 10^7 for subunits).
- * 2. Real-world regional PPP multiplier mappings.
- * 3. Health & performance telemetry matching the 90% Rolling 30-Day SLA (720 hrs total).
- */
+import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
@@ -22,8 +9,8 @@ const PRECISION_SCALE = 10_000_000n;
 // Helper to convert decimal string to BigInt subunits
 function toSubunits(amountStr: string): string {
   const parts = amountStr.trim().split('.');
-  const integerPart = parts[0];
-  const decimalPart = (parts[1] || '').padEnd(7, '0').slice(0, 7);
+  const integerPart = parts[0]; // 🛡️ Corrected from 'parts' to 'parts[0]' (string)
+  const decimalPart = (parts[1] || '').padEnd(7, '0').slice(0, 7); // 🛡️ Corrected from 'parts' to 'parts[1]' (string)
   const rawSubunits = (BigInt(integerPart) * PRECISION_SCALE) + BigInt(decimalPart);
   return rawSubunits.toString();
 }
@@ -42,7 +29,7 @@ async function main() {
 
   const db = prisma as any;
 
-  // 1. Clean existing database collections
+  // 1. Clean existing database collections (order-sensitive to prevent constraint issues)
   console.log('🧹 Cleaning existing tables in bzr-db...');
   if (db.auditLog) await db.auditLog.deleteMany({});
   if (db.elderVote) await db.elderVote.deleteMany({});
@@ -53,13 +40,13 @@ async function main() {
   if (db.pioneerNode) await db.pioneerNode.deleteMany({});
   if (db.relayerSyncState) await db.relayerSyncState.deleteMany({});
 
-  // 2. Initialize L2 Relayer Sync State
+  // 2. Initialize the L2 Relayer Sync State
   console.log('⚙️ Seeding Relayer Sync State...');
   if (db.relayerSyncState) {
     await db.relayerSyncState.create({
       data: {
         id: 'BazaarRelayer',
-        lastLedger: 5829103,
+        lastLedger: 5829103, // Seeded near active testnet ledger block
         updatedAt: new Date(),
       },
     });
@@ -71,18 +58,21 @@ async function main() {
 
   if (db.pioneerNode) {
     for (let i = 1; i <= 50; i++) {
+      // Round-robin selection of regional profiles
       const region = REGIONAL_PROFILES[i % REGIONAL_PROFILES.length];
       const walletAddress = `G${'A'.repeat(10)}${i.toString().padStart(4, '0')}${'B'.repeat(40 - 15)}`;
       const pioneerUid = `usr_pioneer_${1000 + i}`;
-
+      
+      // Distribute various balances with strict 7-decimal representation
       const balanceDecimal = (1000 + (i * 480) + 0.12345).toFixed(7);
       const balanceSubunits = toSubunits(balanceDecimal);
 
-      let status: 'ACTIVE' | 'MAINTENANCE' | 'QUARANTINED' = 'ACTIVE';
-      const cpuUsage = `${parseFloat((25 + (i * 1.1) % 60).toFixed(1))}%`;
-      const ramUsage = `${parseFloat((3.5 + (i * 0.15) % 4.2).toFixed(2))}GB`;
-      const ssdLatency = i % 15 === 0 ? '75 MB/s (Slow)' : `${parseFloat((110 + (i * 2.5) % 120).toFixed(1))} MB/s`;
-      const accumulatedDowntime = parseFloat((i * 1.4 % 80).toFixed(1));
+      // Seed realistic hardware & uptime telemetry
+      let status: 'ACTIVE' | 'MAINTENANCE' | 'QUARANTINED' | 'SYNCING' = 'ACTIVE';
+      let cpuUsage = parseFloat((25 + (i * 1.1) % 60).toFixed(1)); // Realistic core saturation (Float)
+      let ramUsage = parseFloat((3.5 + (i * 0.15) % 4.2).toFixed(2)); // in GB (Float)
+      let ssdLatency = i % 15 === 0 ? '75 MB/s (Slow)' : `${parseFloat((110 + (i * 2.5) % 120).toFixed(1))} MB/s`;
+      let accumulatedDowntime = parseFloat((i * 1.4 % 80).toFixed(1)); // rolling 30-day downtime hours (Float)
       let trustScore = 100.0;
 
       // Calculate Uptime SLA (30 Days = 720 Hours)
@@ -91,9 +81,9 @@ async function main() {
 
       if (!isCompliant) {
         status = 'QUARANTINED';
-        trustScore -= 22.5;
+        trustScore -= 22.5; 
       } else if (i % 12 === 0) {
-        status = 'MAINTENANCE';
+        status = 'MAINTENANCE'; // Within allowance but under maintenance
       }
 
       const node = await db.pioneerNode.create({
@@ -105,6 +95,8 @@ async function main() {
           status: status,
           trustScore: Math.round(trustScore),
           regionCode: region.countryCode,
+          countryCode: region.countryCode,
+          phonePrefix: region.phonePrefix,
           pppMultiplier: region.multiplier,
           mbzrBalanceSubunits: balanceSubunits,
           mbzrBalanceFormatted: balanceDecimal,
@@ -113,22 +105,24 @@ async function main() {
           ssdLatency: ssdLatency,
           accumulatedDowntime: accumulatedDowntime,
           uptimeShield: parseFloat(uptimePercentage.toFixed(2)),
+          createdAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), // 30 days old
           updatedAt: new Date(),
         },
       });
       pioneerNodes.push(node);
     }
+    console.log(`  ✓ Successfully hydrated ${pioneerNodes.length} Pioneer Nodes in bzr-db.`);
   }
 
-  // 4. Seed Mock Peer-to-Peer Transactions
+  // 4. Seed Mock Peer-to-Peer Transactions (7-decimal precision logs)
   console.log('💸 Seeding High-Precision mBZR Ledger Transactions...');
-  for (let j = 0; j < 10; j++) {
-    const sender = pioneerNodes[j];
-    const receiver = pioneerNodes[j + 1];
-    const amountStr = (10.5 * (j + 1)).toFixed(7);
-    const amountSubunitsVal = toSubunits(amountStr);
+  if (db.mbzrTransaction && pioneerNodes.length >= 10) {
+    for (let j = 0; j < 10; j++) {
+      const sender = pioneerNodes[j];
+      const receiver = pioneerNodes[j + 1];
+      const amountStr = (10.5 * (j + 1)).toFixed(7);
+      const amountSubunitsVal = toSubunits(amountStr);
 
-    if (db.mbzrTransaction) {
       await db.mbzrTransaction.create({
         data: {
           senderAddress: sender.walletAddress,
@@ -142,21 +136,22 @@ async function main() {
         },
       });
     }
+    console.log('  ✓ Seeded 10 high-precision peer-to-peer transaction receipts.');
   }
 
-  // 5. Seed Bridge Receipts
+  // 5. Seed Bridge Receipts (Nonced L1/L2 Melt records)
   console.log('🌉 Seeding Bridge Receipts (Vault Settlement & Replay Audits)...');
-  for (let k = 0; k < 5; k++) {
-    const userNode = pioneerNodes[k + 5];
-    const amountMeltedStr = (500.0 + k * 100.5).toFixed(7);
-    const amountMeltedSubunits = toSubunits(amountMeltedStr);
-    const piReleased = parseFloat(amountMeltedStr) / 1000.0;
+  if (db.bridgeReceipt && pioneerNodes.length >= 10) {
+    for (let k = 0; k < 5; k++) {
+      const userNode = pioneerNodes[k + 5];
+      const amountMeltedStr = (500.0 + k * 100.5).toFixed(7);
+      const amountMeltedSubunits = toSubunits(amountMeltedStr);
+      const piReleased = parseFloat(amountMeltedStr) / 1000.0; // Dynamic 1:1000 Peg Math
 
-    if (db.bridgeReceipt) {
       await db.bridgeReceipt.create({
         data: {
           userAddress: userNode.walletAddress,
-          nonce: k + 1,
+          nonce: k + 1, // Sequential noncing guard
           mBzrAmount: amountMeltedSubunits,
           piAmount: piReleased,
           stellarTxHash: `stellar_melt_tx_${k + 100}`,
@@ -168,17 +163,19 @@ async function main() {
         },
       });
     }
+    console.log('  ✓ Seeded 5 recirculating bridge receipts.');
   }
 
+  console.log('🏁 Database seeding finished successfully!');
   console.log(`✅ Seeding Complete! ${pioneerNodes.length} Genesis Pioneer Nodes registered.`);
 }
 
 main()
   .catch((e) => {
-    console.error('❌ [DATABASE SEED ERROR] Failed to seed bzr-db:', e);
+    console.error('❌ Seeding failed with fatal exception:', e);
     process.exit(1);
   })
   .finally(async () => {
     await prisma.$disconnect();
-    console.log('🔌 Disconnected from bzr-db.');
+    console.log('🔌 Disconnected from bzr-db client.');
   });

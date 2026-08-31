@@ -12,10 +12,8 @@ const nextConfig = {
     "192.168.8.108:3000",
   ],
 
-  // 🚀 Tell Turbopack to exclude database binaries from static file tracing
-  experimental: {
-    serverComponentsExternalPackages: ["@prisma/client", "bzr-db"],
-  },
+  // 🚀 Exclude database binaries from static file tracing (promoted to root level)
+  serverExternalPackages: ["@prisma/client", "bzr-db"],
 };
 
 export default nextConfig;
