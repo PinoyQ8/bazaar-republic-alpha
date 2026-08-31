@@ -1,6 +1,6 @@
 // app/api/mesh/escrow/refund/route.ts
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma'; // Uses your "@prisma/client" client
+import { db as prisma } from "@/lib/db"; // Safely imports our dual-export singleton
 
 export async function POST(req: Request) {
   try {

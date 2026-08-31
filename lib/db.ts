@@ -1,18 +1,8 @@
-﻿import { PrismaClient } from "@prisma/client";
+import { PrismaClient } from "bzr-db";
 
 const globalForPrisma = global as unknown as { prisma: PrismaClient };
 
-const prismaInstance =
-  globalForPrisma.prisma ||
-  new PrismaClient({
-    log: ["error", "warn"],
-  });
+export const db = globalForPrisma.prisma || new PrismaClient();
+export const prisma = db; // Export both to prevent any other file breaking if it expects 'prisma'
 
-if (process.env.NODE_ENV !== "production") {
-  globalForPrisma.prisma = prismaInstance;
-}
-
-// 🛡️ Global TypeScript Bypass: Silences TS2339 cache errors
-export const prisma = prismaInstance as any;
-export const db = prismaInstance as any;
-export default prisma;
+if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = db;
