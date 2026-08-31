@@ -21,10 +21,10 @@
     "incremental": true,
     "paths": {
       "bzr-db": [
-        "./prisma/generated/client"
+        "./node_modules/@prisma/client" // 🟢 Points VS Code to the node_modules cache
       ],
       "bzr-db/*": [
-        "./prisma/generated/client/*"
+        "./node_modules/@prisma/client/*"
       ],
       "@/contracts/*": [
         "./src/contracts/*",

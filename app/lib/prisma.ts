@@ -1,20 +1,7 @@
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient } from "bzr-db";
 
-declare global {
-  // eslint-disable-next-line no-var
-  var __globalPrisma: PrismaClient | undefined;
-}
+const globalForPrisma = global as unknown as { prisma: PrismaClient };
 
-export const prisma =
-  globalThis.__globalPrisma ??
-  new PrismaClient({
-    log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"],
-  });
+export const prisma = globalForPrisma.prisma || new PrismaClient();
 
-export const db = prisma;
-
-if (process.env.NODE_ENV !== "production") {
-  globalThis.__globalPrisma = prisma;
-}
-
-export default prisma;
+if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;

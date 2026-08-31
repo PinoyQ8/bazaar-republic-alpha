@@ -1,5 +1,32 @@
-﻿node_modules
+node_modules
 .next
-prisma/generated
+out
 .git
-.env*
+bazaar-backups/
+
+# Ignore all versions of seed, test, and dashboard scripts in root
+seed*.ts
+seed.ts
+bazaar_integration_test*.ts
+bazaar-git-commit*.ps1
+bazaar-hardware-monitor.ps1
+bazaar_sandbox_cli*.ps1
+academy_exam*.sh
+healthcheck.sh
+install_*.sh
+
+# Ignore all wildcarded draft components in root
+bazaar_auth_context*.tsx
+bazaar_auth_register*.ts
+bazaar_bridge_dashboard*.tsx
+bazaar_elder_voting_portal*.tsx
+bazaar_node_telemetry_dashboard*.tsx
+bazaar_health_route*.ts
+bazaar_social_service*.ts
+
+*.md
+*.pdf
+*.png
+*.jpg
+*.jpeg
+*.svg
