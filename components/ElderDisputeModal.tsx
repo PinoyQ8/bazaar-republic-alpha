@@ -44,7 +44,10 @@ export default function ElderDisputeModal({
     setVoteSuccessMsg(null);
 
     try {
-      const elderUid = typeof window !== 'undefined' ? (localStorage.getItem('mesh_pioneer_uid') || 'local_elder_node') : 'local_elder_node';
+      const elderUid =
+        typeof window !== 'undefined'
+          ? localStorage.getItem('mesh_pioneer_uid') || 'local_elder_node'
+          : 'local_elder_node';
 
       const res = await fetch('/api/escrow/dispute/resolve', {
         method: 'POST',
@@ -77,7 +80,7 @@ export default function ElderDisputeModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4 font-mono">
+    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 font-mono">
       <div className="w-full max-w-[384px] bg-neutral-950 border border-neutral-800 rounded-2xl p-4 flex flex-col gap-3 shadow-2xl text-neutral-100">
         
         {/* Modal Header */}
@@ -86,8 +89,9 @@ export default function ElderDisputeModal({
             <Scale className="w-4 h-4" /> 5-Elder VRF Panel
           </div>
           <button 
+            type="button"
             onClick={onClose} 
-            className="text-neutral-500 hover:text-neutral-300 transition p-1"
+            className="text-neutral-500 hover:text-neutral-300 transition p-1 cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
@@ -97,7 +101,7 @@ export default function ElderDisputeModal({
         <div className="p-3 bg-neutral-900 border border-neutral-800 rounded-xl text-xs space-y-2">
           <div className="flex justify-between text-[10px] text-neutral-400 font-mono">
             <span>Dispute ID:</span>
-            <span className="text-neutral-200 font-bold">{disputeData.id}</span>
+            <span className="text-neutral-200 font-bold truncate max-w-45">{disputeData.id}</span>
           </div>
 
           <div className="flex justify-between text-[10px] text-neutral-400 font-mono">
@@ -112,7 +116,7 @@ export default function ElderDisputeModal({
 
           <div className="pt-2 border-t border-neutral-800/80">
             <span className="text-[9px] text-neutral-500 uppercase block mb-0.5">Service Reference</span>
-            <p className="text-[11px] text-neutral-200">{disputeData.serviceDescription}</p>
+            <p className="text-[11px] text-neutral-200 leading-snug">{disputeData.serviceDescription}</p>
           </div>
 
           <div className="pt-1.5 border-t border-neutral-800/80">
@@ -152,18 +156,20 @@ export default function ElderDisputeModal({
         {/* Ruling Actions */}
         <div className="grid grid-cols-2 gap-2 pt-1">
           <button
+            type="button"
             onClick={() => handleCastRuling('FAVOR_CONSUMER')}
             disabled={isSubmitting}
-            className="py-2.5 px-2 bg-rose-950/80 border border-rose-800 hover:bg-rose-900 text-rose-300 font-bold text-[10px] uppercase rounded-xl transition flex items-center justify-center gap-1.5 active:scale-[0.98] disabled:opacity-50"
+            className="py-2.5 px-2 bg-rose-950/80 border border-rose-800 hover:bg-rose-900 text-rose-300 font-bold text-[10px] uppercase rounded-xl transition flex items-center justify-center gap-1.5 active:scale-[0.98] disabled:opacity-50 cursor-pointer"
           >
             {isSubmitting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
             Refund Buyer
           </button>
 
           <button
+            type="button"
             onClick={() => handleCastRuling('FAVOR_PROVIDER')}
             disabled={isSubmitting}
-            className="py-2.5 px-2 bg-cyan-950/80 border border-cyan-800 hover:bg-cyan-900 text-cyan-300 font-bold text-[10px] uppercase rounded-xl transition flex items-center justify-center gap-1.5 active:scale-[0.98] disabled:opacity-50"
+            className="py-2.5 px-2 bg-cyan-950/80 border border-cyan-800 hover:bg-cyan-900 text-cyan-300 font-bold text-[10px] uppercase rounded-xl transition flex items-center justify-center gap-1.5 active:scale-[0.98] disabled:opacity-50 cursor-pointer"
           >
             {isSubmitting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
             Release Merchant

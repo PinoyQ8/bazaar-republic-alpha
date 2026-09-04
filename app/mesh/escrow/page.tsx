@@ -74,10 +74,13 @@ export default function MeshEscrowPage() {
             consumer: pioneer?.uid || 'usr_pioneer_1001',
             amount: 50.0,
             token: 'PI',
-            status: 'LOCKED',
-            timelockRemainingSeconds: 172800,
+            status: 'DISPUTED',
+            timelockRemainingSeconds: 0,
             serviceDescription: 'E-Network DePIN Node Provisioning',
             createdAt: new Date().toISOString(),
+            bondAmount: 5000,
+            consumerClaim: 'Node latency exceeds 450ms SLA; ZK relayer failed peer discovery.',
+            zkProofHash: '0x7f8a91b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8'
           }
         ]);
       }
@@ -135,6 +138,16 @@ export default function MeshEscrowPage() {
     setIsDisputeModalOpen(true);
   };
 
+  // Target the first disputed vault, or fallback to the first active vault
+  const handleLaunchAdjudicationPortal = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const targetDispute = vaults.find((v) => v.status === 'DISPUTED') || vaults[0];
+    if (targetDispute) {
+      handleOpenDisputeReview(targetDispute);
+    }
+  };
+
   return (
     <PioneerAuthGate>
       <div className="min-h-screen bg-neutral-950 text-neutral-100 p-3 sm:p-6 font-sans pb-28">
@@ -177,9 +190,10 @@ export default function MeshEscrowPage() {
                 </p>
               </div>
               <button
+                type="button"
                 onClick={fetchEscrows}
                 disabled={loading}
-                className="p-1.5 text-neutral-400 hover:text-white bg-neutral-950 border border-neutral-800 rounded-xl"
+                className="p-1.5 text-neutral-400 hover:text-white bg-neutral-950 border border-neutral-800 rounded-xl cursor-pointer"
               >
                 <RefreshCw size={13} className={loading ? 'animate-spin text-indigo-400' : ''} />
               </button>
@@ -187,8 +201,9 @@ export default function MeshEscrowPage() {
 
             <div className="grid grid-cols-2 gap-1.5 p-1 bg-neutral-950 rounded-2xl border border-neutral-800 font-mono text-xs">
               <button
+                type="button"
                 onClick={() => setActiveTab('vaults')}
-                className={`py-2 rounded-xl transition font-bold flex items-center justify-center gap-1.5 ${
+                className={`py-2 rounded-xl transition font-bold flex items-center justify-center gap-1.5 cursor-pointer ${
                   activeTab === 'vaults'
                     ? 'bg-indigo-950 border border-indigo-700 text-indigo-300'
                     : 'text-neutral-400 hover:text-white'
@@ -197,8 +212,9 @@ export default function MeshEscrowPage() {
                 <Lock size={14} /> Active Vaults ({vaults.length})
               </button>
               <button
+                type="button"
                 onClick={() => setActiveTab('create')}
-                className={`py-2 rounded-xl transition font-bold flex items-center justify-center gap-1.5 ${
+                className={`py-2 rounded-xl transition font-bold flex items-center justify-center gap-1.5 cursor-pointer ${
                   activeTab === 'create'
                     ? 'bg-indigo-950 border border-indigo-700 text-indigo-300'
                     : 'text-neutral-400 hover:text-white'
@@ -282,7 +298,7 @@ export default function MeshEscrowPage() {
                       type="button"
                       key={hrs}
                       onClick={() => setTimelockHours(hrs)}
-                      className={`py-2 rounded-xl border transition text-center ${
+                      className={`py-2 rounded-xl border transition text-center cursor-pointer ${
                         timelockHours === hrs
                           ? 'bg-indigo-950 border-indigo-600 text-indigo-300 font-bold'
                           : 'bg-neutral-950 border-neutral-800 text-neutral-400'
@@ -308,7 +324,7 @@ export default function MeshEscrowPage() {
               <button
                 type="submit"
                 disabled={isCreating}
-                className="w-full py-3 bg-linear-to-r from-indigo-600 to-cyan-600 hover:from-indigo-500 hover:to-cyan-500 font-bold rounded-xl text-white text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition shadow-lg disabled:opacity-50"
+                className="w-full py-3 bg-linear-to-r from-indigo-600 to-cyan-600 hover:from-indigo-500 hover:to-cyan-500 font-bold rounded-xl text-white text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition shadow-lg disabled:opacity-50 cursor-pointer"
               >
                 {isCreating ? (
                   <>
@@ -336,10 +352,11 @@ export default function MeshEscrowPage() {
               </span>
             </div>
             <p className="text-[11px] text-neutral-400 leading-relaxed">
-              Disputed locks trigger VRF selection of 5 Genesis 100 Elders. Settled via game-theoretic <strong className="text-neutral-200">75% Winner / 25% Non-Biased Elder</strong> bond split.
+              Disputed locks trigger VRF selection of 5 Genesis 100 Elders. Settled via game-theoretic <strong className="text-neutral-200">75% Winner / 25% Non-Biased Elder</strong> bond split[cite: 2, 7, 20].
             </p>
             <button
-              onClick={() => vaults[0] && handleOpenDisputeReview(vaults[0])}
+              type="button"
+              onClick={handleLaunchAdjudicationPortal}
               className="w-full py-2 bg-neutral-950 hover:bg-neutral-900 border border-neutral-800 text-amber-400 hover:text-amber-300 rounded-xl font-bold text-[11px] flex items-center justify-center gap-1.5 transition cursor-pointer"
             >
               <Award size={14} /> Genesis 100 Adjudicator Portal
