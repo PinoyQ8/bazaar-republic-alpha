@@ -1,6 +1,4 @@
-import { PrismaClient } from "../prisma/generated/client";
-
-const prisma = new PrismaClient();
+﻿import { prisma } from "@/lib/prisma";
 
 const coreServices = [
   {
@@ -18,7 +16,7 @@ const coreServices = [
 ];
 
 async function seedNodeServices() {
-  console.log("⚡ [SEED] Synchronizing NodeService switchboard into MongoDB...");
+  console.log("âš¡ [SEED] Synchronizing NodeService switchboard into MongoDB...");
 
   for (const service of coreServices) {
     const res = await prisma.nodeService.upsert({
@@ -35,15 +33,15 @@ async function seedNodeServices() {
         isEnabled: service.isEnabled,
       },
     });
-    console.log(`   ✔ Anchored service: ${res.serviceId} (enabled: ${res.isEnabled})`);
+    console.log(`   âœ” Anchored service: ${res.serviceId} (enabled: ${res.isEnabled})`);
   }
 
-  console.log("✅ Node services switchboard successfully seeded.");
+  console.log("âœ… Node services switchboard successfully seeded.");
 }
 
 seedNodeServices()
   .catch((err) => {
-    console.error("❌ Seeding failed:", err);
+    console.error("âŒ Seeding failed:", err);
     process.exit(1);
   })
   .finally(async () => {

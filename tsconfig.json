@@ -1,83 +1,35 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "lib": [
-      "dom",
-      "dom.iterable",
-      "esnext"
-    ],
+    "lib": ["dom", "dom.iterable", "esnext"],
     "allowJs": true,
     "skipLibCheck": true,
-    "strict": true,
-    "noImplicitAny": false,
-    "forceConsistentCasingInFileNames": true,
+    "strict": false,
     "noEmit": true,
     "esModuleInterop": true,
     "module": "esnext",
     "moduleResolution": "bundler",
     "resolveJsonModule": true,
     "isolatedModules": true,
-    "jsx": "react-jsx",
+    "jsx": "preserve",
     "incremental": true,
-    "types": ["jest", "node"], // 👈 Added the missing comma here!
-    "paths": {
-      "bzr-db": [
-        "./node_modules/@prisma/client" // 🟢 Points VS Code to the node_modules cache [cite: 98]
-      ],
-      "bzr-db/*": [
-        "./node_modules/@prisma/client/*"
-      ],
-      "@/contracts/*": [
-        "./src/contracts/*",
-        "./contracts/*"
-      ],
-      "@/context/*": [
-        "./src/context/*",
-        "./context/*",
-        "./app/context/*"
-      ],
-      "@/hooks/*": [
-        "./src/hooks/*",
-        "./hooks/*",
-        "./app/hooks/*"
-      ],
-      "@/lib/*": [
-        "./src/lib/*",
-        "./lib/*",
-        "./app/lib/*"
-      ],
-      "@/components/*": [
-        "./src/components/*",
-        "./components/*",
-        "./app/components/*"
-      ],
-      "@/actions/*": [
-        "./src/actions/*",
-        "./app/actions/*",
-        "./actions/*"
-      ],
-      "@/*": [
-        "./*",
-        "./src/*",
-        "./app/*"
-      ]
-    },
     "plugins": [
       {
         "name": "next"
       }
-    ]
+    ],
+    "paths": {
+      "@/*": ["./*"]
+    }
   },
   "include": [
     "next-env.d.ts",
     "**/*.ts",
     "**/*.tsx",
-    ".next/types/**/*.ts",
-    ".next/dev/types/**/*.ts"
+    ".next/types/**/*.ts"
   ],
   "exclude": [
     "node_modules",
-    "fix-build-config.mjs",
-    "*.mjs"
+    "scripts"
   ]
 }

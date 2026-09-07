@@ -1,26 +1,26 @@
-import { PrismaClient } from "bzr-db";
+﻿import { prisma } from "@/lib/prisma";
 import * as fs from "fs";
 import * as path from "path";
 
-const prisma = new PrismaClient();
+
 
 async function main() {
-  console.log("🌱 [BAZAAR-SEED] Starting Virtual Marketplace Service Provider Seeding...");
+  console.log("ðŸŒ± [BAZAAR-SEED] Starting Virtual Marketplace Service Provider Seeding...");
 
   // Cast prisma to any to allow dynamic collection checks
   const db = prisma as any;
 
   if (!db.serviceProvider) {
     throw new Error(
-      "❌ Database Error: 'serviceProvider' model was not found in the compiled Prisma Client types.\n" +
-      "👉 Please verify that 'model ServiceProvider' exists in your 'prisma/schema.prisma' and that you ran 'npx prisma generate'."
+      "âŒ Database Error: 'serviceProvider' model was not found in the compiled Prisma Client types.\n" +
+      "ðŸ‘‰ Please verify that 'model ServiceProvider' exists in your 'prisma/schema.prisma' and that you ran 'npx prisma generate'."
     );
   }
 
   // Define catalog path
   const catalogPath = path.join(__dirname, "virtual-store-catalog.json");
   if (!fs.existsSync(catalogPath)) {
-    throw new Error(`❌ Catalog file not found at: ${catalogPath}`);
+    throw new Error(`âŒ Catalog file not found at: ${catalogPath}`);
   }
 
   const catalogRaw = fs.readFileSync(catalogPath, "utf8");
@@ -28,24 +28,24 @@ async function main() {
 
   const categoriesToSeed = ["CAFETERIA", "BAKERY", "PHARMACY", "DRY_MARKET", "WET_MARKET"];
 
-  console.log(`🧹 Clearing existing virtual marketplace service providers in categories: ${categoriesToSeed.join(", ")}...`);
+  console.log(`ðŸ§¹ Clearing existing virtual marketplace service providers in categories: ${categoriesToSeed.join(", ")}...`);
   const deleteResult = await db.serviceProvider.deleteMany({
     where: {
       category: { in: categoriesToSeed }
     }
   });
-  console.log(`✅ Cleared ${deleteResult.count} stale service providers.`);
+  console.log(`âœ… Cleared ${deleteResult.count} stale service providers.`);
 
   let totalSeeded = 0;
 
   for (const cat of catalog.categories) {
-    console.log(`\n📂 Seeding Category: ${cat.name} (${cat.id})`);
+    console.log(`\nðŸ“‚ Seeding Category: ${cat.name} (${cat.id})`);
     
     for (const stall of cat.stalls) {
       // Convert baseFeePi to mbzrRate (1 Pi = 1,000 mBZR peg)
       const mbzrRate = parseFloat((stall.baseFeePi * 1000).toFixed(1));
 
-      console.log(`  🛒 Adding Store: "${stall.businessName}" | Managed by: ${stall.providerUid} | Rate: ${mbzrRate} mBZR`);
+      console.log(`  ðŸ›’ Adding Store: "${stall.businessName}" | Managed by: ${stall.providerUid} | Rate: ${mbzrRate} mBZR`);
 
       const created = await db.serviceProvider.create({
         data: {
@@ -62,19 +62,20 @@ async function main() {
         }
       });
 
-      console.log(`    ✓ Created ServiceProvider document: ObjectId("${created.id}")`);
+      console.log(`    âœ“ Created ServiceProvider document: ObjectId("${created.id}")`);
       totalSeeded++;
     }
   }
 
-  console.log(`\n🎉 [BAZAAR-SEED] Success! Seeded ${totalSeeded} service providers in MongoDB!`);
+  console.log(`\nðŸŽ‰ [BAZAAR-SEED] Success! Seeded ${totalSeeded} service providers in MongoDB!`);
 }
 
 main()
   .catch((e) => {
-    console.error("❌ Fatal Seeding Failure:", e.message || e);
+    console.error("âŒ Fatal Seeding Failure:", e.message || e);
     process.exit(1);
   })
   .finally(async () => {
     await prisma.$disconnect();
   });
+
