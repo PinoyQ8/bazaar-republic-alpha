@@ -1,7 +1,6 @@
-﻿// Location: lib/prisma.ts
-import { PrismaClient } from "@prisma/client";
+﻿import { PrismaClient } from "@prisma/client";
 
-// 🛡️ Re-export Prisma types and enums (Tier, NodeStatus, etc.) from standard package
+// 🛡️ Re-export schema models, enums, and types
 export * from "@prisma/client";
 
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
