@@ -89,3 +89,47 @@ prisma/generated/
 
 # TypeScript build metadata cache
 tsconfig.tsbuildinfo
+# === Sensitive Environment Files ===
+.env
+.env*.local
+.env.development
+.env.test
+.env.production
+
+# === Build Artifacts & State Dumps ===
+.next/
+.swc/
+.vercel/
+cache/
+target/
+logs/
+*.tsbuildinfo
+tsconfig.tsbuildinfo
+*.bak
+
+# === Large Dumps & Archives ===
+*.zip
+*_mesh_map.txt
+*-mesh-map.txt
+*.log
+
+# === Root One-off Migration / Audit Scripts ===
+apply-build-fixes.mjs
+fix-schema.mjs
+mesh-uplink.mjs
+repair-routes.mjs
+setup-db-client.mjs
+write-schema.mjs
+pos-audit.js
+get-equity-stat.js
+re-sync.js
+reconcile-scan.js
+treasury-genesis.js
+manifest-vault.js
+validate-a2u.ts
+test-stress.ts
+seed.ts
+audit.ts
+build_composite.py
+simulate_elder_failover.py
+sync-treasury.ps1
