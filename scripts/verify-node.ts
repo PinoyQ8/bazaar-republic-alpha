@@ -1,4 +1,4 @@
-import { prisma } from "../lib/prisma";
+﻿import { prisma } from "../lib/prisma";
 
 async function verify() {
   console.log("🔍 Checking node record via lib/prisma singleton...");
@@ -17,17 +17,22 @@ async function verify() {
   });
 
   if (node) {
-    console.log("✔ FOUND in Database:");
-    console.log("   UID:          ", node.uid);
-    console.log("   WalletAddress:", node.walletAddress);
-    console.log("   Status:       ", node.status);
+    console.log("✅ Node anchored in MongoDB ledger:");
+    console.log(`   UID:           ${node.uid}`);
+    console.log(`   Username:      ${node.username}`);
+    console.log(`   WalletAddress: ${node.walletAddress}`);
+    console.log(`   Status:        ${node.status}`);
+    console.log(`   TrustScore:    ${node.trustScore}`);
   } else {
-    console.log("❌ NOT FOUND in Database for address:", target);
+    console.log(`⚠️ Node not found matching target: ${target}`);
   }
 }
 
 verify()
-  .catch((err) => console.error("Query failed:", err))
+  .catch((err) => {
+    console.error("❌ Verification failed:", err);
+    process.exit(1);
+  })
   .finally(async () => {
     await prisma.$disconnect();
   });
