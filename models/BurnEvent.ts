@@ -1,4 +1,4 @@
-import mongoose, { Schema, Document } from 'mongoose';
+﻿import mongoose, { Schema, Document } from 'mongoose';
 
 // 🛡️ TYPESCRIPT PURITY SHIELD
 export interface IBurnEvent extends Document {
@@ -17,4 +17,4 @@ const BurnEventSchema: Schema = new Schema({
 });
 
 // 🛡️ VERCEL HOT-RELOAD SHIELD: Prevents model overwrite errors during active forging
-export default mongoose.models.BurnEvent || mongoose.model<IBurnEvent>('BurnEvent', BurnEventSchema);
+const ExportedModel: any = mongoose.models.BurnEvent || mongoose.model<IBurnEvent>('BurnEvent', BurnEventSchema); export default ExportedModel;;

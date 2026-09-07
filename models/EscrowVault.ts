@@ -1,4 +1,4 @@
-import { Schema, model, models } from "mongoose";
+﻿import { Schema, model, models } from "mongoose";
 
 const EscrowVaultSchema = new Schema({
   escrowId: { type: String, required: true, unique: true },
@@ -11,4 +11,4 @@ const EscrowVaultSchema = new Schema({
   serviceDescription: { type: String },
 }, { timestamps: true });
 
-export const EscrowVault = models.EscrowVault || model("EscrowVault", EscrowVaultSchema);
+export const EscrowVault: any = models.EscrowVault || model("EscrowVault", EscrowVaultSchema);

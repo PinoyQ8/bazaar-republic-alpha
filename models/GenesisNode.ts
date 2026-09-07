@@ -1,4 +1,4 @@
-import mongoose, { Schema, Document } from 'mongoose';
+﻿import mongoose, { Schema, Document } from 'mongoose';
 
 export interface IGenesisNode extends Document {
   uid: string;
@@ -21,4 +21,4 @@ const GenesisNodeSchema: Schema = new Schema({
 });
 
 // 🛡️ PREVENT OVERWRITES IN NEXT.JS HOT-RELOADS
-export default mongoose.models.GenesisNode || mongoose.model<IGenesisNode>('GenesisNode', GenesisNodeSchema);
+const ExportedModel: any = mongoose.models.GenesisNode || mongoose.model<IGenesisNode>('GenesisNode', GenesisNodeSchema); export default ExportedModel;;

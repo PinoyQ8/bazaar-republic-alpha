@@ -1,4 +1,4 @@
-import mongoose, { Schema, Document } from "mongoose";
+﻿import mongoose, { Schema, Document } from "mongoose";
 
 export interface IMarketTransaction extends Document {
   merchantId: string;
@@ -18,4 +18,4 @@ const TransactionSchema = new Schema({
   timestamp: { type: Date, default: Date.now }
 });
 
-export default mongoose.models.MarketTransaction || mongoose.model<IMarketTransaction>("MarketTransaction", TransactionSchema);
+const ExportedModel: any = mongoose.models.MarketTransaction || mongoose.model<IMarketTransaction>("MarketTransaction", TransactionSchema); export default ExportedModel;;

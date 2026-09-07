@@ -1,4 +1,4 @@
-// Route: /models/Token.ts
+﻿// Route: /models/Token.ts
 // Logic: mBZR Ledger Schema (TypeScript & Mongoose Sync)
 
 import mongoose, { Schema, Document, Model } from "mongoose";
@@ -29,6 +29,6 @@ const TokenSchema: Schema = new Schema({
 });
 
 // 3. Export the locked model
-const Token: Model<IToken> = mongoose.models.Token || mongoose.model<IToken>("Token", TokenSchema);
+const Token: any = mongoose.models.Token || mongoose.model<IToken>("Token", TokenSchema);
 
 export default Token;

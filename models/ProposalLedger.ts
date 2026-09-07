@@ -1,4 +1,4 @@
-import mongoose from 'mongoose';
+﻿import mongoose from 'mongoose';
 
 /**
  * 🛡️ THE MESH VOTER RECORD (Sub-Document)
@@ -43,4 +43,4 @@ const ProposalLedgerSchema = new mongoose.Schema({
 });
 
 // 🛡️ Ensure model caching during Next.js hot-reloads
-export const ProposalLedger = mongoose.models.ProposalLedger || mongoose.model('ProposalLedger', ProposalLedgerSchema);
+export const ProposalLedger: any = mongoose.models.ProposalLedger || mongoose.model('ProposalLedger', ProposalLedgerSchema);

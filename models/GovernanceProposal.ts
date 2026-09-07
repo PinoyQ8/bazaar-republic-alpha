@@ -1,4 +1,4 @@
-import mongoose, { Schema, Document } from "mongoose";
+﻿import mongoose, { Schema, Document } from "mongoose";
 
 // 🛡️ THE DAO CONSENSUS INTERFACE
 export interface IGovernanceProposal extends Document {
@@ -28,4 +28,4 @@ const GovernanceProposalSchema: Schema = new Schema({
   expiresAt: { type: Date, required: true }
 });
 
-export const GovernanceProposal = mongoose.models.GovernanceProposal || mongoose.model<IGovernanceProposal>("GovernanceProposal", GovernanceProposalSchema);
+export const GovernanceProposal: any = mongoose.models.GovernanceProposal || mongoose.model<IGovernanceProposal>("GovernanceProposal", GovernanceProposalSchema);

@@ -1,4 +1,4 @@
-// Location: models/TransactionLedger.ts
+﻿// Location: models/TransactionLedger.ts
 import mongoose, { Schema, Document, Model } from 'mongoose';
 
 export interface ITransactionLedger extends Document {
@@ -28,5 +28,5 @@ const TransactionLedgerSchema = new Schema<ITransactionLedger>(
   { timestamps: true }
 );
 
-export const TransactionLedger: Model<ITransactionLedger> =
+export const TransactionLedger: any =
   mongoose.models.TransactionLedger || mongoose.model<ITransactionLedger>('TransactionLedger', TransactionLedgerSchema);

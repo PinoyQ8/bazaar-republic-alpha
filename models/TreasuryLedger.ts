@@ -1,4 +1,4 @@
-import mongoose, { Schema, Document } from "mongoose";
+﻿import mongoose, { Schema, Document } from "mongoose";
 
 export interface ITreasuryLedger extends Document {
   vaultType: string; // e.g., "MARKET_VELOCITY", "HEALTH_SUBSIDY"
@@ -13,4 +13,4 @@ const TreasuryLedgerSchema: Schema = new Schema({
 });
 
 // 🛡️ NAMED EXPORT FOR COMPILER ALIGNMENT
-export const TreasuryLedger = mongoose.models.TreasuryLedger || mongoose.model("TreasuryLedger", TreasuryLedgerSchema);
+export const TreasuryLedger: any = mongoose.models.TreasuryLedger || mongoose.model("TreasuryLedger", TreasuryLedgerSchema);

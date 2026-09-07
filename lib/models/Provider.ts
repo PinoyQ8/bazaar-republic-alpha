@@ -1,13 +1,13 @@
-import { NextResponse } from 'next/server';
+﻿import { NextResponse } from 'next/server';
 
-// 🛡️ PURGED: import { connectToDatabase } from '@/lib/db';
-// 🛡️ PURGED: import { Provider } from '@/lib/models/Provider';
+// ðŸ›¡ï¸ PURGED: import { connectToDatabase } from '@/lib/db';
+// ðŸ›¡ï¸ PURGED: import { Provider } from '@/lib/models/Provider';
 
 export async function POST(request: Request) {
-    console.log("🚀 [MESH-SYNC] Legacy Provider route offline for Drizzle migration.");
+    console.log("ðŸš€ [MESH-SYNC] Legacy Provider route offline for Drizzle migration.");
 
     try {
-        // 🛡️ THE MESH OVERRIDE: Legacy NoSQL logic neutralized.
+        // ðŸ›¡ï¸ THE MESH OVERRIDE: Legacy NoSQL logic neutralized.
         // All Mongoose DB execution commands have been disconnected.
 
         return NextResponse.json({ 
@@ -16,7 +16,7 @@ export async function POST(request: Request) {
         }, { status: 200 });
 
     } catch (error: any) {
-        console.error("❌ MESH CRITICAL ERROR:", error.message);
+        console.error("âŒ MESH CRITICAL ERROR:", error.message);
         return NextResponse.json({ error: "Routing failed during migration." }, { status: 500 });
     }
 }

@@ -1,4 +1,4 @@
-// models/PioneerLedger.ts
+﻿// models/PioneerLedger.ts
 import mongoose from 'mongoose';
 
 // 🛡️ BAZAAR TECH: Internal state tracking for Treasury allocations
@@ -8,4 +8,4 @@ const PioneerLedgerSchema = new mongoose.Schema({
 });
 
 // 🛡️ HOT-RELOAD SHIELD: Prevents Mongoose from crashing during Next.js recompilations
-export default mongoose.models.PioneerLedger || mongoose.model('PioneerLedger', PioneerLedgerSchema);
+const ExportedModel: any = mongoose.models.PioneerLedger || mongoose.model('PioneerLedger', PioneerLedgerSchema); export default ExportedModel;;

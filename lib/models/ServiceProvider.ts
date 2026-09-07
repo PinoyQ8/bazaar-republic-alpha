@@ -1,26 +1,26 @@
-// 🛡️ MESH E-NETWORK: SERVICE PROVIDER REGISTRY
-import mongoose from 'mongoose';
+﻿import mongoose, { Schema, Model } from "mongoose";
 
-const ServiceProviderSchema = new mongoose.Schema({
-  pioneerUid: { type: String, required: true, unique: true },
-  
-  // E-Network Identifiers
-  businessName: { type: String, required: true },
-  serviceCategory: { type: String, required: true }, // e.g., 'MERCHANT', 'DEVELOPER', 'LOGISTICS'
-  
-  // Access & Shield Status
-  status: { type: String, enum: ['PENDING_VERIFICATION', 'ACTIVE', 'FROZEN'], default: 'PENDING_VERIFICATION' },
-  
-  // Trust & Economics
-  reputationScore: { type: Number, default: 100 }, // The Trust-Logic baseline
-  stakedPi: { type: Number, default: 0 }, // Collateral locked in the DAO
-  
-  // Service Provider Manual (Compliance tracking)
-  manualVersionAgreed: { type: String, required: true }, // e.g., 'v1.0-MESH'
-  complianceHash: { type: String }, // Cryptographic proof of manual signature
-  
-  registeredAt: { type: Date, default: Date.now },
-  lastAuditAt: { type: Date, default: Date.now }
-});
+const ServiceProviderSchema = new Schema<any>(
+  {
+    businessName: { type: String, required: true },
+    serviceCategory: { type: String },
+    description: { type: String },
+    providerUid: { type: String },
+    sectorLocation: { type: String },
+    mbzrRate: { type: Number, default: 0 },
+    unitLabel: { type: String },
+    isVerified: { type: Boolean, default: false },
+    status: { type: String, default: "ACTIVE" },
+    totalSettlements: { type: Number, default: 0 },
+    rating: { type: Number, default: 5.0 },
+    registeredAt: { type: Date, default: Date.now },
+  },
+  { timestamps: true, strict: false }
+);
 
-export const ServiceProvider = mongoose.models.ServiceProvider || mongoose.model('ServiceProvider', ServiceProviderSchema);
+export const ServiceProvider: any =
+  (mongoose.models && (mongoose.models.ServiceProvider as Model<any>)) ||
+  mongoose.model<any>("ServiceProvider", ServiceProviderSchema);
+
+export default ServiceProvider;
+

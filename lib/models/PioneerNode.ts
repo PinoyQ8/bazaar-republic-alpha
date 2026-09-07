@@ -1,7 +1,7 @@
 ﻿// 🛡️ MESH PIONEER NODE SCHEMA (UNIFIED)
 import mongoose, { Schema, model, models } from 'mongoose';
 
-const PioneerNodeSchema = new Schema({
+const PioneerNodeSchema = new Schema<any>({
   // 🛡️ CORE IDENTITY
   uid: { type: String, required: true, unique: true },
   username: { type: String, default: "Pioneer" }, 
@@ -21,4 +21,4 @@ const PioneerNodeSchema = new Schema({
 });
 
 // 🛡️ FIXED: Corrected the schema reference to match PioneerNodeSchema
-export const PioneerNode = models.PioneerNode || model('PioneerNode', PioneerNodeSchema, 'pioneernodes');
+export const PioneerNode: any = models.PioneerNode || model('PioneerNode', PioneerNodeSchema, 'pioneernodes');

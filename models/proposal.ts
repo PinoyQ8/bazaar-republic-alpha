@@ -1,4 +1,4 @@
-// 🛡️ MESH GOVERNANCE LEDGER SCHEMA: 5-TIER MATRIX (TWO-STAGE FILTER)
+﻿// 🛡️ MESH GOVERNANCE LEDGER SCHEMA: 5-TIER MATRIX (TWO-STAGE FILTER)
 import mongoose from 'mongoose';
 
 const TierVoteSchema = new mongoose.Schema({
@@ -54,4 +54,4 @@ const ProposalSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now }
 });
 
-export const Proposal = mongoose.models.Proposal || mongoose.model('Proposal', ProposalSchema);
+export const Proposal: any = mongoose.models.Proposal || mongoose.model('Proposal', ProposalSchema);

@@ -1,4 +1,4 @@
-import mongoose, { Schema, Document } from "mongoose";
+﻿import mongoose, { Schema, Document } from "mongoose";
 
 // 🛡️ TYPE ADJUDICATOR
 export interface IStakingLedger extends Document {
@@ -41,4 +41,4 @@ const StakingLedgerSchema: Schema = new Schema({
 });
 
 // Prevent Next.js HMR recompilation crashes
-export default mongoose.models.StakingLedger || mongoose.model<IStakingLedger>("StakingLedger", StakingLedgerSchema);
+const ExportedModel: any = mongoose.models.StakingLedger || mongoose.model<IStakingLedger>("StakingLedger", StakingLedgerSchema); export default ExportedModel;;

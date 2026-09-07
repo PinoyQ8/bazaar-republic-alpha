@@ -1,4 +1,4 @@
-import mongoose, { Schema, Document } from 'mongoose';
+﻿import mongoose, { Schema, Document } from 'mongoose';
 
 export interface IPioneerCDP extends Document {
   pioneerId: string;
@@ -16,4 +16,4 @@ const PioneerCDPSchema: Schema = new Schema({
   lastUpdated: { type: Date, default: Date.now }
 });
 
-export const PioneerCDP = mongoose.models.PioneerCDP || mongoose.model<IPioneerCDP>('PioneerCDP', PioneerCDPSchema);
+export const PioneerCDP: any = mongoose.models.PioneerCDP || mongoose.model<IPioneerCDP>('PioneerCDP', PioneerCDPSchema);

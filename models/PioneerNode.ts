@@ -1,4 +1,4 @@
-// Location: models/PioneerNode.ts
+﻿// Location: models/PioneerNode.ts
 import mongoose, { Schema, Document } from "mongoose";
 
 export interface IPioneerNode extends Document {
@@ -96,6 +96,6 @@ const PioneerNodeSchema = new Schema<IPioneerNode>(
   { timestamps: true }
 );
 
-export const PioneerNode =
+export const PioneerNode: any =
   mongoose.models.PioneerNode ||
   mongoose.model<IPioneerNode>("PioneerNode", PioneerNodeSchema);

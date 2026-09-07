@@ -1,4 +1,4 @@
-import mongoose, { Schema, Document } from 'mongoose';
+﻿import mongoose, { Schema, Document } from 'mongoose';
 
 export interface IStabilityPool extends Document {
   liquidatorId: string;
@@ -16,4 +16,4 @@ const StabilityPoolSchema: Schema = new Schema({
   lastUpdated: { type: Date, default: Date.now }
 });
 
-export const StabilityPool = mongoose.models.StabilityPool || mongoose.model<IStabilityPool>('StabilityPool', StabilityPoolSchema);
+export const StabilityPool: any = mongoose.models.StabilityPool || mongoose.model<IStabilityPool>('StabilityPool', StabilityPoolSchema);

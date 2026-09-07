@@ -1,4 +1,4 @@
-import mongoose, { Schema, Document, Model } from "mongoose";
+﻿import mongoose, { Schema, Document, Model } from "mongoose";
 
 export interface IAcademyLedger extends Document {
   pioneerId: string;
@@ -26,5 +26,5 @@ const AcademyLedgerSchema: Schema<IAcademyLedger> = new Schema(
 );
 
 // 🛡️ PREVENT MODEL OVERWRITE COMPILE ERRORS
-export const AcademyLedger: Model<IAcademyLedger> = 
+export const AcademyLedger: any = 
   mongoose.models.AcademyLedger || mongoose.model<IAcademyLedger>("AcademyLedger", AcademyLedgerSchema);

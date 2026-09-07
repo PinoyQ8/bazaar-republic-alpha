@@ -1,4 +1,4 @@
-// lib/models/ClaimEvent.ts
+﻿// lib/models/ClaimEvent.ts
 import mongoose, { Schema, Document } from 'mongoose';
 
 export interface IClaim extends Document {
@@ -12,7 +12,7 @@ const ClaimSchema = new Schema<IClaim>({
   pioneerUid: { 
     type: String, 
     required: true, 
-    unique: true // 🛡️ MESH-LOCK: Sybil Defense
+    unique: true // ðŸ›¡ï¸ MESH-LOCK: Sybil Defense
   },
   walletAddress: { type: String, required: true },
   amountClaimed: { type: Number, required: true },
@@ -20,4 +20,4 @@ const ClaimSchema = new Schema<IClaim>({
 });
 
 // Prevent model overwrite upon Next.js hot-reloading
-export default mongoose.models.ClaimEvent || mongoose.model<IClaim>('ClaimEvent', ClaimSchema);
+const ExportedModel: any = mongoose.models.ClaimEvent || mongoose.model<IClaim>('ClaimEvent', ClaimSchema); export default ExportedModel;;

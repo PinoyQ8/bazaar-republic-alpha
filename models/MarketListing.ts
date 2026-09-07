@@ -1,4 +1,4 @@
-// Location: models/MarketListing.ts
+﻿// Location: models/MarketListing.ts
 import mongoose, { Schema, Document, Model } from 'mongoose';
 
 export interface IMarketListing extends Document {
@@ -37,5 +37,5 @@ const MarketListingSchema = new Schema<IMarketListing>(
 );
 
 // 🛡️ Prevent model overwrite in Next.js HMR environment
-export const MarketListing: Model<IMarketListing> =
+export const MarketListing: any =
   mongoose.models.MarketListing || mongoose.model<IMarketListing>('MarketListing', MarketListingSchema);

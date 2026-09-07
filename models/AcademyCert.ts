@@ -1,4 +1,4 @@
-import mongoose, { Schema, Document } from "mongoose";
+﻿import mongoose, { Schema, Document } from "mongoose";
 
 export interface IAcademyCert extends Document {
   username: string;
@@ -16,4 +16,4 @@ const AcademyCertSchema: Schema = new Schema({
   completedAt: { type: Date, default: Date.now }
 });
 
-export default mongoose.models.AcademyCert || mongoose.model<IAcademyCert>("AcademyCert", AcademyCertSchema);
+const ExportedModel: any = mongoose.models.AcademyCert || mongoose.model<IAcademyCert>("AcademyCert", AcademyCertSchema); export default ExportedModel;;
