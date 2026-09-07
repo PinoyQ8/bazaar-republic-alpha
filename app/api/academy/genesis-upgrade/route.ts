@@ -1,55 +1,55 @@
-// Location: app/api/academy/genesis-upgrade/route.ts
-import { NextResponse } from "next/server";
-import { db as prisma } from "@/lib/db"; // Safely imports our dual-export singleton
+// app/api/academy/genesis-upgrade/route.ts
+import { NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma'; // 🛡️ Import your singleton, never instantiate `new PrismaClient()` here
 
-export async function POST(req: Request) {
+// 🛡️ CRITICAL: Prevent Next.js from evaluating or pre-rendering this route during build time
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
+export async function POST(request: Request) {
   try {
-    const { uid } = await req.json();
+    // 🛡️ Build-time execution shield
+    if (!prisma) {
+      return NextResponse.json(
+        { success: false, error: "Database client unavailable during static analysis." },
+        { status: 503 }
+      );
+    }
+
+    const body = await request.json();
+    const { uid, passkeyId, publicKey } = body;
 
     if (!uid) {
       return NextResponse.json(
-        { error: "MESH_ERROR: Node Identity Missing." },
+        { success: false, error: "Missing Pioneer UID." },
         { status: 400 }
       );
     }
 
-    const db = prisma as any;
-
-    // 1. Atomic Node Status Upgrade
-    const updatedNode = await db.pioneerNode.upsert({
+    // Execute your node upgrade logic inside the request handler
+    const updatedNode = await (prisma as any).pioneerNode.upsert({
       where: { uid },
       update: {
-        status: "ACTIVE",
-        tier: "CITIZEN",
-        lastActivityTimestamp: new Date(),
+        genesisCompleted: true,
+        passkeyId: passkeyId || undefined,
+        publicKey: publicKey || undefined,
+        updatedAt: new Date(),
       },
       create: {
         uid,
-        status: "ACTIVE",
+        username: "PIONEER_NODE",
+        genesisCompleted: true,
+        passkeyId: passkeyId || undefined,
+        publicKey: publicKey || undefined,
         tier: "CITIZEN",
-        uptimeShield: 100.0,
-        trustScore: 100.0,
       },
     });
 
-    // 2. Immutable Audit Trail (Academy Module Completion)
-    await db.academyLog.create({
-      data: {
-        pioneerUid: uid,
-        action: "GENESIS_COMPLETED",
-        moduleLocked: "MODULE_01_GENESIS",
-      },
-    });
-
-    return NextResponse.json({
-      success: true,
-      status: updatedNode.status,
-      tier: updatedNode.tier,
-    });
+    return NextResponse.json({ success: true, node: updatedNode }, { status: 200 });
   } catch (error: any) {
-    console.error("[GENESIS UPGRADE ERROR]:", error);
+    console.error("[GENESIS_UPGRADE_ERROR]:", error);
     return NextResponse.json(
-      { error: error.message || "Failed to synchronize Genesis upgrade." },
+      { success: false, error: error.message || "Failed to process genesis upgrade." },
       { status: 500 }
     );
   }
