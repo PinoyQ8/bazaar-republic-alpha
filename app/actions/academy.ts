@@ -1,7 +1,7 @@
 // Location: app/actions/academy.ts
 "use server";
 
-import { prisma } from "@/lib/prisma"; // 🛡️ Binds directly to bzr-db Schema v2.7.2 singleton
+import { prisma } from "@/lib/prisma";
 
 export async function logAcademyProgress(
   pioneerUid: string,
@@ -9,6 +9,12 @@ export async function logAcademyProgress(
   action: string
 ) {
   try {
+    // 🛡️ Guard against build-time execution where Prisma client is uninitialized
+    if (!prisma || typeof (prisma as any).academyLog === "undefined") {
+      console.warn("[ACADEMY_LOG_WARN]: Prisma client or academyLog model not initialized during build phase.");
+      return { success: false, error: "Prisma client uninitialized during static generation." };
+    }
+
     const log = await (prisma as any).academyLog.create({
       data: {
         pioneerUid,
