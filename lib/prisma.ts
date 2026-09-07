@@ -1,9 +1,12 @@
-﻿// lib/prisma.ts
+﻿// Location: lib/prisma.ts
 import { PrismaClient } from "@prisma/client";
 
-const globalForPrisma = global as unknown as { prisma?: PrismaClient };
+// 🛡️ Re-export Prisma types and enums (Tier, NodeStatus, etc.) from standard package
+export * from "@prisma/client";
 
-function getPrismaInstance(): PrismaClient {
+const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
+
+function getPrismaClient(): PrismaClient {
   if (!globalForPrisma.prisma) {
     globalForPrisma.prisma = new PrismaClient({
       log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"],
@@ -12,10 +15,10 @@ function getPrismaInstance(): PrismaClient {
   return globalForPrisma.prisma;
 }
 
-// 🛡️ Lazy Proxy: Defers `new PrismaClient()` so module imports never crash static build analysis
+// 🛡️ Lazy Proxy singleton to prevent static build evaluation crashes
 export const prisma = new Proxy({} as PrismaClient, {
   get(_target, prop) {
-    const client = getPrismaInstance();
+    const client = getPrismaClient();
     const value = (client as any)[prop];
     return typeof value === "function" ? value.bind(client) : value;
   },
