@@ -52,7 +52,6 @@
     "@prisma/config": "^7.8.0",
     "@tailwindcss/postcss": "^4",
     "@types/jest": "^30.0.0",
-    "@types/mongoose": "^5.11.96",
     "@types/node": "^20.19.43",
     "@types/pg": "^8.20.0",
     "@types/react": "^19",

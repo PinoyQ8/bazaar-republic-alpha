@@ -1,27 +1,24 @@
-// 🛡️ MESH E-NETWORK: PUBLIC DIRECTORY RADAR
-import { NextResponse } from 'next/server';
-import { ServiceProvider } from '@/lib/models/ServiceProvider';
+﻿import { NextResponse } from "next/server";
+import { ServiceProvider } from "@/lib/models/ServiceProvider";
 
-// 🛡️ PRE-FLIGHT LOCK: Disable static caching to ensure real-time directory sync
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
+    const activeNodes = await (ServiceProvider as any)
+      .find({ status: "ACTIVE" })
+      .select("_id businessName serviceCategory registeredAt")
+      .sort({ registeredAt: -1 });
 
-    // 🛡️ 1. MESH-SCAN: Isolate only ACTIVE nodes
-    // 🛡️ 2. PRIVACY SHIELD: Select only public-facing parameters
-    const activeNodes = await ServiceProvider.find({ status: 'ACTIVE' })
-      .select('_id businessName serviceCategory registeredAt')
-      .sort({ registeredAt: -1 }); // Render the newest verified nodes at the top
-
-    return NextResponse.json({ 
-      success: true, 
+    return NextResponse.json({
+      success: true,
       nodes: activeNodes,
-      count: activeNodes.length
+      count: activeNodes.length,
     });
-
-  } catch (error) {
-    console.error("[PUBLIC_DIRECTORY_SCAN_PANIC]:", error);
-    return NextResponse.json({ success: false, error: "INTERNAL_MESH_FRACTURE" }, { status: 500 });
+  } catch (error: any) {
+    return NextResponse.json(
+      { success: false, error: error.message || "Failed to query nodes" },
+      { status: 500 }
+    );
   }
 }
