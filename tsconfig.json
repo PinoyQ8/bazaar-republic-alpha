@@ -19,7 +19,13 @@
       }
     ],
     "paths": {
-      "@/*": ["./*"]
+      "@/context/*": ["./app/context/*", "./src/context/*", "./context/*"],
+      "@/actions/*": ["./app/actions/*", "./src/actions/*", "./actions/*"],
+      "@/components/*": ["./components/*", "./src/components/*", "./app/components/*"],
+      "@/hooks/*": ["./hooks/*", "./src/hooks/*", "./app/hooks/*"],
+      "@/lib/*": ["./lib/*", "./src/lib/*", "./app/lib/*"],
+      "@/contracts/*": ["./src/contracts/*", "./contracts/*"],
+      "@/*": ["./*", "./src/*", "./app/*"]
     }
   },
   "include": [
@@ -30,6 +36,9 @@
   ],
   "exclude": [
     "node_modules",
-    "scripts"
+    "scripts",
+    "models",
+    "bazaar_*.tsx",
+    "bazaar_*.ts"
   ]
 }
