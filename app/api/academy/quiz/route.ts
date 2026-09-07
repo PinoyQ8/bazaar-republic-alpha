@@ -1,5 +1,10 @@
+// Location: app/api/academy/quiz/route.ts
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+
+// 🛡️ CRITICAL: Prevents Next.js Turbopack from collecting page data during build
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 // 🎓 Explicit Data Interfaces
 interface QuizOption {
@@ -32,6 +37,14 @@ function shuffleArray<T>(array: T[]): T[] {
 // -----------------------------------------------------------------------------
 export async function GET(request: Request) {
   try {
+    // 🛡️ Build-time execution shield
+    if (!prisma) {
+      return NextResponse.json(
+        { error: 'Prisma client uninitialized during static analysis.' },
+        { status: 503 }
+      );
+    }
+
     const { searchParams } = new URL(request.url);
     const phase = parseInt(searchParams.get('phase') || '1', 10);
 
@@ -40,7 +53,7 @@ export async function GET(request: Request) {
 
     // Type-safe access to Prisma Client
     const db = prisma as any;
-    if (!db.quizQuestion) {
+    if (!db?.quizQuestion) {
       return NextResponse.json(
         { error: 'Prisma Client missing quizQuestion model. Run npx prisma generate.' },
         { status: 500 }
@@ -91,6 +104,14 @@ export async function GET(request: Request) {
 // -----------------------------------------------------------------------------
 export async function POST(request: Request) {
   try {
+    // 🛡️ Build-time execution shield
+    if (!prisma) {
+      return NextResponse.json(
+        { error: 'Prisma client uninitialized during static analysis.' },
+        { status: 503 }
+      );
+    }
+
     const body = await request.json();
     const { phase, userPasskeyId, answers, passkeyAssertion } = body as {
       phase: number;
