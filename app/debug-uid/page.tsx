@@ -5,16 +5,19 @@ export default function DebugUID() {
   const [uid, setUid] = useState<string>('Authenticating...');
 
   useEffect(() => {
-    // Standard Pi SDK Authentication Call
-    if (typeof window !== 'undefined' && window.Pi) {
-      window.Pi.init({ version: '2.0', sandbox: true });
-      window.Pi.authenticate(['payments'], ['username']).then((auth: any) => {
-        setUid(auth.user.uid);
-      }).catch((err: any) => setUid('Error: ' + err.message));
-    } else {
-      setUid('Pi SDK not found. Open this in Pi Browser.');
-    }
-  }, []);
+  if (typeof window === "undefined" || !window.Pi) return;
+  const pi = window.Pi;
+
+  pi.authenticate(["username"], (incompletePayment) => {
+    console.warn("[DEBUG] Incomplete payment caught:", incompletePayment);
+  })
+    .then((authResult) => {
+      console.log("[DEBUG] Pioneer UID:", authResult.user.uid);
+    })
+    .catch((error) => {
+      console.error("[DEBUG] Authentication failed:", error);
+    });
+}, []);
 
   return (
     <div className="p-10 font-mono text-green-500 bg-black h-screen">

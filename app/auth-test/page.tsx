@@ -4,7 +4,7 @@ import { useState } from "react";
 import Script from "next/script";
 
 // TypeScript global declaration for Pi SDK
-declare global {
+{
   interface Window {
     Pi: {
       init: (config: { version: string; sandbox?: boolean }) => void;

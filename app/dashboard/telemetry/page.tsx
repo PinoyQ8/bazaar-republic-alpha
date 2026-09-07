@@ -9,13 +9,11 @@
  */
 
 import React from "react";
-import { PrismaClient } from "bzr-db";
+import { prisma } from "@/lib/prisma";
 
 // Force dynamic fetching on every request to keep telemetry fresh
 export const revalidate = 0;
 export const dynamic = "force-dynamic";
-
-const prisma = new PrismaClient();
 
 interface TelemetryMetrics {
   totalNodes: number;

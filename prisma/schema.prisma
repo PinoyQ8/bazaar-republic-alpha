@@ -5,6 +5,7 @@ datasource db {
 
 generator client {
   provider      = "prisma-client-js"
+  output        = "./generated/client"
   binaryTargets = ["native", "windows", "rhel-openssl-3.0.x", "linux-musl-openssl-3.0.x"]
 }
 
@@ -163,8 +164,9 @@ model ServiceProvider {
 
 model EscrowLock {
   id                 String          @id @default(auto()) @map("_id") @db.ObjectId
-  paymentId          String?
-  txid               String?
+  escrowId           String          @unique // 👈 RESTORED UNIQUE FIELD!
+  paymentId          String?         @unique
+  txid               String?         @unique // Maps to sorobanTxHash
   consumerUid        String
   providerId         String          @db.ObjectId
   amount             Float
@@ -174,8 +176,15 @@ model EscrowLock {
   serviceDescription String
   createdAt          DateTime        @default(now())
   updatedAt          DateTime        @updatedAt
+
+  // 👇 ADDED TELEMETRY COLUMNS TO SUPPORT YOUR ENHANCED TESTING PAYLOADS:
+  contractId         String?
+  sorobanTxHash      String?
+  originNode         String?
+  network            String?         @default("testnet")
+
   provider           ServiceProvider @relation(fields: [providerId], references: [id])
-  disputes           DisputeRecord[]
+  dispute            DisputeRecord?
 
   @@index([consumerUid])
   @@index([status])
@@ -307,4 +316,18 @@ model AuditLog {
   payload   String
   nodeId    String
   timestamp DateTime @default(now())
+}
+
+model NodeService {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  serviceId   String   @unique
+  name        String
+  description String?
+  isEnabled   Boolean  @default(true)
+  providerId  String?
+  hourlyRate  Float?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("node_services")
 }

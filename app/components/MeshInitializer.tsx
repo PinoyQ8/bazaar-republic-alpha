@@ -5,7 +5,7 @@ import { useAuth } from "@/app/context/AuthContext";
 import { Loader2 } from "lucide-react";
 
 // Declare window.Pi for TypeScript safety
-declare global {
+{
   interface Window {
     Pi: any;
   }

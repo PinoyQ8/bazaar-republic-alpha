@@ -4,13 +4,6 @@ import React, { useState, useEffect, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 
-// Declare window.Pi for TypeScript to prevent compiler panics
-declare global {
-  interface Window {
-    Pi: any;
-  }
-}
-
 function DeployFormContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -24,39 +17,57 @@ function DeployFormContent() {
   const [estimatedHours, setEstimatedHours] = useState("12");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // 🛡️ Auto-authenticate if no local session exists
+  // 🛡️ Auto-authenticate using standard Promise pattern
   useEffect(() => {
-    const cachedUser = localStorage.getItem("pi_auth_user");
-    if (!cachedUser && typeof window !== "undefined" && window.Pi) {
-      console.log("[MESH-SCAN] No session detected. Triggering Pi.authenticate()...");
-      window.Pi.authenticate(
-        ["username", "payments"],
-        (incompletePayment: any) => {
-          console.warn("[MESH-SCAN] Incomplete payment detected:", incompletePayment);
-        },
-        (authResult: any) => {
-          console.log("[MESH-SCAN] Authentication Success:", authResult.user.username);
-          localStorage.setItem("pi_auth_user", JSON.stringify({
+    const initAndAuthenticate = async () => {
+      if (typeof window === "undefined" || !window.Pi) return;
+      const cachedUser = localStorage.getItem("pi_auth_user");
+      if (cachedUser) return;
+
+      const pi = window.Pi;
+      try {
+        await pi.init({
+          version: "2.0",
+          sandbox: process.env.NODE_ENV !== "production",
+        });
+
+        console.log("[MESH-SCAN] Initializing authentication handshake...");
+        const authResult = await pi.authenticate(
+          ["username", "payments"],
+          (incompletePayment: any) => {
+            console.warn("[MESH-SCAN] Incomplete payment caught:", incompletePayment);
+          }
+        );
+
+        console.log("[MESH-SCAN] Authentication Success:", authResult.user.username);
+        localStorage.setItem(
+          "pi_auth_user",
+          JSON.stringify({
             uid: authResult.user.uid,
             username: authResult.user.username,
-            accessToken: authResult.accessToken
-          }));
-        },
-        (error: any) => {
-          console.error("[MESH-SCAN] Pi Authentication Fault:", error);
-        }
-      );
-    }
+            accessToken: authResult.accessToken,
+          })
+        );
+      } catch (error) {
+        console.error("[MESH-SCAN] Pi Authentication Fault:", error);
+      }
+    };
+
+    initAndAuthenticate();
   }, []);
 
-  const handleExecuteBroadcast = async (e: React.SyntheticEvent) => {
+  const handleExecuteBroadcast = async (e: React.FormEvent) => {
     e.preventDefault();
-    e.stopPropagation();
     if (isSubmitting) return;
-    
+
+    if (typeof window === "undefined" || !window.Pi) {
+      alert("❌ [MESH-SCAN] Pi SDK not detected in active window. Open inside the Pi Browser.");
+      return;
+    }
+
+    const pi = window.Pi;
     setIsSubmitting(true);
-    
-    // Retrieve stored access token for API gate authorization
+
     let accessToken = "";
     try {
       const cached = localStorage.getItem("pi_auth_user");
@@ -65,87 +76,72 @@ function DeployFormContent() {
         accessToken = parsed.accessToken || "";
       }
     } catch (err) {
-      console.error("[MESH-SCAN] Failed to parse local session cache:", err);
+      console.error("[MESH-SCAN] Failed to parse session token:", err);
     }
 
-    // Calculate Escrow Allocation (Base Rate * Hours)
     const rateVal = parseFloat(baseRate) || 0;
     const hoursVal = parseFloat(estimatedHours) || 0;
     const totalEscrow = Math.max(0.01, rateVal * hoursVal).toFixed(2);
 
-    console.log("==================================================");
-    console.log("[MESH-SCAN] INITIATING PI SDK PAYMENT PROTOCOL");
-    console.log(`[MESH-SCAN] Target Node: ${providerId}`);
-    console.log(`[MESH-SCAN] Escrow Lock Amount: ${totalEscrow} Pi`);
-    console.log("==================================================");
-
     try {
-      if (typeof window === "undefined" || !window.Pi) {
-        throw new Error("[MESH-SCAN] Pi SDK not detected in global scope. Cannot broadcast.");
-      }
+      pi.createPayment(
+        {
+          amount: parseFloat(totalEscrow),
+          memo: `Escrow Lock: Node ${providerId.substring(0, 8)}`,
+          metadata: {
+            providerId,
+            estimatedHours,
+            contractType: "BAZAAR_ESCROW_LOCK",
+          },
+        },
+        {
+          onReadyForServerApproval: async (paymentId: string) => {
+            try {
+              const res = await fetch("/api/pi/approve", {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  Authorization: `Bearer ${accessToken}`,
+                },
+                body: JSON.stringify({ paymentId }),
+              });
+              if (!res.ok) throw new Error("Approval Gate Rejected");
+              console.log("✅ [MESH-SCAN] Server Approval Gate Passed.");
+            } catch (error) {
+              console.error("❌ [MESH-SCAN] API Approval Fault:", error);
+              setIsSubmitting(false);
+            }
+          },
+          onReadyForServerCompletion: async (paymentId: string, txid: string) => {
+            try {
+              const res = await fetch("/api/pi/complete", {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  Authorization: `Bearer ${accessToken}`,
+                },
+                body: JSON.stringify({ paymentId, txid }),
+              });
+              if (!res.ok) throw new Error("Completion Gate Rejected");
 
-      // Execute Native Pi Wallet Handshake
-      window.Pi.createPayment({
-        amount: parseFloat(totalEscrow),
-        memo: `Escrow Lock: Node ${providerId.substring(0, 8)}`,
-        metadata: {
-          providerId: providerId,
-          estimatedHours: estimatedHours,
-          contractType: "BAZAAR_ESCROW_LOCK"
-        },
-      }, {
-        onReadyForServerApproval: async (paymentId: string) => {
-          console.log("[MESH-SCAN] Server Approval Requested. Forwarding Payment ID:", paymentId);
-          try {
-            const res = await fetch("/api/pi/approve", {
-              method: "POST",
-              headers: { 
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${accessToken}` 
-              },
-              body: JSON.stringify({ paymentId }),
-            });
-            if (!res.ok) throw new Error("Approval Gate Rejected");
-            console.log("✅ [MESH-SCAN] Server Approval Gate Passed.");
-          } catch (error) {
-            console.error("❌ [MESH-SCAN] API Approval Fault:", error);
+              alert(`✅ [MESH-SCAN] Escrow Locked! TXID: ${txid}`);
+              setIsSubmitting(false);
+              router.push(`/e-network/provider/${providerId}`);
+            } catch (error) {
+              console.error("❌ [MESH-SCAN] API Completion Fault:", error);
+              setIsSubmitting(false);
+            }
+          },
+          onCancel: (paymentId: string) => {
+            console.warn("⚠️ [MESH-SCAN] Handshake Aborted by Pioneer. Payment ID:", paymentId);
             setIsSubmitting(false);
-          }
-        },
-        onReadyForServerCompletion: async (paymentId: string, txid: string) => {
-          console.log("[MESH-SCAN] Blockchain Confirmed! Forwarding TXID to Server Gate:", txid);
-          try {
-            const res = await fetch("/api/pi/complete", {
-              method: "POST",
-              headers: { 
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${accessToken}` 
-              },
-              body: JSON.stringify({ paymentId, txid }),
-            });
-            if (!res.ok) throw new Error("Completion Gate Rejected");
-            
-            console.log("✅ [MESH-SCAN] Contract Sealed on MESH.");
-            alert(`✅ [MESH-SCAN] Escrow Locked! TXID: ${txid}`);
+          },
+          onError: (error: Error, payment: any) => {
+            console.error("❌ [MESH-SCAN] Pi Wallet Broadcast Error:", error, payment);
             setIsSubmitting(false);
-            
-            // Redirect Pioneer back to the Node profile upon success
-            router.push(`/e-network/provider/${providerId}`);
-          } catch (error) {
-            console.error("❌ [MESH-SCAN] API Completion Fault:", error);
-            setIsSubmitting(false);
-          }
-        },
-        onCancel: (paymentId: string) => {
-          console.warn("⚠️ [MESH-SCAN] Handshake Aborted by Pioneer. Payment ID:", paymentId);
-          setIsSubmitting(false);
-        },
-        onError: (error: Error, payment: any) => {
-          console.error("❌ [MESH-SCAN] Pi Wallet Broadcast Error:", error);
-          setIsSubmitting(false);
-        },
-      });
-
+          },
+        }
+      );
     } catch (error) {
       console.error("[MESH-SCAN] System Fault:", error);
       alert("❌ [MESH-SCAN] SDK Fault: Pi Wallet could not be invoked.");
@@ -179,7 +175,7 @@ function DeployFormContent() {
         </div>
       </div>
 
-      <div className="space-y-4">
+      <form onSubmit={handleExecuteBroadcast} className="space-y-4">
         <div>
           <label className="block text-xs font-bold text-zinc-400 uppercase tracking-wider mb-2 font-mono">
             Task Definition / Scope of Work
@@ -191,7 +187,7 @@ function DeployFormContent() {
             className="w-full bg-black text-zinc-100 border border-zinc-800 rounded p-3 text-xs focus:outline-none focus:border-emerald-500 font-mono resize-none leading-relaxed"
           />
         </div>
-        
+
         <div>
           <label className="block text-xs font-bold text-zinc-400 uppercase tracking-wider mb-2 font-mono">
             Escrow Allocation (Estimated Hours)
@@ -207,24 +203,18 @@ function DeployFormContent() {
         </div>
 
         <div className="flex flex-col sm:flex-row gap-3 pt-2">
-          <div
-            role="button"
-            tabIndex={0}
-            onClick={handleExecuteBroadcast}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                handleExecuteBroadcast(e);
-              }
-            }}
-            className={`flex-1 text-center font-bold py-3 px-4 rounded font-mono text-sm uppercase select-none cursor-pointer ${
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className={`flex-1 text-center font-bold py-3 px-4 rounded font-mono text-sm uppercase select-none transition-colors ${
               isSubmitting
                 ? "bg-zinc-700 text-zinc-400 cursor-not-allowed"
-                : "bg-emerald-600 hover:bg-emerald-500 text-black"
+                : "bg-emerald-600 hover:bg-emerald-500 text-black cursor-pointer"
             }`}
           >
             {isSubmitting ? "Broadcasting Envelope..." : "Sign & Broadcast Agreement"}
-          </div>
-          
+          </button>
+
           <Link
             href={`/e-network/provider/${providerId}`}
             className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-center font-bold py-3 px-4 rounded font-mono text-sm uppercase flex items-center justify-center"
@@ -232,14 +222,20 @@ function DeployFormContent() {
             Abort Handshake
           </Link>
         </div>
-      </div>
+      </form>
     </div>
   );
 }
 
 export default function ContractDeploymentSector() {
   return (
-    <Suspense fallback={<div className="p-6 text-emerald-400 font-mono text-xs text-center">[ MESH_SCAN: Hydrating Sector... ]</div>}>
+    <Suspense
+      fallback={
+        <div className="p-6 text-emerald-400 font-mono text-xs text-center">
+          [ MESH_SCAN: Hydrating Sector... ]
+        </div>
+      }
+    >
       <DeployFormContent />
     </Suspense>
   );

@@ -1,0 +1,175 @@
+version: '3.8'
+
+services:
+  # =====================================================================
+  # 1. DATABASE & PERSISTENCE LAYER (Hardened Isolation)
+  # =====================================================================
+  db:
+    image: mongo:6.0
+    container_name: bzr-db
+    restart: always
+    ports:
+      - "127.0.0.1:27017:27017" # Bound strictly to local loopback to block external firewall bypass
+    environment:
+      MONGO_INITDB_DATABASE: bazaar_republic
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - bzr-network
+    # Run as a single-node replica set to support Prisma multi-document transactions
+    command: ["--replSet", "rs0", "--bind_ip_all"]
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "try { rs.status().ok } catch (e) { try { rs.initiate({_id: 'rs0', members: [{_id: 0, host: 'localhost:27017'}]}); } catch (err) { quit(1); } }"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # =====================================================================
+  # 2. PRIMARY NODE CORE (Bazaar Republic App - High Priority SLA)
+  # =====================================================================
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: bzr-nextjs-app
+    restart: always
+    ports:
+      - "127.0.0.1:3000:3000" # Loopback-only to force ingress through the secure Caddy router
+    environment:
+      - DATABASE_URL=mongodb://db:27017/bazaar_republic?replicaSet=rs0&directConnection=true&readConcernLevel=majority&w=majority
+      - SOROBAN_RPC_URL=https://soroban-testnet.stellar.org
+      - BAZAAR_VAULT_CONTRACT_ID=CDI5EAXHES3KPZBLAICUWUSDCLFGTN3MDURTFMQCXTQWFSYRK357YPD6
+      - PI_API_KEY=${PI_API_KEY}
+      - NEXT_PUBLIC_PI_SANDBOX=true
+    networks:
+      - bzr-network
+    volumes:
+      - ./healthcheck.sh:/app/healthcheck.sh
+    depends_on:
+      db:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: '2.00'
+          memory: 4GB # Generous ceiling to secure the main transaction engine
+        reservations:
+          memory: 2GB
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health", "||", "exit", "1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  # =====================================================================
+  # 3. ON-CHAIN RELAYER DAEMON (Bazaar Relayer - Uptime Prioritized)
+  # =====================================================================
+  relayer:
+    build:
+      context: .
+      dockerfile: Dockerfile.relayer
+    container_name: bzr-bridge-relayer
+    restart: always
+    environment:
+      - DATABASE_URL=mongodb://db:27017/bazaar_republic?replicaSet=rs0&directConnection=true&readConcernLevel=majority&w=majority
+      - SOROBAN_RPC_URL=https://soroban-testnet.stellar.org
+      - BAZAAR_VAULT_CONTRACT_ID=CDI5EAXHES3KPZBLAICUWUSDCLFGTN3MDURTFMQCXTQWFSYRK357YPD6
+      - PI_API_KEY=${PI_API_KEY}
+    networks:
+      - bzr-network
+    depends_on:
+      db:
+        condition: service_healthy
+    # Ensure active transactional batches can complete before the daemon is force-killed
+    stop_grace_period: 1m30s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 512MB
+
+  # =====================================================================
+  # 4. INGRESS REVERSE PROXY GATEWAY (Caddy Gateway)
+  # =====================================================================
+  gateway:
+    image: caddy:2-alpine
+    container_name: bzr-caddy-gateway
+    restart: always
+    ports:
+      - "13409:13409" # Public/LAN exposure on custom ingress port
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - bzr-network
+    depends_on:
+      app:
+        condition: service_started
+    deploy:
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 256MB
+
+  # =====================================================================
+  # 5. SIBLING dAPP: OpenClaw AI (Resource-Clamped Sandboxed Service)
+  # =====================================================================
+  ai-agent:
+    image: docker.io/pinetwork/openclaw-ai:latest
+    container_name: bzr-openclaw-ai
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - BAZAAR_API_URL=http://app:3000
+    volumes:
+      - ai_cache:/data/cache
+    networks:
+      - bzr-network
+    depends_on:
+      app:
+        condition: service_started
+    deploy:
+      resources:
+        limits:
+          cpus: '1.00'
+          memory: 1.5GB # Strict clamp to protect the host machine from OOM Crashes (Code 137)
+        reservations:
+          memory: 512MB
+
+  # =====================================================================
+  # 6. SIBLING dAPP: Atlassian MCP Server (Resource-Clamped Sandboxed Service)
+  # =====================================================================
+  mcp-server:
+    image: docker.io/pinetwork/mcp-atlassian:latest
+    container_name: bzr-atlassian-mcp
+    restart: unless-stopped
+    environment:
+      - JIRA_INSTANCE_URL=${JIRA_INSTANCE_URL}
+      - BAZAAR_CONNECTOR=true
+    networks:
+      - bzr-network
+    depends_on:
+      app:
+        condition: service_started
+    deploy:
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 1GB # Tight memory boundary to secure hardware allocation
+
+volumes:
+  mongodb_data:
+    driver: local
+  caddy_data:
+    driver: local
+  caddy_config:
+    driver: local
+  ai_cache:
+    driver: local
+
+networks:
+  bzr-network:
+    name: bzr-depin-net
+    driver: bridge

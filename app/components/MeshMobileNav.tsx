@@ -1,10 +1,9 @@
-﻿// Location: components/MeshMobileNav.tsx
-'use client';
+﻿'use client';
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Menu, X, Home, GraduationCap, Activity, ArrowRight, Shield } from 'lucide-react';
+import { Menu, X, Home, GraduationCap, Activity, ArrowRight, Shield, ShoppingBag } from 'lucide-react';
 
 export default function MeshMobileNav() {
   const pathname = usePathname();
@@ -53,9 +52,17 @@ export default function MeshMobileNav() {
               <ArrowRight size={14} />
             </Link>
             <Link
+              href="/dashboard/marketplace"
+              onClick={() => setIsDrawerOpen(false)}
+              className="p-3 bg-zinc-900/60 border border-zinc-800 rounded-xl text-zinc-200 hover:text-indigo-400 flex items-center justify-between"
+            >
+              <span>Virtual Marketplace</span>
+              <ArrowRight size={14} />
+            </Link>
+            <Link
               href="/mesh/escrow"
               onClick={() => setIsDrawerOpen(false)}
-              className="p-3 bg-zinc-900/60 border border-zinc-800 rounded-xl text-zinc-200 hover:text-amber-400 flex items-center justify-between"
+              className="p-3 bg-zinc-900/60 border border-zinc-800 rounded-xl text-zinc-200 hover:text-cyan-400 flex items-center justify-between"
             >
               <span>Escrow Vault</span>
               <ArrowRight size={14} />
@@ -74,12 +81,12 @@ export default function MeshMobileNav() {
 
       {/* 2. Anchored Bottom Bar */}
       <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-zinc-800 bg-slate-950/90 backdrop-blur-md shadow-lg pb-safe">
-        <div className="flex justify-between items-center max-w-[384px] mx-auto px-6 py-2.5">
+        <div className="flex justify-between items-center max-w-[384px] mx-auto px-4 py-2.5">
           <Link
             href="/dashboard"
             onClick={() => setIsDrawerOpen(false)}
             className={`flex flex-col items-center gap-1 transition-colors ${
-              isActive('/dashboard') && !isDrawerOpen ? 'text-amber-400' : 'text-zinc-400 hover:text-zinc-200'
+              isActive('/dashboard') && !isActive('/dashboard/marketplace') && !isDrawerOpen ? 'text-amber-400' : 'text-zinc-400 hover:text-zinc-200'
             }`}
           >
             <Home size={20} />
@@ -95,6 +102,17 @@ export default function MeshMobileNav() {
           >
             <GraduationCap size={20} />
             <span className="font-mono text-[9px] uppercase tracking-wider">Academy</span>
+          </Link>
+
+          <Link
+            href="/dashboard/marketplace"
+            onClick={() => setIsDrawerOpen(false)}
+            className={`flex flex-col items-center gap-1 transition-colors ${
+              isActive('/dashboard/marketplace') && !isDrawerOpen ? 'text-indigo-400' : 'text-zinc-400 hover:text-zinc-200'
+            }`}
+          >
+            <ShoppingBag size={20} />
+            <span className="font-mono text-[9px] uppercase tracking-wider">Market</span>
           </Link>
 
           <Link

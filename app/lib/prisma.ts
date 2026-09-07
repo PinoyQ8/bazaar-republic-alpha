@@ -1,7 +1,23 @@
-import { PrismaClient } from "bzr-db";
+// lib/prisma.ts
+import { PrismaClient } from "@/prisma/generated/client";
 
-const globalForPrisma = global as unknown as { prisma: PrismaClient };
+// 🛡️ Re-export all Prisma types, enums (e.g., NodeStatus), and models
+export * from "@/prisma/generated/client";
 
-export const prisma = globalForPrisma.prisma || new PrismaClient();
+const globalForPrisma = globalThis as unknown as {
+  prisma: PrismaClient | undefined;
+};
 
-if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
+export const prisma =
+  globalForPrisma.prisma ??
+  new PrismaClient({
+    log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"],
+  });
+
+export const db = prisma;
+
+if (process.env.NODE_ENV !== "production") {
+  globalForPrisma.prisma = prisma;
+}
+
+export default prisma;

@@ -1,8 +1,10 @@
 ﻿/** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  
-  // Whitelist local LAN endpoints for cross-device testing and mobile emulators
+
+  // 🛡️ BUNDLE LOCAL WORKSPACE PACKAGE: Removes bzr-db from the default external list
+  transpilePackages: ["bzr-db"],
+
   allowedDevOrigins: [
     "localhost:3000",
     "127.0.0.1:3000",
@@ -10,10 +12,26 @@ const nextConfig = {
     "192.168.8.110:3000",
     "192.168.8.108",
     "192.168.8.108:3000",
+    "sixty-experts-dress.loca.lt",
+    "*.loca.lt",
   ],
 
-  // 🚀 Exclude database binaries from static file tracing (promoted to root level)
-  serverExternalPackages: ["@prisma/client", "bzr-db"],
+  // 🛡️ Keep ONLY real node_modules native binaries here
+  serverExternalPackages: ["@prisma/client"],
+
+  async headers() {
+    return [
+      {
+        source: "/:path*",
+        headers: [
+          {
+            key: "Permissions-Policy",
+            value: "publickey-credentials-create=(*), publickey-credentials-get=(*)",
+          },
+        ],
+      },
+    ];
+  },
 };
 
 export default nextConfig;

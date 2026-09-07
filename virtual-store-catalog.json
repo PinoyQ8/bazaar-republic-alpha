@@ -1,0 +1,286 @@
+{
+  "catalogVersion": "1.0.0",
+  "comment": "Daily micro-commerce classification directory mapping standard daily market stall categories. Denominated strictly in Pi under the 1 Pi = 1,000 mBZR peg standard with 7-decimal BigInt subunits.",
+  "categories": [
+    {
+      "id": "CAFETERIA",
+      "name": "Local Cafeterias & Bistros",
+      "stalls": [
+        {
+          "providerUid": "usr_pioneer_1026",
+          "businessName": "Sovereign Brews & Bites",
+          "strategy": "PREMIUM",
+          "description": "Premium specialty Barako espresso and artisan morning plates.",
+          "sectorLocation": "SECTOR-01-PH",
+          "baseFeePi": 0.05,
+          "rating": 4.9,
+          "inventory": [
+            {
+              "id": "cafe_prem_barako",
+              "name": "Barako Pour-Over Espresso",
+              "pricePi": "0.1500000",
+              "priceSubunits": "1500000",
+              "description": "Strong, rich traditional Philippine dark roast coffee."
+            },
+            {
+              "id": "cafe_prem_breakfast",
+              "name": "Artisan Longganisa Breakfast Plate",
+              "pricePi": "0.4500000",
+              "priceSubunits": "4500000",
+              "description": "Sweet garlic sausage served with sinangag garlic rice and egg."
+            }
+          ]
+        },
+        {
+          "providerUid": "usr_pioneer_1027",
+          "businessName": "Pioneer Pitstop Cafeteria",
+          "strategy": "DISCOUNT",
+          "description": "High-velocity robusta espresso and standard daily lunch combos.",
+          "sectorLocation": "SECTOR-01-PH",
+          "baseFeePi": 0.02,
+          "rating": 4.5,
+          "inventory": [
+            {
+              "id": "cafe_disc_robusta",
+              "name": "Standard Robusta Drip",
+              "pricePi": "0.0800000",
+              "priceSubunits": "800000",
+              "description": "Quick, highly-caffeinated baseline morning brew."
+            },
+            {
+              "id": "cafe_disc_lunch",
+              "name": "Daily Pioneer Lunch Combo",
+              "pricePi": "0.2500000",
+              "priceSubunits": "2500000",
+              "description": "Local adobo chicken stew served with steamed jasmine rice."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "BAKERY",
+      "name": "Daily Bakeries & Pastry Stalls",
+      "stalls": [
+        {
+          "providerUid": "usr_pioneer_1028",
+          "businessName": "Genesis Loaves & Sourdough",
+          "strategy": "PREMIUM",
+          "description": "Wild-yeast artisanal sourdough and fresh-baked baguettes.",
+          "sectorLocation": "SECTOR-03-US",
+          "baseFeePi": 0.04,
+          "rating": 4.8,
+          "inventory": [
+            {
+              "id": "bake_prem_sourdough",
+              "name": "Artisanal Sourdough Boule",
+              "pricePi": "0.1800000",
+              "priceSubunits": "1800000",
+              "description": "36-hour slow fermented wild yeast loaf with a crispy blistered crust."
+            },
+            {
+              "id": "bake_prem_muffin",
+              "name": "Organic Blueberry Muffin Box",
+              "pricePi": "0.2200000",
+              "priceSubunits": "2200000",
+              "description": "Four freshly baked moist muffins packed with local wild blueberries."
+            }
+          ]
+        },
+        {
+          "providerUid": "usr_pioneer_1029",
+          "businessName": "Daily Wheat Bakery",
+          "strategy": "DISCOUNT",
+          "description": "Pandesal buns and standard table loaves for daily household energy.",
+          "sectorLocation": "SECTOR-03-US",
+          "baseFeePi": 0.01,
+          "rating": 4.6,
+          "inventory": [
+            {
+              "id": "bake_disc_pandesal",
+              "name": "Fresh Pandesal Roll (Dozen)",
+              "pricePi": "0.0500000",
+              "priceSubunits": "500000",
+              "description": "Twelve hot, slightly sweet bread rolls dusted with breadcrumbs."
+            },
+            {
+              "id": "bake_disc_white_loaf",
+              "name": "Standard White Pan Bread",
+              "pricePi": "0.0900000",
+              "priceSubunits": "900000",
+              "description": "Classic sliced soft white sandwich bread, perfect for toast."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PHARMACY",
+      "name": "Local Pharmacies & Apothecaries",
+      "stalls": [
+        {
+          "providerUid": "usr_pioneer_1030",
+          "businessName": "Pioneer Care Apothecary",
+          "strategy": "PREMIUM",
+          "description": "Premium brand-name vitamins, essential care, and emergency kits.",
+          "sectorLocation": "SECTOR-02-KW",
+          "baseFeePi": 0.10,
+          "rating": 4.9,
+          "inventory": [
+            {
+              "id": "pharma_prem_firstaid",
+              "name": "Emergency Tactical First-Aid Kit",
+              "pricePi": "1.5000000",
+              "priceSubunits": "15000000",
+              "description": "Heavy-duty water-resistant bag with bandages, splints, and antiseptic."
+            },
+            {
+              "id": "pharma_prem_vitamins",
+              "name": "Premium Liposomal Vitamin C (30ct)",
+              "pricePi": "0.6000000",
+              "priceSubunits": "6000000",
+              "description": "High-absorption liposomal vitamin capsules for baseline immune health."
+            }
+          ]
+        },
+        {
+          "providerUid": "usr_pioneer_1031",
+          "businessName": "Generic Rx Pharmacy",
+          "strategy": "DISCOUNT",
+          "description": "Affordable generic medicines and simple home first-aid supplies.",
+          "sectorLocation": "SECTOR-02-KW",
+          "baseFeePi": 0.03,
+          "rating": 4.4,
+          "inventory": [
+            {
+              "id": "pharma_disc_firstaid",
+              "name": "Basic Home First-Aid Box",
+              "pricePi": "0.5000000",
+              "priceSubunits": "5000000",
+              "description": "Compact medical kit with plasters, gauze rolls, and antiseptic wipes."
+            },
+            {
+              "id": "pharma_disc_vitamins",
+              "name": "Generic Multivitamins (30ct)",
+              "pricePi": "0.2000000",
+              "priceSubunits": "2000000",
+              "description": "Essential daily vitamins and minerals for standard nutritional backup."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "DRY_MARKET",
+      "name": "Dry Goods & Commodity Stalls",
+      "stalls": [
+        {
+          "providerUid": "usr_pioneer_1032",
+          "businessName": "Bazaar Staples & Utilities",
+          "strategy": "PREMIUM",
+          "description": "High-grade fragrant jasmine rice and organic biodegradable soap.",
+          "sectorLocation": "SECTOR-04-DE",
+          "baseFeePi": 0.06,
+          "rating": 4.7,
+          "inventory": [
+            {
+              "id": "dry_prem_jasmine_rice",
+              "name": "Premium Fragrant Jasmine Rice (5kg)",
+              "pricePi": "0.8000000",
+              "priceSubunits": "8000000",
+              "description": "Long-grain, naturally fragrant aromatic jasmine rice."
+            },
+            {
+              "id": "dry_prem_organic_soap",
+              "name": "Organic Chamomile Laundry Soap (1L)",
+              "pricePi": "0.2500000",
+              "priceSubunits": "2500000",
+              "description": "Eco-friendly, hypoallergenic liquid laundry detergent."
+            }
+          ]
+        },
+        {
+          "providerUid": "usr_pioneer_1033",
+          "businessName": "Wholesale Dry Goods Stall #4",
+          "strategy": "DISCOUNT",
+          "description": "Bulk white rice and affordable bulk unscented household soaps.",
+          "sectorLocation": "SECTOR-04-DE",
+          "baseFeePi": 0.02,
+          "rating": 4.3,
+          "inventory": [
+            {
+              "id": "dry_disc_white_rice",
+              "name": "Local White Rice (5kg)",
+              "pricePi": "0.4000000",
+              "priceSubunits": "4000000",
+              "description": "Polished local white rice, high yield and standard daily fuel."
+            },
+            {
+              "id": "dry_disc_soap_bar",
+              "name": "Bulk Unscented Laundry Bar (Pack of 5)",
+              "pricePi": "0.1000000",
+              "priceSubunits": "1000000",
+              "description": "Five long-lasting laundry soap bars for active fabric washing."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "WET_MARKET",
+      "name": "Wet Markets & Fresh Greens Stalls",
+      "stalls": [
+        {
+          "providerUid": "usr_pioneer_1034",
+          "businessName": "Republic Fresh Catch & Greens",
+          "strategy": "PREMIUM",
+          "description": "Premium sea bass and organic farm vegetable baskets.",
+          "sectorLocation": "SECTOR-05-IN",
+          "baseFeePi": 0.08,
+          "rating": 4.9,
+          "inventory": [
+            {
+              "id": "wet_prem_seabass",
+              "name": "Premium Fresh Sea Bass (1kg)",
+              "pricePi": "1.2000000",
+              "priceSubunits": "12000000",
+              "description": "Wild-caught, scaled, and gutted sea bass with delicate white flesh."
+            },
+            {
+              "id": "wet_prem_veg_basket",
+              "name": "Organic Farm-to-Table Vegetable Basket",
+              "pricePi": "0.4500000",
+              "priceSubunits": "4500000",
+              "description": "Assorted fresh seasonal greens, tomatoes, carrots, and sweet potato."
+            }
+          ]
+        },
+        {
+          "providerUid": "usr_pioneer_1035",
+          "businessName": "Local Seafood & Veggie Stall #12",
+          "strategy": "DISCOUNT",
+          "description": "Fresh farm Tilapia and standard local vegetable bundles.",
+          "sectorLocation": "SECTOR-05-IN",
+          "baseFeePi": 0.03,
+          "rating": 4.5,
+          "inventory": [
+            {
+              "id": "wet_disc_tilapia",
+              "name": "Fresh Farm Tilapia (1kg)",
+              "pricePi": "0.6000000",
+              "priceSubunits": "6000000",
+              "description": "Harvested fresh daily from clean local inland aquaculture farms."
+            },
+            {
+              "id": "wet_disc_greens",
+              "name": "Standard Stew Vegetable Bundle",
+              "pricePi": "0.2000000",
+              "priceSubunits": "2000000",
+              "description": "Traditional local vegetable mix (eggplant, squash, beans, onion) for stew."
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

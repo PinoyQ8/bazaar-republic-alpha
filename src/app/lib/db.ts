@@ -1,4 +1,6 @@
-import { prisma, db } from "./prisma";
+// src/app/lib/db.ts
+import { prisma } from "@/lib/prisma";
 
-export { prisma, db };
+export const db = prisma;
+export { prisma };
 export default db;

@@ -16,3 +16,4 @@ if (process.env.NODE_ENV !== "production") {
 export const prisma = prismaInstance as any;
 export const db = prismaInstance as any;
 export default prisma;
+

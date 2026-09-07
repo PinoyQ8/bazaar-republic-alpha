@@ -1,0 +1,84 @@
+# =============================================================================
+# 🏛️ BAZAAR REPUBLIC: CADDY INGRESS REVERSE PROXY CONFIGURATION (Caddyfile)
+# =============================================================================
+# Target Port: 13409 (Secure Local LAN Ingress Gateway)
+# Target Schema: Schema v2.7.2
+# Host platform: X570 Taichi Workstation Node (192.168.8.108)
+# Sibling Support: OpenClaw AI and Atlassian MCP Server
+# =============================================================================
+
+# Define the site block for your secure local subnet and loopback interface
+# FIDO2/WebAuthn requires HTTPS (Secure Contexts), which we solve via a self-signed internal CA.
+https://127.0.0.1:13409, https://localhost:13409, https://192.168.8.108:13409 {
+
+    # 🔒 1. Enable Caddy's Internal Authority (Self-Signed local SSL)
+    # Automatically spins up an internal CA on the host. Allows mobile devices
+    # (like S23 Ultra/A73) to bypass unencrypted HTTP blocks in modern browsers.
+    tls internal {
+        on_demand
+    }
+
+    # 🛡️ 2. Global Ingress Security Hardening Headers
+    header {
+        # Prevent Clickjacking & frame hijacking
+        X-Frame-Options "SAMEORIGIN"
+        # Prevent MIME-type sniffing
+        X-Content-Type-Options "nosniff"
+        # Enable aggressive browser XSS filter
+        X-XSS-Protection "1; mode=block"
+        # Enforce HSTS for secure transport
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        # Avoid leaking original referrers across domains
+        Referrer-Policy "strict-origin-when-cross-origin"
+    }
+
+    # ⚡ 3. Gzip & Zstandard Compression for telemetric performance over Wi-Fi
+    encode zstd gzip
+
+    # =========================================================================
+    # 🛰️ ROUTE 1: PRIMARY NODE CORE — Bazaar Republic App (Port 3000)
+    # =========================================================================
+    # By default, route standard application paths directly to Next.js.
+    # Exclude specific sibling app directories using negative path lookaheads or proxy order.
+
+    # Match and handle sibling routes first to prevent intercept collisions
+    handle_path /apps/ai* {
+        # Strip the '/apps/ai' prefix and proxy straight to OpenClaw AI container
+        reverse_proxy http://bzr-openclaw-ai:8000 {
+            header_up Host {host}
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+        }
+    }
+
+    handle_path /apps/jira* {
+        # Strip the '/apps/jira' prefix and proxy straight to Atlassian MCP container
+        reverse_proxy http://bzr-atlassian-mcp:19000 {
+            header_up Host {host}
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+        }
+    }
+
+    # Default fallback: Handle all other requests by routing to the Bazaar Web Core
+    handle {
+        reverse_proxy http://bzr-nextjs-app:3000 {
+            # Send standard proxies headers upstream to Next.js
+            header_up Host {host}
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+        }
+    }
+
+    # =========================================================================
+    # 🚫 SECURITY CONSTRAINT: Block raw database API ports
+    # =========================================================================
+    # Expressly prevent any external queries to port 27017 or administrative hooks.
+    @forbidden {
+        path /api/admin/* /api/internal/*
+    }
+    respond @forbidden "Access Forbidden: Ingress blocked by Gateway security policy" 403
+}

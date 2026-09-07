@@ -1,39 +1,66 @@
 // Location: app/api/node/heartbeat/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma"; // 🛡️ Schema v2.7.2 singleton
+import { prisma } from "@/lib/prisma";
+
+export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
-    const { uid, walletAddress, protocolVersion } = body;
+    const targetUid = body.uid || body.pioneerId || body.walletAddress || body.nodeId;
+    const protocolVersion = body.protocolVersion || "28";
+    const uptimeShield = body.uptimeShield !== undefined ? Number(body.uptimeShield) : 100.0;
 
-    if (!uid && !walletAddress) {
+    if (!targetUid) {
       return NextResponse.json(
-        { success: false, error: "MISSING_IDENTIFIER: uid or walletAddress required." },
+        { success: false, error: "MISSING_IDENTIFIER: Target node UID or address required." },
         { status: 400 }
       );
     }
 
-    // 1. Build dynamic OR conditions to avoid undefined parameter queries
-    const conditions: any[] = [];
-    if (uid) conditions.push({ uid });
-    if (walletAddress) conditions.push({ walletAddress });
+    const db = prisma as any;
 
-    const node = await prisma.pioneerNode.findFirst({
+    // 1. Locate Node Identity
+    let node = await db.pioneerNode.findFirst({
       where: {
-        OR: conditions,
+        OR: [
+          { uid: targetUid },
+          { walletAddress: targetUid },
+          { username: targetUid },
+        ],
       },
     });
 
+    // 2. Cold-Onboarding / Auto-Register Fallback to prevent Phantom 404
     if (!node) {
-      return NextResponse.json(
-        { success: false, error: "NODE_NOT_FOUND: Node not registered in Republic registry." },
-        { status: 404 }
-      );
+      node = await db.pioneerNode.create({
+        data: {
+          uid: targetUid,
+          username: targetUid,
+          walletAddress: body.walletAddress || null,
+          status: "ACTIVE",
+          tier: "CITIZEN",
+          trustScore: 100,
+          uptimeShield: uptimeShield,
+          lastActivityTimestamp: new Date(),
+          lastHeartbeat: new Date(),
+          protocol: protocolVersion,
+        },
+      });
+
+      return NextResponse.json({
+        success: true,
+        status: node.status,
+        trustScore: node.trustScore,
+        uptimeShield: node.uptimeShield,
+        lastActivityTimestamp: node.lastActivityTimestamp,
+        protocolVersion: protocolVersion,
+        isFirstHeartbeat: true,
+      });
     }
 
-    // 2. Quarantine & Freeze Security Shield Checks
-    if (node.isFrozen || node.status === "FROZEN" || node.status === "QUARANTINED") {
+    // 3. Quarantine & Freeze Shield Checks
+    if (node.isFrozen || node.status === "FROZEN" || node.quarantineStatus === "QUARANTINED") {
       return NextResponse.json(
         {
           success: false,
@@ -44,28 +71,29 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 3. Update Activity Telemetry (Schema v2.7.2 Aligned)
-    const updatedNode = await prisma.pioneerNode.update({
+    // 4. Update Activity Telemetry
+    const updatedNode = await db.pioneerNode.update({
       where: { id: node.id },
       data: {
         lastActivityTimestamp: new Date(),
+        lastHeartbeat: new Date(),
         status: "ACTIVE",
-        uptimeShield: node.uptimeShield ?? 100.0,
+        uptimeShield: node.uptimeShield ?? uptimeShield,
       },
     });
 
     return NextResponse.json({
       success: true,
       status: updatedNode.status,
-      trustScore: updatedNode.trustScore,
-      uptimeShield: updatedNode.uptimeShield,
+      trustScore: updatedNode.trustScore ?? 100,
+      uptimeShield: updatedNode.uptimeShield ?? 100.0,
       lastActivityTimestamp: updatedNode.lastActivityTimestamp,
-      protocolVersion: protocolVersion || "24",
+      protocolVersion: protocolVersion,
     });
   } catch (error: any) {
-    console.error("[HEARTBEAT-FAIL] Telemetry sync error:", error);
+    console.error("[HEARTBEAT-FAIL] Telemetry sync error:", error?.message || error);
     return NextResponse.json(
-      { success: false, error: error.message || "Internal server error during heartbeat sync." },
+      { success: false, error: error?.message || "Internal server error during heartbeat sync." },
       { status: 500 }
     );
   }
