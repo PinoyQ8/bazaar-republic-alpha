@@ -69,5 +69,9 @@
     "tailwindcss": "^4",
     "tsx": "^4.23.12",
     "typescript": "^5.9.3"
-  }
+  },
+  "exclude": [
+    "node_modules",
+    "scripts"
+  ]
 }

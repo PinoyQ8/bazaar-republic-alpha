@@ -1,6 +1,5 @@
-import { PrismaClient } from "../prisma/generated/client";
+﻿import { prisma } from "@/lib/prisma";
 
-const prisma = new PrismaClient();
 const WALLET_ADDRESS = "GDNL2PDN23QNUNWDTPVVYDHSGQTPPALHUIW7GOEGQNSSR4QVW2FDB2RZ";
 
 async function registerNode() {
