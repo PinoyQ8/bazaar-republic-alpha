@@ -2,40 +2,52 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // 🛡️ Turbopack explicit configuration gate (Next.js 16+)
-  turbopack: {},
+  // 🛡️ Bundle local workspace package
+  transpilePackages: ["bzr-db"],
 
-  // 🛡️ MESH-FIX: Prisma binary and generated custom client isolation
-  serverExternalPackages: ['@prisma/client', "@prisma/client"],
+  // 🛡️ Externalize Prisma binary from static bundling
+  serverExternalPackages: ["@prisma/client", "prisma"],
 
-  // 🌐 ROOT-LEVEL TUNNEL ACCESS MATRIX
-  allowedDevOrigins: ['*.trycloudflare.com', '*.loca.lt', 'localhost:3000', '127.0.0.1:3000'],
+  // 🌐 Local subnet and reverse-proxy origins for remote device diagnostics
+  allowedDevOrigins: [
+    "localhost:3000",
+    "127.0.0.1:3000",
+    "192.168.8.110",
+    "192.168.8.110:3000",
+    "192.168.8.108",
+    "192.168.8.108:3000",
+    "sixty-experts-dress.loca.lt",
+    "*.loca.lt",
+  ],
 
-  // 🔐 PI BROWSER IFRAME WEBAUTHN PERMISSIONS POLICY
+  // 🔐 Permissions Policy for WebAuthn passkey registration & assertions
   async headers() {
     return [
       {
-        source: '/:path*',
+        source: "/:path*",
         headers: [
           {
-            key: 'Permissions-Policy',
-            value: 'publickey-credentials-create=(*), publickey-credentials-get=(*)',
+            key: "Permissions-Policy",
+            value: "publickey-credentials-create=(*), publickey-credentials-get=(*)",
           },
         ],
       },
     ];
   },
 
-  // 🛡️ Watcher exclusions for non-frontend artifacts
+  // ⚡ Turbopack explicit configuration gate (Next.js 16+)
+  turbopack: {},
+
+  // 🛠️ File watcher exclusions for Rust, Soroban, and ZK build artifacts
   webpack: (config) => {
     config.watchOptions = {
       ignored: [
-        '**/target/**',
-        '**/zk-circuits/build/**',
-        '**/*.zkey',
-        '**/*.ptau',
-        '**/*.wtns',
-        '**/*.r1cs',
+        "**/target/**",
+        "**/zk-circuits/build/**",
+        "**/*.zkey",
+        "**/*.ptau",
+        "**/*.wtns",
+        "**/*.r1cs",
       ],
     };
     return config;
