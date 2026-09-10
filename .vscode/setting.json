@@ -1,0 +1,8 @@
+{
+  "json.schemas": [
+    {
+      "fileMatch": ["virtual-store-catalog.json"],
+      "url": "./virtual-store-catalog.schema.json"
+    }
+  ]
+}

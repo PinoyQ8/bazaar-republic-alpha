@@ -79,7 +79,7 @@ export async function POST(req: NextRequest) {
     const existingNode = await prisma.pioneerNode.findFirst({
       where: {
         OR: [
-          { pioneerUid: piUid },
+          { uid: piUid },
           { walletAddress: walletAddress }
         ]
       }
@@ -94,7 +94,7 @@ export async function POST(req: NextRequest) {
         warmSessionBypass: true,
         passport: {
           id: existingNode.id,
-          piUsername: existingNode.pioneerUid, // Bound to secure app-scoped identity
+          piUsername: existingNode.uid, // Bound to secure app-scoped identity
           kycCountryAnchor: existingNode.countryCode,
           preferredLocalCurrency: preferredCurrency,
           primaryPublicKey: existingNode.walletAddress,
@@ -140,7 +140,7 @@ export async function POST(req: NextRequest) {
     const newNode = await prisma.pioneerNode.create({
       data: {
         walletAddress: walletAddress,
-        pioneerUid: piUid,
+        uid: piUid,
         mbzrBalanceSubunits: "0", // 0.0000000 mBZR starting sandbox balance
         mbzrBalanceFormatted: "0.0000000",
         cpuUsage: 0.0,

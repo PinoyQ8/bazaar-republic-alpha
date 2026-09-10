@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @file AuthContext.tsx
  * @package Bazaar Republic Layer-2 DePIN Infrastructure
  * @version 1.0.2
@@ -17,7 +17,7 @@ import {
   SovereignPassport, 
   SovereignTier, 
   TierPermissions 
-} from "../types/identity"; // Updated for production folder mapping
+} from "./types_identity-v4"; // Updated for production folder mapping
 
 // Client OAuth Credentials (Safe to disclose - official public identifiers)
 const PI_OAUTH_CLIENT_ID = "FtbUB9fO3zfZZG3cp2SEpEdgzTNEgqpliDl8Q7Jr9Nc";

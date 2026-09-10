@@ -1,75 +1,83 @@
-﻿version: "3.8"
-
-services:
-  # ==========================================
-  # CORE INFRASTRUCTURE (Always Active)
-  # ==========================================
-  mongo:
-    image: mongo:7.0
-    container_name: bazaar-mongodb
-    restart: unless-stopped
+﻿services:
+  # =====================================================================
+  # 1. DATABASE LAYER (Prisma Replica Set Enabled)
+  # =====================================================================
+  db:
+    image: mongo:6.0
+    container_name: bzr-db
+    restart: always
     ports:
-      - "27017:27017"
+      - "127.0.0.1:27017:27017"
     environment:
-      MONGO_INITDB_DATABASE: bazaar-republic
+      MONGO_INITDB_DATABASE: bazaar_republic
     volumes:
-      - mongo_data:/data/db
+      - mongodb_data:/data/db
     networks:
-      - mesh-net
+      - bzr-network
+    command: ["--replSet", "rs0", "--bind_ip_all"]
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "try { rs.status().ok } catch (e) { try { rs.initiate({_id: 'rs0', members: [{_id: 0, host: 'db:27017'}]}); } catch (err) { quit(1); } }"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
-  # ==========================================
-  # PRODUCTION WEB CONTAINER (Profile: prod)
-  # Only runs when --profile prod is passed
-  # ==========================================
-  bazaar-web-prod:
-    profiles: ["prod"]
-    container_name: bazaar-alpha-web-prod
-    image: ghcr.io/pinoyq8/bazaar-republic-alpha:latest
+  # =====================================================================
+  # 2. NEXT.JS APPLICATION CONTAINER (Production / SoloHost Build)
+  # =====================================================================
+  app:
     build:
       context: .
       dockerfile: Dockerfile
-    restart: unless-stopped
+    container_name: bzr-nextjs-app
+    restart: always
     ports:
       - "3000:3000"
     environment:
-      - NODE_ENV=production
-      - DATABASE_URL=mongodb://mongo:27017/bazaar-republic?directConnection=true
-      - NODE_ID=Node-001-X570-Taichi
-      - PORT=3000
-    depends_on:
-      - mongo
+      DATABASE_URL: mongodb://db:27017/bazaar_republic?replicaSet=rs0&readConcernLevel=majority&w=majority
+      MONGODB_URI: mongodb://db:27017/bazaar_republic?replicaSet=rs0&readConcernLevel=majority&w=majority
+      SOROBAN_RPC_URL: https://soroban-testnet.stellar.org
+      BAZAAR_VAULT_CONTRACT_ID: CDI5EAXHES3KPZBLAICUWUSDCLFGTN3MDURTFMQCXTQWFSYRK357YPD6
+      PI_API_KEY: ${PI_API_KEY}
+      NEXT_PUBLIC_PI_SANDBOX: "true"
     networks:
-      - mesh-net
+      - bzr-network
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health", "||", "exit", "1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
 
-  # ==========================================
-  # OPTIONAL: ISOLATED CONTAINERIZED DEV (Profile: dev-box)
-  # Runs on Port 3005 to avoid host port 3000
-  # ==========================================
-  bazaar-web-devbox:
-    profiles: ["dev-box"]
-    container_name: bazaar-alpha-web-devbox
+  # =====================================================================
+  # 3. ON-CHAIN RELAYER DAEMON (Profile Isolated)
+  # =====================================================================
+  relayer:
+    profiles: ["relayer"]
     build:
       context: .
-      dockerfile: Dockerfile.dev
-    volumes:
-      - .:/app
-      - /app/node_modules
-      - /app/.next
-    ports:
-      - "3005:3000"
+      dockerfile: Dockerfile.relayer
+    container_name: bzr-bridge-relayer
+    restart: always
     environment:
-      - NODE_ENV=development
-      - DATABASE_URL=mongodb://mongo:27017/bazaar-republic?directConnection=true
-    depends_on:
-      - mongo
+      DATABASE_URL: mongodb://db:27017/bazaar_republic?replicaSet=rs0&readConcernLevel=majority&w=majority
+      MONGODB_URI: mongodb://db:27017/bazaar_republic?replicaSet=rs0&readConcernLevel=majority&w=majority
+      SOROBAN_RPC_URL: https://soroban-testnet.stellar.org
+      BAZAAR_VAULT_CONTRACT_ID: CDI5EAXHES3KPZBLAICUWUSDCLFGTN3MDURTFMQCXTQWFSYRK357YPD6
+      PI_API_KEY: ${PI_API_KEY}
     networks:
-      - mesh-net
+      - bzr-network
+    depends_on:
+      db:
+        condition: service_healthy
+    stop_grace_period: 1m30s
 
 volumes:
-  mongo_data:
+  mongodb_data:
     driver: local
 
 networks:
-  mesh-net:
+  bzr-network:
     driver: bridge
-
