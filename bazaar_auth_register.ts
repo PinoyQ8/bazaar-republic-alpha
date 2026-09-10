@@ -9,14 +9,14 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { PrismaClient } from "bzr-db"; // Custom type-safe prisma client
+import { prisma } from "@/lib/prisma";
 import { 
   SovereignTier, 
   SovereignPassport,
   validateSecurityCircle 
 } from "./types_identity-v4";
 
-const prisma = new PrismaClient();
+// Using @/lib/prisma singleton
 
 // The authoritative Pi Core Team API endpoint for user verification
 const PI_API_ME_URL = "https://api.minepi.com/v2/me";
