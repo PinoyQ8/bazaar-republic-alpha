@@ -1,0 +1,17 @@
+# ==============================================================================
+# Project Bazaar: Pi Network Backend SDK Verification Utility (Python Edition)
+# File: requirements.txt
+# Description: Python dependency declarations for the community-maintained SDK.
+# ==============================================================================
+
+# Core API & Network Requests (Required)
+requests>=2.31.0
+urllib3>=2.0.7
+
+# Development & Automated Testing (Optional)
+pytest>=7.4.0            # Unit-testing framework for mock S2S assertions
+pytest-cov>=4.1.0        # Test coverage reporting tool
+
+# Code Formatting & Clean Code Standards (Optional)
+black>=23.11.0           # Uncompromising Python code formatter
+flake8>=6.1.0            # Linter to check for pep8 styling compliance

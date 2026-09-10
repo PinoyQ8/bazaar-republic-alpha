@@ -20,12 +20,6 @@
     "jsx": "react-jsx",
     "incremental": true,
     "paths": {
-      "bzr-db": [
-        "./prisma/generated/client"
-      ],
-      "bzr-db/*": [
-        "./prisma/generated/client/*"
-      ],
       "@/contracts/*": [
         "./src/contracts/*",
         "./contracts/*"
@@ -59,6 +53,12 @@
         "./*",
         "./src/*",
         "./app/*"
+      ],
+      "bzr-db": [
+        "./prisma/generated/client"
+      ],
+      "bzr-db/*": [
+        "./prisma/generated/client/*"
       ]
     },
     "plugins": [
@@ -77,6 +77,12 @@
   "exclude": [
     "node_modules",
     "fix-build-config.mjs",
-    "*.mjs"
+    "*.mjs",
+    "**/*.test.ts",
+    "**/*.test.tsx",
+    "**/*.spec.ts",
+    "**/*.spec.tsx",
+    "bazaar_integration_test*.*",
+    "scripts/**/*"
   ]
 }

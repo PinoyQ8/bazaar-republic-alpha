@@ -1,4 +1,4 @@
-import { PrismaClient } from 'bzr-db';
+import { PrismaClient } from "@prisma/client";
 
 /**
  * PROJECT BAZAAR SEED SCRIPT (Schema v2.7.2 Sync | v3.0.0 6-Tier Edition)

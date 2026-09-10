@@ -1,4 +1,4 @@
-﻿services:
+services:
   # =====================================================================
   # 1. DATABASE LAYER (Prisma Replica Set Enabled)
   # =====================================================================
@@ -22,12 +22,10 @@
       retries: 5
 
   # =====================================================================
-  # 2. NEXT.JS APPLICATION CONTAINER (Production / SoloHost Build)
+  # 2. NEXT.JS APPLICATION CONTAINER (SoloHost Production Image)
   # =====================================================================
   app:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: ghcr.io/pinoyq8/bazaar-republic-alpha:latest
     container_name: bzr-nextjs-app
     restart: always
     ports:
@@ -52,13 +50,11 @@
       start_period: 30s
 
   # =====================================================================
-  # 3. ON-CHAIN RELAYER DAEMON (Profile Isolated)
+  # 3. ON-CHAIN RELAYER DAEMON (SoloHost Production Image)
   # =====================================================================
   relayer:
     profiles: ["relayer"]
-    build:
-      context: .
-      dockerfile: Dockerfile.relayer
+    image: ghcr.io/pinoyq8/bazaar-bridge-relayer:latest
     container_name: bzr-bridge-relayer
     restart: always
     environment:

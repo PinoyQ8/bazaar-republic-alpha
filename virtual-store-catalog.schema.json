@@ -1,0 +1,126 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "BazaarVirtualStoreCatalog",
+  "description": "JSON Schema validating the Bazaar Republic Daily Marketplace Virtual Store Catalog configuration structure, designed for BigInt 7-decimal currency integrity under Schema v2.7.2 constraints.",
+  "type": "object",
+  "required": ["catalogVersion", "categories"],
+  "additionalProperties": false,
+  "properties": {
+    "catalogVersion": {
+      "type": "string",
+      "description": "SemVer release tracking version of the marketplace store catalog structure.",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "comment": {
+      "type": "string",
+      "description": "General administrative description or economic notes on this catalog version."
+    },
+    "categories": {
+      "type": "array",
+      "description": "List of top-level structural business directories within the E-Network.",
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "stalls"],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Immutable uppercase category identifier code used for routing queries.",
+            "enum": ["CAFETERIA", "BAKERY", "PHARMACY", "DRY_MARKET", "WET_MARKET", "HARDWARE", "UTILITIES"]
+          },
+          "name": {
+            "type": "string",
+            "description": "Human-readable label shown to Pioneers on viewport docks."
+          },
+          "stalls": {
+            "type": "array",
+            "description": "Active registered competing service stalls under this specific catalog sector.",
+            "items": {
+              "type": "object",
+              "required": [
+                "providerUid",
+                "businessName",
+                "strategy",
+                "description",
+                "sectorLocation",
+                "baseFeePi",
+                "rating",
+                "inventory"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "providerUid": {
+                  "type": "string",
+                  "description": "The unique, verified cryptographic uid of the host Pioneer running this node.",
+                  "pattern": "^usr_[a-zA-Z0-9_]+$"
+                },
+                "businessName": {
+                  "type": "string",
+                  "description": "Sovereign trademark/brand label of the physical stall."
+                },
+                "strategy": {
+                  "type": "string",
+                  "description": "Microeconomic placement model determining listing tier rules.",
+                  "enum": ["PREMIUM", "DISCOUNT"]
+                },
+                "description": {
+                  "type": "string",
+                  "description": "Brief informational subtitle explaining the merchant's core local specialization."
+                },
+                "sectorLocation": {
+                  "type": "string",
+                  "description": "Assigned geographical sector and country country-code parity target.",
+                  "pattern": "^SECTOR-[0-9]{2}-[A-Z]{2}$"
+                },
+                "baseFeePi": {
+                  "type": "number",
+                  "description": "The administrative minimum baseline settlement fee of this stall denominated in raw Pi.",
+                  "minimum": 0.0
+                },
+                "rating": {
+                  "type": "number",
+                  "description": "Average reputation rating calculated from completed dispute resolutions and transaction history.",
+                  "minimum": 0.0,
+                  "maximum": 5.0
+                },
+                "inventory": {
+                  "type": "array",
+                  "description": "Available stock of commodities currently locked in off-chain state channel channels.",
+                  "items": {
+                    "type": "object",
+                    "required": ["id", "name", "pricePi", "priceSubunits", "description"],
+                    "additionalProperties": false,
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "description": "Uniquely identifiers code matching item collection tracking structures."
+                      },
+                      "name": {
+                        "type": "string",
+                        "description": "Human-readable item label shown on the S23 Ultra storefront cards."
+                      },
+                      "pricePi": {
+                        "type": "string",
+                        "description": "The exact decimal string representation of the price in Pi (e.g. '0.1500000').",
+                        "pattern": "^[0-9]+\\.[0-9]{7}$"
+                      },
+                      "priceSubunits": {
+                        "type": "string",
+                        "description": "Price represented in BigInt 7-decimal subunits (Stroops) to eliminate floating-point calculation drift (e.g. '1500000').",
+                        "pattern": "^[0-9]+$"
+                      },
+                      "description": {
+                        "type": "string",
+                        "description": "A short informational summary details of the item's specifications or quantities."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

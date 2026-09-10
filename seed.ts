@@ -1,10 +1,10 @@
-// Location: seed.ts
-import { PrismaClient } from "@prisma/client";
+﻿// Location: seed.ts
+import { PrismaClient } from '@prisma/client';
 
 /**
  * PROJECT BAZAAR SEED SCRIPT (Schema v2.7.2)
  * -----------------------------------------------------------------------------
- * Seeds the "@prisma/client" MongoDB database with initial data representing
+ * Seeds the 'bzr-db' MongoDB database with initial data representing
  * the active Genesis Cohort of Pioneer Nodes, regional PPP multipliers,
  * pending bridge transactions, dispute cases, elder votes, and system state logs.
  *
@@ -122,13 +122,13 @@ async function main() {
 
   // 4. Seed Mock Peer-to-Peer Transactions
   console.log('💸 Seeding High-Precision mBZR Ledger Transactions...');
-  for (let j = 0; j < 10; j++) {
-    const sender = pioneerNodes[j];
-    const receiver = pioneerNodes[j + 1];
-    const amountStr = (10.5 * (j + 1)).toFixed(7);
-    const amountSubunitsVal = toSubunits(amountStr);
+  if (pioneerNodes.length >= 2 && db.mbzrTransaction) {
+    for (let j = 0; j < 10; j++) {
+      const sender = pioneerNodes[j];
+      const receiver = pioneerNodes[j + 1];
+      const amountStr = (10.5 * (j + 1)).toFixed(7);
+      const amountSubunitsVal = toSubunits(amountStr);
 
-    if (db.mbzrTransaction) {
       await db.mbzrTransaction.create({
         data: {
           senderAddress: sender.walletAddress,
@@ -146,13 +146,13 @@ async function main() {
 
   // 5. Seed Bridge Receipts
   console.log('🌉 Seeding Bridge Receipts (Vault Settlement & Replay Audits)...');
-  for (let k = 0; k < 5; k++) {
-    const userNode = pioneerNodes[k + 5];
-    const amountMeltedStr = (500.0 + k * 100.5).toFixed(7);
-    const amountMeltedSubunits = toSubunits(amountMeltedStr);
-    const piReleased = parseFloat(amountMeltedStr) / 1000.0;
+  if (pioneerNodes.length >= 6 && db.bridgeReceipt) {
+    for (let k = 0; k < 5; k++) {
+      const userNode = pioneerNodes[k + 5];
+      const amountMeltedStr = (500.0 + k * 100.5).toFixed(7);
+      const amountMeltedSubunits = toSubunits(amountMeltedStr);
+      const piReleased = parseFloat(amountMeltedStr) / 1000.0;
 
-    if (db.bridgeReceipt) {
       await db.bridgeReceipt.create({
         data: {
           userAddress: userNode.walletAddress,

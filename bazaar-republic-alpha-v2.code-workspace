@@ -1,0 +1,20 @@
+{
+  "folders": [
+    {
+      "name": "⚡ Bazaar Republic (Next.js)",
+      "path": "."
+    },
+    {
+      "name": "🐍 Pi Python SDK Port",
+      "path": "sdk-ports/python"
+    },
+    {
+      "name": "🐘 Pi PHP SDK Port",
+      "path": "sdk-ports/php"
+    }
+  ],
+  "settings": {
+    "python.linting.enabled": true,
+    "js/ts.tsdk.path": "node_modules/typescript/lib"
+  }
+}

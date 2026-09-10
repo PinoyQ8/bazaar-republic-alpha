@@ -1,0 +1,61 @@
+﻿{
+  "categories": [
+    {
+      "id": "CAFETERIA",
+      "name": "Cafeteria & Daily Rations",
+      "stalls": [
+        {
+          "businessName": "Alpha Mesh Provisions",
+          "providerUid": "PinoyQ8-Node-01",
+          "providerId": "65f1a2b3c4d5e6f7a8b9c0d1",
+          "strategy": "PREMIUM",
+          "sectorLocation": "SECTOR-01-X570",
+          "description": "Calibrated daily rations and energy supplies for SoloHost operators.",
+          "rating": 4.9,
+          "baseFeePi": 0.1,
+          "inventory": [
+            {
+              "id": "item_rat_01",
+              "name": "Bio-Synthesized MESH MRE",
+              "description": "High-density caloric nutrition ration.",
+              "pricePi": 2.5,
+              "priceSubunits": 25000000
+            },
+            {
+              "id": "item_rat_02",
+              "name": "Electrolyte Infusion Capsule",
+              "description": "Cellular hydration matrix for hardware shifts.",
+              "pricePi": 1.2,
+              "priceSubunits": 12000000
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "HARDWARE",
+      "name": "Node Hardware & Relays",
+      "stalls": [
+        {
+          "businessName": "SoloHost DePIN Outpost",
+          "providerUid": "usr_pioneer_1001",
+          "providerId": "65f1a2b3c4d5e6f7a8b9c0d1",
+          "strategy": "DISCOUNT",
+          "sectorLocation": "SECTOR-04-NITRO",
+          "description": "Hardware dongles, port forwarding relays, and SSD backup nodes.",
+          "rating": 5.0,
+          "baseFeePi": 0.5,
+          "inventory": [
+            {
+              "id": "item_hw_01",
+              "name": "Port 31400-31409 Relay Bridge",
+              "description": "Pre-configured firmware module ensuring 92% Uptime Shield compliance.",
+              "pricePi": 15.0,
+              "priceSubunits": 150000000
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

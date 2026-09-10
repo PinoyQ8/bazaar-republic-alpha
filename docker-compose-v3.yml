@@ -1,4 +1,4 @@
-﻿services:
+services:
   # =====================================================================
   # 1. DATABASE LAYER (Prisma Replica Set Enabled)
   # =====================================================================
@@ -22,7 +22,7 @@
       retries: 5
 
   # =====================================================================
-  # 2. NEXT.JS APPLICATION CONTAINER (Production / SoloHost Build)
+  # 2. NEXT.JS CORE APPLICATION NODE
   # =====================================================================
   app:
     build:
@@ -53,6 +53,7 @@
 
   # =====================================================================
   # 3. ON-CHAIN RELAYER DAEMON (Profile Isolated)
+  # Run with: docker compose --profile relayer up -d
   # =====================================================================
   relayer:
     profiles: ["relayer"]
