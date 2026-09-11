@@ -70,3 +70,4 @@ test-db.js
 
 mesh-structure.txt
 oracle-node/
+.vscode/settings.json
