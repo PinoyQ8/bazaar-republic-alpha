@@ -1,10 +1,18 @@
 /**
  * Bazaar Republic Alpha - Telegram Operator Bot & Notification Module
  * Location: lib/telegram_notifier.ts
+ *
+ * Real-time alerting for DePIN Node Operators:
+ * - HTML entity parsing to prevent Telegram 400 Bad Request fractures on underscores
+ * - Comprehensive secret sanitization (Stellar keys, webhooks, Pi credentials)
+ * - Uptime Shield SLA tracking (90% SLA floor baseline)
+ * - Soroban Protocol 28 contract TTL and keeper gas alerts
  */
 
 import dotenv from "dotenv";
+
 dotenv.config({ path: ".env.local" });
+dotenv.config();
 
 export interface TelegramAlertOptions {
   title: string;
@@ -18,16 +26,38 @@ export interface TelegramAlertOptions {
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "";
 const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID || "";
 const NODE_IDENTIFIER = process.env.NODE_ID || process.env.MESH_PIONEER_ID || "Nitro5-SoloHost";
+const KNOWN_SECRET_KEY = process.env.PI_API_KEY || "";
+
+function escapeHtml(text: string): string {
+  if (!text) return "";
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
 
 function sanitizeMessage(text: string): string {
   if (!text) return "";
-  return text
+  let sanitized = text
     .replace(/S[A-Z0-9]{55}/g, "[REDACTED_SECRET_KEY]")
     .replace(/http[s]?:\/\/[^\s]+/g, (url) => (url.includes("webhook") ? "[REDACTED_URL]" : url));
+
+  if (KNOWN_SECRET_KEY && KNOWN_SECRET_KEY.length > 8) {
+    sanitized = sanitized.split(KNOWN_SECRET_KEY).join("[REDACTED_VAULT_KEY]");
+  }
+
+  return sanitized;
 }
 
 export async function sendTelegramAlert(options: TelegramAlertOptions): Promise<boolean> {
-  const { title, message, level, nodeId = NODE_IDENTIFIER, timestamp = new Date().toISOString(), metadata } = options;
+  const {
+    title,
+    message,
+    level,
+    nodeId = NODE_IDENTIFIER,
+    timestamp = new Date().toISOString(),
+    metadata,
+  } = options;
 
   if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) {
     console.warn("⚠️ [TELEGRAM-BOT] TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID missing in environment. Alert skipped.");
@@ -41,18 +71,22 @@ export async function sendTelegramAlert(options: TelegramAlertOptions): Promise<
     CRITICAL: "🚨",
   };
 
-  const sanitizedTitle = sanitizeMessage(title);
-  const sanitizedMsg = sanitizeMessage(message);
+  const safeTitle = escapeHtml(sanitizeMessage(title));
+  const safeMessage = escapeHtml(sanitizeMessage(message));
+  const safeNode = escapeHtml(nodeId);
+  const safeTime = escapeHtml(timestamp);
 
-  let formattedText = `${icons[level]} *[BAZAAR REPUBLIC] ${sanitizedTitle}*\n`;
-  formattedText += `🖥️ *Node:* \`${nodeId}\`\n`;
-  formattedText += `⏱️ *Time:* \`${timestamp}\`\n\n`;
-  formattedText += `${sanitizedMsg}\n`;
+  let formattedText = `${icons[level]} <b>[BAZAAR REPUBLIC] ${safeTitle}</b>\n`;
+  formattedText += `🖥️ <b>Node:</b> <code>${safeNode}</code>\n`;
+  formattedText += `⏱️ <b>Time:</b> <code>${safeTime}</code>\n\n`;
+  formattedText += `${safeMessage}\n`;
 
   if (metadata && Object.keys(metadata).length > 0) {
-    formattedText += `\n📊 *Details:*\n`;
+    formattedText += `\n📊 <b>Details:</b>\n`;
     for (const [key, val] of Object.entries(metadata)) {
-      formattedText += `• *${key}:* \`${val}\`\n`;
+      const cleanKey = escapeHtml(key);
+      const cleanVal = escapeHtml(String(val ?? "N/A"));
+      formattedText += `• <b>${cleanKey}:</b> <code>${cleanVal}</code>\n`;
     }
   }
 
@@ -65,7 +99,7 @@ export async function sendTelegramAlert(options: TelegramAlertOptions): Promise<
       body: JSON.stringify({
         chat_id: TELEGRAM_CHAT_ID,
         text: formattedText,
-        parse_mode: "Markdown",
+        parse_mode: "HTML",
         disable_web_page_preview: true,
       }),
       signal: AbortSignal.timeout(8000),
@@ -77,7 +111,7 @@ export async function sendTelegramAlert(options: TelegramAlertOptions): Promise<
       return false;
     }
 
-    console.log(`📱 [TELEGRAM-BOT] Alert dispatched successfully: "${sanitizedTitle}"`);
+    console.log(`📱 [TELEGRAM-BOT] Alert dispatched successfully: "${title}"`);
     return true;
   } catch (error: any) {
     console.error(`❌ [TELEGRAM-BOT] Dispatch failed: ${error?.message || error}`);
@@ -107,7 +141,7 @@ export async function notifyEscrowState(
 
   return sendTelegramAlert({
     title: titleMap[status] || `Escrow Update: ${status}`,
-    message: `Escrow Contract \`${escrowId}\` updated to status *${status}*.`,
+    message: `Escrow Contract ${escrowId} updated to status ${status}.`,
     level: levelMap[status] || "INFO",
     metadata: {
       "Escrow ID": escrowId,
@@ -129,9 +163,9 @@ export async function notifySlaShield(
   return sendTelegramAlert({
     title: isQuarantine ? "Uptime Shield SLA Alert!" : "Uptime Shield Warning",
     message: isQuarantine
-      ? `Node \`${nodeId}\` uptime has dropped to *${currentUptime.toFixed(1)}%*, which is below the strict ${slaFloor}% 30-day SLA floor or has been quarantined.`
-      : `Node \`${nodeId}\` uptime is currently *${currentUptime.toFixed(1)}%*.`,
-    level: severity,
+      ? `Node ${nodeId} uptime has dropped to ${currentUptime.toFixed(1)}%, failing the strict ${slaFloor}% 30-day SLA floor.`
+      : `Node ${nodeId} uptime is currently ${currentUptime.toFixed(1)}%.`,
+    level: isQuarantine ? "CRITICAL" : severity,
     nodeId,
     metadata: {
       "Current Uptime": `${currentUptime.toFixed(1)}%`,
@@ -148,7 +182,7 @@ export async function notifyLowGas(
 ): Promise<boolean> {
   return sendTelegramAlert({
     title: "Low Soroban Gas Fuel Warning",
-    message: `Keeper signer balance is *${balanceXlm.toFixed(2)} XLM* (below safety buffer of ${thresholdXlm} XLM). Refuel immediately to prevent contract lease expiration.`,
+    message: `Keeper signer balance is ${balanceXlm.toFixed(2)} XLM (below safety buffer of ${thresholdXlm} XLM). Refuel immediately.`,
     level: "WARN",
     metadata: {
       "Balance": `${balanceXlm.toFixed(2)} XLM`,
