@@ -1,196 +1,122 @@
-/**
- * Bazaar Republic Alpha - Telegram Operator Bot & Notification Module
- * Location: lib/telegram_notifier.ts (or scripts/telegram_notifier.ts)
- * 
- * Provides real-time alerts for DePIN Node Operators:
- * - Uptime Shield & SLA warnings (90% SLA floor / 92% baseline)
- * - Escrow state transitions (Locked, Released, Disputed)
- * - Low XLM gas balance alerts for Soroban Protocol 28 contract extensions
- * - Automated recovery & node health notifications
- */
+// Location: app/api/node/heartbeat/route.ts
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { notifySlaShield } from "@/lib/telegram_notifier";
 
-import dotenv from "dotenv";
-dotenv.config({ path: ".env.local" });
-
-export interface TelegramAlertOptions {
-  title: string;
-  message: string;
-  level: "INFO" | "WARN" | "CRITICAL" | "SUCCESS";
-  nodeId?: string;
-  timestamp?: string;
-  metadata?: Record<string, any>;
-}
-
-const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "";
-const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID || "";
-const NODE_IDENTIFIER = process.env.NODE_ID || process.env.MESH_PIONEER_ID || "Nitro5-SoloHost";
+export const dynamic = "force-dynamic";
 
 /**
- * Sanitizes messages to prevent sensitive secrets or private keys from leaking into chat logs.
+ * 🛰️ POST: INGEST PIONEER NODE HEARTBEATS & TELEMETRY
  */
-function sanitizeMessage(text: string): string {
-  if (!text) return "";
-  return text
-    .replace(/S[A-Z0-9]{55}/g, "[REDACTED_SECRET_KEY]")
-    .replace(/http[s]?:\/\/[^\s]+/g, (url) => (url.includes("webhook") ? "[REDACTED_URL]" : url));
-}
-
-/**
- * Dispatches a formatted Telegram alert to the designated Chat ID.
- */
-export async function sendTelegramAlert(options: TelegramAlertOptions): Promise<boolean> {
-  const { title, message, level, nodeId = NODE_IDENTIFIER, timestamp = new Date().toISOString(), metadata } = options;
-
-  if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) {
-    console.warn("⚠️ [TELEGRAM-BOT] TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID missing in environment. Alert skipped.");
-    return false;
-  }
-
-  const icons: Record<TelegramAlertOptions["level"], string> = {
-    INFO: "ℹ️",
-    SUCCESS: "✅",
-    WARN: "⚠️",
-    CRITICAL: "🚨",
-  };
-
-  const sanitizedTitle = sanitizeMessage(title);
-  const sanitizedMsg = sanitizeMessage(message);
-
-  let formattedText = `${icons[level]} *[BAZAAR REPUBLIC] ${sanitizedTitle}*\n`;
-  formattedText += `🖥️ *Node:* \`${nodeId}\`\n`;
-  formattedText += `⏱️ *Time:* \`${timestamp}\`\n\n`;
-  formattedText += `${sanitizedMsg}\n`;
-
-  if (metadata && Object.keys(metadata).length > 0) {
-    formattedText += `\n📊 *Details:*\n`;
-    for (const [key, val] of Object.entries(metadata)) {
-      formattedText += `• *${key}:* \`${val}\`\n`;
-    }
-  }
-
-  const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
-
+export async function POST(req: NextRequest) {
   try {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        chat_id: TELEGRAM_CHAT_ID,
-        text: formattedText,
-        parse_mode: "Markdown",
-        disable_web_page_preview: true,
-      }),
-      signal: AbortSignal.timeout(8000), // 8s circuit breaker
+    const body = await req.json().catch(() => ({}));
+    const { uid, walletAddress, protocolVersion, uptimeShield } = body;
+
+    if (!uid && !walletAddress) {
+      return NextResponse.json(
+        { success: false, error: "MISSING_IDENTIFIER: uid or walletAddress required." },
+        { status: 400 }
+      );
+    }
+
+    const conditions: Array<Record<string, unknown>> = [];
+    if (uid) conditions.push({ uid });
+    if (walletAddress) conditions.push({ walletAddress });
+
+    const db = prisma as any;
+    const node = await db.pioneerNode.findFirst({
+      where: { OR: conditions },
     });
 
-    if (!res.ok) {
-      const errText = await res.text();
-      console.error(`❌ [TELEGRAM-BOT] API error (HTTP ${res.status}): ${errText}`);
-      return false;
+    if (!node) {
+      return NextResponse.json(
+        { success: false, error: "NODE_NOT_FOUND: Node not registered in Republic registry." },
+        { status: 404 }
+      );
     }
 
-    console.log(`📱 [TELEGRAM-BOT] Alert dispatched successfully: "${sanitizedTitle}"`);
-    return true;
-  } catch (error: any) {
-    console.error(`❌ [TELEGRAM-BOT] Dispatch failed: ${error?.message || error}`);
-    return false;
+    if (node.isFrozen || node.status === "FROZEN" || node.status === "QUARANTINED") {
+      return NextResponse.json(
+        {
+          success: false,
+          status: node.status,
+          message: "ACCESS_DENIED: Node is quarantined or frozen. Remedial action required.",
+        },
+        { status: 403 }
+      );
+    }
+
+    const currentUptime =
+      typeof uptimeShield === "number" ? uptimeShield : (node.uptimeShield ?? 100.0);
+
+    // Asynchronously alert Telegram if uptime breaches the 90% SLA floor
+    if (currentUptime < 90.0) {
+      notifySlaShield(node.uid || uid, currentUptime, "WARN", 90.0).catch(() => {});
+    }
+
+    const updatedNode = await db.pioneerNode.update({
+      where: { id: node.id },
+      data: {
+        lastActivityTimestamp: new Date(),
+        status: "ACTIVE",
+        uptimeShield: currentUptime,
+      },
+    });
+
+    return NextResponse.json({
+      success: true,
+      status: updatedNode.status,
+      trustScore: updatedNode.trustScore,
+      uptimeShield: updatedNode.uptimeShield,
+      lastActivityTimestamp: updatedNode.lastActivityTimestamp,
+      protocolVersion: protocolVersion || "28",
+    });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Internal server error during heartbeat sync.";
+    console.error("[HEARTBEAT-FAIL] Telemetry sync error:", message);
+    return NextResponse.json(
+      { success: false, error: message },
+      { status: 500 }
+    );
   }
 }
 
 /**
- * Helper: Notify Escrow State Transitions (Lock, Release, Refund, Dispute)
+ * 🧭 GET: QUERY HEARTBEAT STATUS FOR CLIENT VIEWPORTS
  */
-export async function notifyEscrowState(
-  escrowId: string,
-  status: "LOCKED" | "RELEASED" | "REFUNDED" | "DISPUTED",
-  amountPi: number,
-  txHash?: string
-): Promise<boolean> {
-  const levelMap: Record<string, TelegramAlertOptions["level"]> = {
-    LOCKED: "INFO",
-    RELEASED: "SUCCESS",
-    REFUNDED: "WARN",
-    DISPUTED: "CRITICAL",
-  };
+export async function GET(req: NextRequest) {
+  try {
+    const { searchParams } = new URL(req.url);
+    const uid = searchParams.get("uid");
+    const walletAddress = searchParams.get("walletAddress");
 
-  const titleMap: Record<string, string> = {
-    LOCKED: "Escrow Locked",
-    RELEASED: "Escrow Released & Settled",
-    REFUNDED: "Escrow Refunded",
-    DISPUTED: "Escrow Dispute Escalated (5-Elder Panel)",
-  };
+    const conditions: Array<Record<string, unknown>> = [];
+    if (uid) conditions.push({ uid });
+    if (walletAddress) conditions.push({ walletAddress });
 
-  return sendTelegramAlert({
-    title: titleMap[status] || `Escrow Update: ${status}`,
-    message: `Escrow Contract \`${escrowId}\` updated to status *${status}*.`,
-    level: levelMap[status] || "INFO",
-    metadata: {
-      "Escrow ID": escrowId,
-      "Status": status,
-      "Amount": `${amountPi} PI (${amountPi * 1000} mBZR)`,
-      ...(txHash ? { "Tx Hash": `${txHash.slice(0, 10)}...${txHash.slice(-6)}` } : {}),
-    },
-  });
-}
+    const db = prisma as any;
+    const node =
+      conditions.length > 0
+        ? await db.pioneerNode.findFirst({ where: { OR: conditions } })
+        : await db.pioneerNode.findFirst({ orderBy: { lastActivityTimestamp: "desc" } });
 
-/**
- * Helper: Notify Uptime Shield & SLA Baseline Warnings
- */
-export async function notifySlaShield(
-  nodeId: string,
-  currentUptime: number,
-  severity: "INFO" | "WARN" | "CRITICAL" = "WARN",
-  slaFloor: number = 90.0
-): Promise<boolean> {
-  const isQuarantine = severity === "CRITICAL" || currentUptime < slaFloor;
+    if (!node) {
+      return NextResponse.json(
+        { success: false, message: "No active heartbeat records found." },
+        { status: 404 }
+      );
+    }
 
-  return sendTelegramAlert({
-    title: isQuarantine ? "Uptime Shield SLA Alert!" : "Uptime Shield Warning",
-    message: isQuarantine
-      ? `Node \`${nodeId}\` uptime has dropped to *${currentUptime.toFixed(1)}%*, which is below the strict ${slaFloor}% 30-day SLA floor or has been quarantined.`
-      : `Node \`${nodeId}\` uptime is currently *${currentUptime.toFixed(1)}%*.`,
-    level: severity,
-    nodeId,
-    metadata: {
-      "Current Uptime": `${currentUptime.toFixed(1)}%`,
-      "SLA Floor": `${slaFloor}%`,
-      "Status": isQuarantine ? "QUARANTINE_WARNING" : "SLA_WARN",
-    },
-  });
-}
-
-/**
- * Helper: Notify Low XLM Gas Fuel for Soroban Protocol 28 TTL Keepers
- */
-export async function notifyLowGas(
-  balanceXlm: number,
-  thresholdXlm: number = 10.0,
-  keeperAddress?: string
-): Promise<boolean> {
-  return sendTelegramAlert({
-    title: "Low Soroban Gas Fuel Warning",
-    message: `Keeper signer balance is *${balanceXlm.toFixed(2)} XLM* (below safety buffer of ${thresholdXlm} XLM). Refuel immediately to prevent contract lease expiration.`,
-    level: "WARN",
-    metadata: {
-      "Balance": `${balanceXlm.toFixed(2)} XLM`,
-      "Threshold": `${thresholdXlm} XLM`,
-      ...(keeperAddress ? { "Signer": `${keeperAddress.slice(0, 6)}...${keeperAddress.slice(-4)}` } : {}),
-    },
-  });
-}
-
-// Interactive Test Mode when executed directly via npx tsx scripts/telegram_notifier.ts
-if (require.main === module) {
-  console.log("🤖 [TELEGRAM-BOT] Testing Telegram Alert dispatch...");
-  sendTelegramAlert({
-    title: "Telegram Operator Bot Initialized",
-    message: "Bazaar Republic Alpha Telegram Notification Daemon is online and active.",
-    level: "SUCCESS",
-    metadata: {
-      "Protocol": "Soroban Protocol 28",
-      "Network": "Pi Testnet / DePIN Grid",
-    },
-  }).then((success) => {
-    console.log(`[TELEGRAM-BOT] Test execution completed. Success: ${success}`);
-  });
+    return NextResponse.json({
+      success: true,
+      status: node.status,
+      lastActivityTimestamp: node.lastActivityTimestamp,
+      uptimeShield: node.uptimeShield,
+      trustScore: node.trustScore,
+    });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Failed to read node heartbeat.";
+    return NextResponse.json({ success: false, error: message }, { status: 500 });
+  }
 }
