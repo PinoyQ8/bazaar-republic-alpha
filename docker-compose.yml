@@ -1,19 +1,21 @@
-﻿services:
-  # =====================================================================
-  # 1. DATABASE LAYER (Prisma Replica Set Enabled)
-  # =====================================================================
+version: '3.8'
+
+services:
+  # 1. Embedded Ledger (Replica Set Enabled)
   db:
-    image: mongo:6.0
-    container_name: bzr-db
+    image: docker.io/library/mongo:6.0
     restart: always
     ports:
-      - "127.0.0.1:27017:27017"
+      - "0.0.0.0:27017:27017" # Exposes DB to LAN for Nitro 5 / client nodes
     environment:
       MONGO_INITDB_DATABASE: bazaar_republic
     volumes:
       - mongodb_data:/data/db
     networks:
-      - bzr-network
+      bzr-network:
+        aliases:
+          - mongo
+          - db
     command: ["--replSet", "rs0", "--bind_ip_all"]
     healthcheck:
       test: ["CMD", "mongosh", "--eval", "try { rs.status().ok } catch (e) { try { rs.initiate({_id: 'rs0', members: [{_id: 0, host: 'db:27017'}]}); } catch (err) { quit(1); } }"]
@@ -21,58 +23,30 @@
       timeout: 5s
       retries: 5
 
-  # =====================================================================
-  # 2. NEXT.JS APPLICATION CONTAINER (Production / SoloHost Build)
-  # =====================================================================
-  app:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: bzr-nextjs-app
+  # 2. Next.js Core Application
+  web:
+    image: docker.io/pinoyq8/bazaar-republic-alpha:latest
     restart: always
     ports:
       - "3000:3000"
     environment:
-      DATABASE_URL: mongodb://db:27017/bazaar_republic?replicaSet=rs0&readConcernLevel=majority&w=majority
-      MONGODB_URI: mongodb://db:27017/bazaar_republic?replicaSet=rs0&readConcernLevel=majority&w=majority
-      SOROBAN_RPC_URL: https://soroban-testnet.stellar.org
-      BAZAAR_VAULT_CONTRACT_ID: CDI5EAXHES3KPZBLAICUWUSDCLFGTN3MDURTFMQCXTQWFSYRK357YPD6
-      PI_API_KEY: ${PI_API_KEY}
-      NEXT_PUBLIC_PI_SANDBOX: "true"
+      - NODE_ENV=production
+      - NEXT_PUBLIC_PI_SANDBOX=true
+      - DATABASE_URL=${MONGODB_URI}
+      - MONGODB_URI=${MONGODB_URI}
+      - SOROBAN_RPC_URL=https://soroban-testnet.stellar.org
+      - BAZAAR_VAULT_CONTRACT_ID=CDI5EAXHES3KPZBLAICUWUSDCLFGTN3MDURTFMQCXTQWFSYRK357YPD6
     networks:
       - bzr-network
     depends_on:
       db:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health", "||", "exit", "1"]
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
       interval: 15s
       timeout: 5s
       retries: 3
       start_period: 30s
-
-  # =====================================================================
-  # 3. ON-CHAIN RELAYER DAEMON (Profile Isolated)
-  # =====================================================================
-  relayer:
-    profiles: ["relayer"]
-    build:
-      context: .
-      dockerfile: Dockerfile.relayer
-    container_name: bzr-bridge-relayer
-    restart: always
-    environment:
-      DATABASE_URL: mongodb://db:27017/bazaar_republic?replicaSet=rs0&readConcernLevel=majority&w=majority
-      MONGODB_URI: mongodb://db:27017/bazaar_republic?replicaSet=rs0&readConcernLevel=majority&w=majority
-      SOROBAN_RPC_URL: https://soroban-testnet.stellar.org
-      BAZAAR_VAULT_CONTRACT_ID: CDI5EAXHES3KPZBLAICUWUSDCLFGTN3MDURTFMQCXTQWFSYRK357YPD6
-      PI_API_KEY: ${PI_API_KEY}
-    networks:
-      - bzr-network
-    depends_on:
-      db:
-        condition: service_healthy
-    stop_grace_period: 1m30s
 
 volumes:
   mongodb_data:

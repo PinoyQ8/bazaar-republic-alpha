@@ -1,12 +1,6 @@
 /**
  * Bazaar Republic Alpha - Telegram Operator Bot & Notification Module
- * Location: lib/telegram_notifier.ts (or scripts/telegram_notifier.ts)
- * 
- * Provides real-time alerts for DePIN Node Operators:
- * - Uptime Shield & SLA warnings (90% SLA floor / 92% baseline)
- * - Escrow state transitions (Locked, Released, Disputed)
- * - Low XLM gas balance alerts for Soroban Protocol 28 contract extensions
- * - Automated recovery & node health notifications
+ * Location: lib/telegram_notifier.ts
  */
 
 import dotenv from "dotenv";
@@ -25,9 +19,6 @@ const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "";
 const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID || "";
 const NODE_IDENTIFIER = process.env.NODE_ID || process.env.MESH_PIONEER_ID || "Nitro5-SoloHost";
 
-/**
- * Sanitizes messages to prevent sensitive secrets or private keys from leaking into chat logs.
- */
 function sanitizeMessage(text: string): string {
   if (!text) return "";
   return text
@@ -35,9 +26,6 @@ function sanitizeMessage(text: string): string {
     .replace(/http[s]?:\/\/[^\s]+/g, (url) => (url.includes("webhook") ? "[REDACTED_URL]" : url));
 }
 
-/**
- * Dispatches a formatted Telegram alert to the designated Chat ID.
- */
 export async function sendTelegramAlert(options: TelegramAlertOptions): Promise<boolean> {
   const { title, message, level, nodeId = NODE_IDENTIFIER, timestamp = new Date().toISOString(), metadata } = options;
 
@@ -80,7 +68,7 @@ export async function sendTelegramAlert(options: TelegramAlertOptions): Promise<
         parse_mode: "Markdown",
         disable_web_page_preview: true,
       }),
-      signal: AbortSignal.timeout(8000), // 8s circuit breaker
+      signal: AbortSignal.timeout(8000),
     });
 
     if (!res.ok) {
@@ -97,9 +85,6 @@ export async function sendTelegramAlert(options: TelegramAlertOptions): Promise<
   }
 }
 
-/**
- * Helper: Notify Escrow State Transitions (Lock, Release, Refund, Dispute)
- */
 export async function notifyEscrowState(
   escrowId: string,
   status: "LOCKED" | "RELEASED" | "REFUNDED" | "DISPUTED",
@@ -133,9 +118,6 @@ export async function notifyEscrowState(
   });
 }
 
-/**
- * Helper: Notify Uptime Shield & SLA Baseline Warnings
- */
 export async function notifySlaShield(
   nodeId: string,
   currentUptime: number,
@@ -159,9 +141,6 @@ export async function notifySlaShield(
   });
 }
 
-/**
- * Helper: Notify Low XLM Gas Fuel for Soroban Protocol 28 TTL Keepers
- */
 export async function notifyLowGas(
   balanceXlm: number,
   thresholdXlm: number = 10.0,
@@ -176,21 +155,5 @@ export async function notifyLowGas(
       "Threshold": `${thresholdXlm} XLM`,
       ...(keeperAddress ? { "Signer": `${keeperAddress.slice(0, 6)}...${keeperAddress.slice(-4)}` } : {}),
     },
-  });
-}
-
-// Interactive Test Mode when executed directly via npx tsx scripts/telegram_notifier.ts
-if (require.main === module) {
-  console.log("🤖 [TELEGRAM-BOT] Testing Telegram Alert dispatch...");
-  sendTelegramAlert({
-    title: "Telegram Operator Bot Initialized",
-    message: "Bazaar Republic Alpha Telegram Notification Daemon is online and active.",
-    level: "SUCCESS",
-    metadata: {
-      "Protocol": "Soroban Protocol 28",
-      "Network": "Pi Testnet / DePIN Grid",
-    },
-  }).then((success) => {
-    console.log(`[TELEGRAM-BOT] Test execution completed. Success: ${success}`);
   });
 }

@@ -53,6 +53,9 @@ Succession Veto Shield: Node operators can configure a dead-man's switch inactiv
 🖥️ 4. DePIN SoloHost v2 Node Specifications
 Our decentralized hosting fleet is held to strict enterprise hardware standards to prevent Out-of-Memory (OOM) crashes and disk I/O bottlenecks:
 
+## 📖 Node Operator Documentation
+- [Bazaar DePIN SoloHost Node Operator Guide](./docs/bazaar_node_operator_guide.md)
+
 Minimum Hardware Specification:
 CPU: 4 physical cores minimum.
 RAM: 8GB memory allocation.
