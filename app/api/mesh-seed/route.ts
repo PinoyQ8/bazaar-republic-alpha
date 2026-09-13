@@ -1,27 +1,38 @@
 import { NextResponse } from "next/server";
 import { MongoClient } from "mongodb";
 
-// 🛡️ GLOBAL CONNECTION CACHE: Prevents connection pooling leaks in Next.js API routes
-const uri = process.env.MONGODB_URI || "";
-let client: MongoClient;
-let clientPromise: Promise<MongoClient>;
+// 🛡️ CRITICAL: Block static evaluation during page data collection
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
-if (!process.env.MONGODB_URI) {
-  console.warn("[MESH-SEED] Warning: MONGODB_URI environment variable is missing.");
-}
+// 🛡️ LAZY GLOBAL CONNECTION CACHE
+let cachedClientPromise: Promise<MongoClient> | null = null;
 
-if (process.env.NODE_ENV === "development") {
-  const globalWithMongo = global as typeof globalThis & {
-    _mongoClientPromise?: Promise<MongoClient>;
-  };
-  if (!globalWithMongo._mongoClientPromise) {
-    client = new MongoClient(uri);
-    globalWithMongo._mongoClientPromise = client.connect();
+function getClientPromise(): Promise<MongoClient> {
+  const uri = process.env.MONGODB_URI || process.env.DATABASE_URL;
+
+  if (!uri) {
+    throw new Error("Missing MONGODB_URI or DATABASE_URL in runtime environment.");
   }
-  clientPromise = globalWithMongo._mongoClientPromise;
-} else {
-  client = new MongoClient(uri);
-  clientPromise = client.connect();
+
+  if (process.env.NODE_ENV === "development") {
+    const globalWithMongo = global as typeof globalThis & {
+      _mongoClientPromise?: Promise<MongoClient>;
+    };
+
+    if (!globalWithMongo._mongoClientPromise) {
+      const client = new MongoClient(uri);
+      globalWithMongo._mongoClientPromise = client.connect();
+    }
+    return globalWithMongo._mongoClientPromise;
+  }
+
+  if (!cachedClientPromise) {
+    const client = new MongoClient(uri);
+    cachedClientPromise = client.connect();
+  }
+
+  return cachedClientPromise;
 }
 
 export async function POST(req: Request) {
@@ -40,8 +51,10 @@ export async function POST(req: Request) {
     const cleanUid = uid.trim();
     const cleanUsername = username.trim();
 
-    const mongoClient = await clientPromise;
-    const db = mongoClient.db(process.env.MONGODB_DB_NAME || "bazaar_db");
+    // 🛡️ LAZY EVALUATION: Connects exclusively at runtime
+    const mongoClient = await getClientPromise();
+    const dbName = process.env.MONGODB_DB_NAME || "bazaar_republic_alpha";
+    const db = mongoClient.db(dbName);
     const pioneersCollection = db.collection("pioneers");
 
     // 🛡️ ATOMIC UPSERT MATRIX: Error 40 Conflict Resolved
@@ -56,7 +69,7 @@ export async function POST(req: Request) {
       },
       $set: {
         lastSync: new Date(),
-        username: cleanUsername, // Master anchor: Updates on login, inserts on creation
+        username: cleanUsername,
       },
     };
 
@@ -75,11 +88,10 @@ export async function POST(req: Request) {
       },
       { status: 200 }
     );
-  } catch (error) {
+  } catch (error: any) {
     console.error("[MESH-SEED FRACTURE] Database Seeding Error:", error);
-    // 🛡️ Zero-Leak Response: Shield internal system errors from public clients
     return NextResponse.json(
-      { error: "Vault Synchronization Failure" },
+      { error: "Vault Synchronization Failure", details: error?.message || "Internal server error" },
       { status: 500 }
     );
   }
