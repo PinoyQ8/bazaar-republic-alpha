@@ -1,44 +1,76 @@
 // app/api/passport/route.ts
-import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
 
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 export async function GET(req: Request) {
-  try {
-    const { searchParams } = new URL(req.url);
-    const walletAddress = searchParams.get('wallet') || searchParams.get('uid');
+  const { searchParams } = new URL(req.url);
+  const wallet = searchParams.get("wallet");
 
-    if (!walletAddress) {
-      return NextResponse.json({ active: false, reason: 'NO_WALLET_PROVIDED' }, { status: 400 });
+  if (!wallet) {
+    return NextResponse.json(
+      { active: false, error: "Missing wallet address parameter." },
+      { status: 400 }
+    );
+  }
+
+  try {
+    if (!prisma) {
+      throw new Error("Prisma client uninitialized");
     }
 
-    // Isolated read with count query safeguard
-    const node = await prisma.pioneerNode.findFirst({
-      where: { walletAddress },
+    const pioneer = await prisma.pioneerNode.findFirst({
+      where: {
+        walletAddress: wallet,
+      },
       select: {
         id: true,
-        uptimeShield: true,
-        tier: true,
-        modulesCleared: true,
+        uid: true,
+        username: true,
+        walletAddress: true,
+        status: true,
+        trustScore: true,
+        syncState: true,
+        createdAt: true,
       },
     });
 
-    // Passport is valid if node exists and has completed onboarding modules
-    const hasPassport = Boolean(node && (node.modulesCleared ?? 0) >= 3);
+    if (!pioneer) {
+      return NextResponse.json(
+        {
+          active: false,
+          registered: false,
+          message: "Pioneer node not found in state ledger.",
+        },
+        { status: 404 }
+      );
+    }
 
-    return NextResponse.json({
-      active: hasPassport,
-      node: node || null,
-      tier: node?.tier || 'CADET',
-      uptimeShield: node?.uptimeShield || 92.0,
-    });
-  } catch (error: any) {
-    console.error('[PASSPORT_QUERY_ERROR]:', error?.message);
-    // Return structured degraded state to prevent unhandled UI rejection
     return NextResponse.json(
-      { active: false, degraded: true, error: 'STATE_LEDGER_TEMPORARILY_OFFLINE' },
+      {
+        active: true,
+        registered: true,
+        pioneer: {
+          ...pioneer,
+          tier: "CITIZEN-NODE",
+          uptimeShield: true,
+          modulesCleared: [1, 2],
+        },
+      },
       { status: 200 }
+    );
+  } catch (error: any) {
+    console.error("[PASSPORT_QUERY_ERROR]:", error);
+    return NextResponse.json(
+      {
+        active: false,
+        degraded: true,
+        error: "STATE_LEDGER_TEMPORARILY_OFFLINE",
+        details: error?.message,
+      },
+      { status: 500 }
     );
   }
 }
