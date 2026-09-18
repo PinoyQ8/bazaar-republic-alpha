@@ -14,7 +14,7 @@ build
 cache
 .swc
 
-# Non-Vercel Blockchain & Backend Subsystems (~17,000 files)
+# Non-Vercel Heavy Subsystems (~17,000 files)
 target
 **/target/**
 backend
@@ -24,8 +24,6 @@ sdk-ports
 zk-circuits
 enetwork-verifier
 solohost
-mesh_client
-mesh-engine
 artifacts
 package-staging
 project-bazaar-quantum-preparedness
