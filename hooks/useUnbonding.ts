@@ -1,8 +1,8 @@
-﻿'use client';
+'use client';
 
 import { useState, useEffect, useCallback } from 'react';
 import { useWallet } from '@/context/WalletContext';
-import { Client as UnbondingClient } from '@/src/contracts/mesh_unbounding/src/index';
+import { Client as UnbondingClient } from '@/contracts/mesh_unbounding/src/index';
 
 const UNBOUNDING_ID = process.env.NEXT_PUBLIC_UNBOUNDING_CONTRACT_ID || '';
 const RPC_URL = process.env.NEXT_PUBLIC_STELLAR_RPC_URL || 'http://localhost:8000/rpc';
