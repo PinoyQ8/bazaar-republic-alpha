@@ -1,4 +1,3 @@
-// Location: services/bazaarVaultService.ts
 import {
   Account,
   Contract,
@@ -17,23 +16,28 @@ import {
 import { VaultEscrowRecord, EscrowStatus } from '@/types/bazaar-vault';
 
 export const BAZAAR_VAULT_CONTRACT_ID =
+  process.env.NEXT_PUBLIC_ESCROW_CONTRACT_ID ||
   process.env.NEXT_PUBLIC_BAZAAR_VAULT_CONTRACT_ID ||
-  'CAL7VDQBPLM4Z3LDG4TSALUL3DQAWZIJGWOLYQ3JBND3RJTZ7XLKEIUG';
+  'CBM5SVJHLHNAEUR4GA3IV5KZFPCCMGTZGMAJUNURUQIEFPTKZLKXQ3RY';
 
 export const SAC_TOKEN_CONTRACT =
   process.env.NEXT_PUBLIC_PI_TOKEN_CONTRACT ||
   'CDG6ZM2SHXIHD5HZ2E62B7D76RY5DUHDNQVPSHRVDNN7W4EW47FXLEXQ';
 
 export const SOROBAN_RPC_URL =
+  process.env.NEXT_PUBLIC_PI_RPC_URL ||
+  process.env.PI_RPC_URL ||
   process.env.NEXT_PUBLIC_SOROBAN_RPC_URL ||
   process.env.SOROBAN_RPC_URL ||
   'https://rpc.testnet.minepi.com';
 
 export const PI_HORIZON_URL =
   process.env.NEXT_PUBLIC_PI_HORIZON_URL ||
+  process.env.PI_HORIZON_URL ||
   'https://horizon-testnet.stellar.org';
 
 export const NETWORK_PASSPHRASE =
+  process.env.NEXT_PUBLIC_PI_NETWORK_PASSPHRASE ||
   process.env.NEXT_PUBLIC_STELLAR_NETWORK_PASSPHRASE ||
   process.env.STELLAR_NETWORK_PASSPHRASE ||
   'Pi Testnet';
@@ -72,7 +76,7 @@ export class BazaarVaultService {
     const tokenContract = getField('token_contract') || SAC_TOKEN_CONTRACT;
     const expiresAt = getField('expires_at') || BigInt(0);
 
-    let normalizedStatus: string = 'Locked';
+    let normalizedStatus = 'Locked';
     if (Array.isArray(rawStatus) && rawStatus.length > 0) {
       normalizedStatus = String(rawStatus[0]);
     } else if (typeof rawStatus === 'object' && rawStatus !== null) {
@@ -228,14 +232,29 @@ export class BazaarVaultService {
       throw new Error(`Transaction submission error: ${JSON.stringify(sendRes.errorResult)}`);
     }
 
+    const maxAttempts = 20;
+    let attempts = 0;
     let txStatus = await this.rpcServer.getTransaction(sendRes.hash);
-    while (txStatus.status === StellarRpc.Api.GetTransactionStatus.NOT_FOUND) {
+
+    while (
+      txStatus.status === StellarRpc.Api.GetTransactionStatus.NOT_FOUND &&
+      attempts < maxAttempts
+    ) {
+      attempts++;
       await new Promise((r) => setTimeout(r, 1500));
       txStatus = await this.rpcServer.getTransaction(sendRes.hash);
+    }
+
+    if (txStatus.status === StellarRpc.Api.GetTransactionStatus.NOT_FOUND) {
+      throw new Error(`Transaction ${sendRes.hash} confirmation timed out after 30s.`);
+    }
+
+    if (txStatus.status === StellarRpc.Api.GetTransactionStatus.FAILED) {
+      throw new Error(`Transaction ${sendRes.hash} execution failed on-chain.`);
     }
 
     return txStatus;
   }
 }
-export const bazaarVaultService = new BazaarVaultService();
 
+export const bazaarVaultService = new BazaarVaultService();
