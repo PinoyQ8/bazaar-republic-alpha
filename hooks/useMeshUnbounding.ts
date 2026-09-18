@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useWallet } from '@/context/WalletContext';
-import { Client as UnbondingClient } from '@/src/contracts/mesh_unbounding/src/index';
+import { Client as UnbondingClient } from '@/contracts/mesh_unbounding/src/index';
 
 export interface UnbondingRequest {
   id: bigint;

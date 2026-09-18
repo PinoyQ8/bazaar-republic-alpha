@@ -1,11 +1,36 @@
-node_modules/
-.next/
-.git/
-*.log
-.DS_Store
+# Dependencies & Framework Caches
+node_modules
+**/node_modules/**
 .next
+**/.next/**
 .turbo
+**/.turbo/**
+.git
+**/.git/**
+.vercel
+**/.vercel/**
 dist
 build
-.env.local
-.env*.local
+cache
+.swc
+
+# Non-Vercel Heavy Subsystems (~17,000 files)
+target
+**/target/**
+backend
+/contracts
+soroban-nexus
+sdk-ports
+zk-circuits
+enetwork-verifier
+solohost
+artifacts
+package-staging
+project-bazaar-quantum-preparedness
+
+# Logs & Archives
+*.log
+*.zip
+*.tar
+*.tgz
+*.mesh-map.txt

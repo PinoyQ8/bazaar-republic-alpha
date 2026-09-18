@@ -6,6 +6,9 @@
       "dom.iterable",
       "esnext"
     ],
+    "types": [
+      "node"
+    ],
     "allowJs": true,
     "skipLibCheck": true,
     "strict": true,
@@ -20,6 +23,12 @@
     "jsx": "react-jsx",
     "incremental": true,
     "paths": {
+      "bzr-db": [
+        "./prisma/generated/client"
+      ],
+      "bzr-db/*": [
+        "./prisma/generated/client/*"
+      ],
       "@/contracts/*": [
         "./src/contracts/*",
         "./contracts/*"
@@ -53,12 +62,6 @@
         "./*",
         "./src/*",
         "./app/*"
-      ],
-      "bzr-db": [
-        "./prisma/generated/client"
-      ],
-      "bzr-db/*": [
-        "./prisma/generated/client/*"
       ]
     },
     "plugins": [
@@ -82,7 +85,6 @@
     "**/*.test.tsx",
     "**/*.spec.ts",
     "**/*.spec.tsx",
-    "bazaar_integration_test*.*",
-    "scripts/**/*"
+    "bazaar_integration_test*.*"
   ]
 }

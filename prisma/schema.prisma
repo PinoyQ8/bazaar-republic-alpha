@@ -1,11 +1,11 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "windows", "rhel-openssl-3.0.x"]
+}
+
 datasource db {
   provider = "mongodb"
   url      = env("DATABASE_URL")
-}
-
-generator client {
-  provider      = "prisma-client-js"
-  binaryTargets = ["native", "windows", "rhel-openssl-3.0.x", "linux-musl-openssl-3.0.x"]
 }
 
 enum Tier {
@@ -61,62 +61,86 @@ enum LedgerTxType {
 }
 
 model PioneerNode {
-  id                    String      @id @default(auto()) @map("_id") @db.ObjectId
-  uid                   String      @unique
-  username              String?     @unique
-  walletAddress         String?     @unique
-  tier                  Tier        @default(CITIZEN)
-  status                NodeStatus  @default(SYNCING)
-  isFrozen              Boolean     @default(false)
-  freezeReason          String?
-  trustScore            Float       @default(100.0)
-  
-  regionCode            String?     @default("US")
-  countryCode           String?     @default("US")
-  phonePrefix           String?     @default("+1")
-  pppMultiplier         Float       @default(1.0)
-  
-  balance               String?     @default("0")
-  mbzrBalance           Float       @default(0)
-  mbzrBalanceSubunits   String?     @default("0")
-  mbzrBalanceFormatted  String?     @default("0.0000000")
-  
-  cpuUsage              String?     @default("25.0%")
-  ramUsage              String?     @default("4.0GB")
-  ssdLatency            String?     @default("100 MB/s")
-  downtimeHours         Float       @default(0)
-  accumulatedDowntime   Float       @default(0)
-  uptimeShield          Float       @default(100.0)
+  id            String     @id @default(auto()) @map("_id") @db.ObjectId
+  uid           String     @unique
+  username      String?    @unique
+  walletAddress String?    @unique
+  tier          Tier       @default(CITIZEN)
+  status        NodeStatus @default(SYNCING)
+  isFrozen      Boolean    @default(false)
+  freezeReason  String?
+  trustScore    Float      @default(100.0)
 
-  stakedPi              Float       @default(0)
-  mintedPiTotal         Float       @default(0)
-  signature             String?
-  ledgerHeight          Int         @default(0)
-  syncState             String      @default("Unknown")
-  activePeers           Int         @default(0)
-  protocol              String      @default("24")
-  isUnderRemoteRescue   Boolean     @default(false)
+  regionCode    String? @default("US")
+  countryCode   String? @default("US")
+  phonePrefix   String? @default("+1")
+  pppMultiplier Float   @default(1.0)
 
-  quarantineStatus      String      @default("NONE")
-  migrationHash         String?
-  quarantineDate        DateTime?
-  dormancyPiBalance     Float       @default(0)
-  dormancyMBzrBalance   Float       @default(0)
+  balance              String? @default("0")
+  mbzrBalance          Float   @default(0)
+  mbzrBalanceSubunits  String? @default("0")
+  mbzrBalanceFormatted String? @default("0.0000000")
 
-  lastEpochYield        Float       @default(0)
-  nextEpochEligible     DateTime?
-  stakeWeight           Float       @default(0)
+  cpuUsage            String? @default("25.0%")
+  ramUsage            String? @default("4.0GB")
+  ssdLatency          String? @default("100 MB/s")
+  downtimeHours       Float   @default(0)
+  accumulatedDowntime Float   @default(0)
+  uptimeShield        Float   @default(100.0)
 
-  lastActivityTimestamp DateTime    @default(now())
-  lastHeartbeat         DateTime    @default(now())
-  createdAt             DateTime    @default(now())
-  updatedAt             DateTime    @updatedAt
+  stakedPi            Float   @default(0)
+  mintedPiTotal       Float   @default(0)
+  signature           String?
+  ledgerHeight        Int     @default(0)
+  syncState           String  @default("Unknown")
+  activePeers         Int     @default(0)
+  protocol            String  @default("28") // Synchronized to Pi Testnet Protocol 28
+  isUnderRemoteRescue Boolean @default(false)
 
-  paymentsMade          Payment[]           @relation("PaymentsMade")
-  passkeys              PasskeyCredential[]
+  quarantineStatus    String    @default("NONE")
+  migrationHash       String?
+  quarantineDate      DateTime?
+  dormancyPiBalance   Float     @default(0)
+  dormancyMBzrBalance Float     @default(0)
+
+  lastEpochYield    Float     @default(0)
+  nextEpochEligible DateTime?
+  stakeWeight       Float     @default(0)
+
+  // Contributor Security Graph & Governance Fields
+  completedAlphaSessions Int                  @default(0) // Requires >= 3 to unlock Contributor status
+  isContributorUnlocked  Boolean              @default(false)
+  isElderEligible        Boolean              @default(false) // VRF selection eligibility for 5-Elder Jury
+  securityCircleOutbound SecurityCircleEdge[] @relation("TrusterRelation")
+  securityCircleInbound  SecurityCircleEdge[] @relation("TrustedRelation")
+
+  lastActivityTimestamp DateTime @default(now())
+  lastHeartbeat         DateTime @default(now())
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  paymentsMade Payment[]           @relation("PaymentsMade")
+  passkeys     PasskeyCredential[]
 
   @@index([status, trustScore])
   @@index([quarantineStatus])
+  @@index([isElderEligible, isContributorUnlocked])
+}
+
+model SecurityCircleEdge {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  trusterUid    String
+  trustedUid    String
+  vouchHumanity Boolean  @default(true) // Asserts peer is a verified human
+  vouchEthical  Boolean  @default(true) // Asserts peer is ethical/non-fraudulent
+  createdAt     DateTime @default(now())
+
+  truster PioneerNode @relation("TrusterRelation", fields: [trusterUid], references: [uid], onDelete: Cascade)
+  trusted PioneerNode @relation("TrustedRelation", fields: [trustedUid], references: [uid], onDelete: Cascade)
+
+  @@unique([trusterUid, trustedUid])
+  @@index([trusterUid])
+  @@index([trustedUid])
 }
 
 model PasskeyCredential {
@@ -170,6 +194,7 @@ model EscrowLock {
   updatedAt          DateTime @updatedAt
 
   provider ServiceProvider @relation(fields: [providerId], references: [id])
+  dispute  DisputeRecord?
 
   @@index([consumerUid])
   @@index([status])
@@ -183,6 +208,8 @@ model DisputeRecord {
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
   votes        VoteRecord[]
+
+  escrowLock EscrowLock @relation(fields: [escrowId], references: [escrowId], onDelete: Cascade)
 
   @@index([status])
 }
