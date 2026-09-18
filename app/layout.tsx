@@ -27,9 +27,9 @@ export default function RootLayout({
       <body className="bg-neutral-950 text-slate-100 font-sans antialiased min-h-dvh flex flex-col items-center justify-start overflow-x-hidden">
         {/* Load Pi SDK without blocking client-side page rendering */}
         <Script
-          src="https://sdk.minepi.com/pi-sdk.js"
-          strategy="afterInteractive"
-        />
+  src="https://sdk.minepi.com/pi-sdk.js"
+  strategy="beforeInteractive"
+/>
         
         <AuthProvider>
           <div className="w-full max-w-[384px] min-h-dvh flex flex-col relative border-x border-neutral-900 shadow-2xl bg-neutral-950">

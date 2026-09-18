@@ -1,71 +1,76 @@
-/**
- * 🛡️ THE MESH PROTOCOL: VAULT MANIFEST SCHEMA
- * ---------------------------------------------------------
- * This configuration dictates offline storage limits,
- * synchronization thresholds, and state persistence rules 
- * for the Vault Sector. Do not expose this logic to the client
- * without strict AuthContext validation.
- */
+// app/vault-sync/manifest-vault.ts
+
+export interface VaultPayload<T = unknown> {
+  nodeId: string;
+  timestamp: number;
+  network: string;
+  contractId: string;
+  data: T;
+  signature: string;
+  protocolVersion: number;
+}
 
 export const MESH_VAULT_CONFIG = {
   sectorIdentity: "BAZAAR_REPUBLIC_VAULT",
-  networkState: "v23-MAINNET-ALPHA",
-  
+  networkState: process.env.NEXT_PUBLIC_PI_NETWORK_PASSPHRASE || "Pi Testnet",
+  contractId: process.env.NEXT_PUBLIC_ESCROW_CONTRACT_ID || "CBM5SVJHLHNAEUR4GA3IV5KZFPCCMGTZGMAJUNURUQIEFPTKZLKXQ3RY",
+  rpcUrl: process.env.NEXT_PUBLIC_PI_RPC_URL || "https://rpc.testnet.minepi.com",
+  protocolVersion: 28,
+
   // 🧭 SYNCHRONIZATION THRESHOLDS
   syncLimits: {
-    // 24-hour maximum offline grace period before forcing a hard re-auth
-    maxOfflineDurationMs: 86400000, 
-    // 5-minute background polling interval when active
-    autoSyncIntervalMs: 300000,     
+    maxOfflineDurationMs: 86400000, // 24-hour offline grace period
+    autoSyncIntervalMs: 300000,      // 5-minute background polling
   },
 
-  // 🗄️ STATE MEMORY KEYS (Single Source of Truth Anchors)
+  // 🗄️ STATE MEMORY KEYS
   ledgerKeys: {
     masterTimestamp: "VAULT_SYNC_TS",
     pioneerTier: "MESH_TIER",
-    activeNode: "MESH_GENESIS_USER"
+    activeNode: "MESH_GENESIS_USER",
+    lastLedgerSequence: "VAULT_LAST_LEDGER"
   },
 
   // 🔐 ZERO-TRUST SECURITY PARAMETERS
   security: {
     encryptionStandard: "MESH-AES-GCM",
-    requireBiometricPrompt: false, // Set to true when Pi Network Native SDK is integrated
-    approvedNodes: ["S23_MOBILE_NODE", "X570_WORKSTATION"]
+    requireBiometricPrompt: true, // Enabled for Pi OS / WebAuthn passkey integration
+    approvedNodes: ["S23_MOBILE_NODE", "X570_WORKSTATION"],
   }
-};
+} as const;
 
 /**
  * 🛠️ THE BRIDGE: INTEGRITY VALIDATOR
- * Evaluates the local Master TS against the Vault's offline duration limits.
- * Returns 'true' if the Uptime Shield is intact, 'false' if a re-sync is mandated.
- * 
- * @param {string | null} localTimestamp - The timestamp from localStorage
- * @returns {boolean}
+ * Evaluates local sync state against max offline duration.
  */
-export function validateVaultIntegrity(localTimestamp) {
+export function validateVaultIntegrity(localTimestamp: string | null): boolean {
   if (!localTimestamp) return false;
 
   const currentTime = Date.now();
   const lastSyncTime = parseInt(localTimestamp, 10);
-  
-  if (isNaN(lastSyncTime)) return false;
+
+  if (Number.isNaN(lastSyncTime)) return false;
 
   const timeElapsed = currentTime - lastSyncTime;
-  
-  // If the time elapsed exceeds 24 hours, the shield is fractured.
-  return timeElapsed <= MESH_VAULT_CONFIG.syncLimits.maxOfflineDurationMs;
+  return timeElapsed >= 0 && timeElapsed <= MESH_VAULT_CONFIG.syncLimits.maxOfflineDurationMs;
 }
 
 /**
  * 🛠️ THE BRIDGE: PAYLOAD FORMATTER
- * Structures data heading to the MongoDB MESH cluster to ensure strict route integrity.
+ * Structures telemetry and vault states destined for MongoDB Layer-2 persistence.
  */
-export function formatVaultPayload(pioneerId, payloadData) {
+export function formatVaultPayload<T>(
+  pioneerId: string, 
+  payloadData: T, 
+  cryptographicSignature?: string
+): VaultPayload<T> {
   return {
     nodeId: pioneerId,
     timestamp: Date.now(),
     network: MESH_VAULT_CONFIG.networkState,
+    contractId: MESH_VAULT_CONFIG.contractId,
     data: payloadData,
-    signature: "AWAITING_ADJUDICATOR" // To be signed by verifyGenesis action
+    signature: cryptographicSignature || "PENDING_RELAYER_ATTESTATION",
+    protocolVersion: MESH_VAULT_CONFIG.protocolVersion
   };
 }
