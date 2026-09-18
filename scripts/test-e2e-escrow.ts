@@ -1,5 +1,7 @@
-﻿// 🛡️ PROJECT BAZAAR DAO - PROTOCOL 28
-// MODULE: END-TO-END ESCROW TEST RUNNER (TARGET: CCLEEATNMEUZGVSYL4NSZYADVCAPU2EFCJNCNV77KVOUDFO3CGM3SKKL)
+﻿import dotenv from 'dotenv';
+dotenv.config({ path: '.env.local' });
+// ??? PROJECT BAZAAR DAO - PROTOCOL 28
+// MODULE: END-TO-END ESCROW TEST RUNNER (TARGET: CAL7VDQBPLM4Z3LDG4TSALUL3DQAWZIJGWOLYQ3JBND3RJTZ7XLKEIUG)
 
 import { execSync } from 'child_process';
 import fs from 'fs';
@@ -33,10 +35,10 @@ for (const file of ['.env.local', '.env']) {
 
 const CONTRACT_ID =
   process.env.NEXT_PUBLIC_BAZAAR_VAULT_CONTRACT_ID ||
-  'CCLEEATNMEUZGVSYL4NSZYADVCAPU2EFCJNCNV77KVOUDFO3CGM3SKKL';
+  'CAL7VDQBPLM4Z3LDG4TSALUL3DQAWZIJGWOLYQ3JBND3RJTZ7XLKEIUG';
 
 // Testnet Native Stellar Asset Contract (SAC)
-const SAC_TOKEN = 'CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC';
+const SAC_TOKEN = 'CDG6ZM2SHXIHD5HZ2E62B7D76RY5DUHDNQVPSHRVDNN7W4EW47FXLEXQ';
 
 function resolveSigner(): Keypair {
   const envSeed = (
@@ -67,17 +69,17 @@ function resolveSigner(): Keypair {
 }
 
 async function runE2ETest() {
-  console.log('🛡️ [E2E Runner] Starting End-to-End Escrow Lifecycle Test...');
+  console.log('??? [E2E Runner] Starting End-to-End Escrow Lifecycle Test...');
 
   const signer = resolveSigner();
   const testEscrowId = `ESC_${Date.now().toString().slice(-4)}`;
   const amount = 10_000_000n; // 1.0 XLM (10^7 Stroops)
   const durationSecs = 172800n; // 48 Hours
 
-  console.log(`🔌 Target Contract ID : ${CONTRACT_ID}`);
-  console.log(`🔑 Signer Address     : ${signer.publicKey()}`);
-  console.log(`🪙 Token Contract SAC : ${SAC_TOKEN}`);
-  console.log(`📦 Generated Escrow ID : ${testEscrowId}`);
+  console.log(`?? Target Contract ID : ${CONTRACT_ID}`);
+  console.log(`?? Signer Address     : ${signer.publicKey()}`);
+  console.log(`?? Token Contract SAC : ${SAC_TOKEN}`);
+  console.log(`?? Generated Escrow ID : ${testEscrowId}`);
 
   // Construct precise ScVal arguments matching on-chain ABI
   const escrowIdArg = nativeToScVal(testEscrowId, { type: 'symbol' });
@@ -88,7 +90,7 @@ async function runE2ETest() {
   const durationArg = nativeToScVal(durationSecs, { type: 'u64' });
 
   // --- PHASE 1: LOCK FUNDS ---
-  console.log('\n🚀 [Phase 1] Executing On-Chain Lock (6-arg ABI)...');
+  console.log('\n?? [Phase 1] Executing On-Chain Lock (6-arg ABI)...');
   const lockResult = await submitContractCall(
     CONTRACT_ID,
     'lock_funds',
@@ -99,13 +101,13 @@ async function runE2ETest() {
   if (!lockResult.success) {
     throw new Error(`LOCK_FAILED: ${lockResult.error}`);
   }
-  console.log(`✅ Lock Successful! Tx Hash: ${lockResult.hash}`);
+  console.log(`? Lock Successful! Tx Hash: ${lockResult.hash}`);
 
-  console.log('⏳ Cooldown: Waiting 4 seconds for ledger sequence synchronization...');
+  console.log('? Cooldown: Waiting 4 seconds for ledger sequence synchronization...');
   await new Promise((resolve) => setTimeout(resolve, 4000));
 
   // --- PHASE 2: RELEASE FUNDS ---
-  console.log('\n🚀 [Phase 2] Executing On-Chain Release (2-arg ABI)...');
+  console.log('\n?? [Phase 2] Executing On-Chain Release (2-arg ABI)...');
   const releaseResult = await submitContractCall(
     CONTRACT_ID,
     'release_funds',
@@ -116,16 +118,17 @@ async function runE2ETest() {
   if (!releaseResult.success) {
     throw new Error(`RELEASE_FAILED: ${releaseResult.error}`);
   }
-  console.log(`✅ Release Successful! Tx Hash: ${releaseResult.hash}`);
+  console.log(`? Release Successful! Tx Hash: ${releaseResult.hash}`);
 
-  console.log('\n🎉 End-to-End Escrow Lifecycle Verified Successfully on Stellar Testnet!');
+  console.log('\n?? End-to-End Escrow Lifecycle Verified Successfully on Pi Network Testnet!');
 }
 
 runE2ETest()
   .catch((err) => {
-    console.error('❌ [E2E Error]:', err.message || err);
+    console.error('? [E2E Error]:', err.message || err);
     process.exit(1);
   })
   .finally(async () => {
     if (prisma) await prisma.$disconnect().catch(() => {});
   });
+

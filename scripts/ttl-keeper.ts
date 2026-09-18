@@ -1,12 +1,14 @@
-﻿import { execSync } from "child_process";
-import fs from "fs";
-import path from "path";
-import { fileURLToPath } from "url";
+﻿import { execSync } from "node:child_process";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import dotenv from "dotenv";
+dotenv.config({ path: ".env.local" });
+
 import {
   Address,
   BASE_FEE,
   Keypair,
-  Networks,
   Operation,
   rpc as StellarRpc,
   SorobanDataBuilder,
@@ -14,40 +16,32 @@ import {
   xdr,
 } from "@stellar/stellar-sdk";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const rootDir = path.resolve(__dirname, "..");
-
-// 1. Manually parse .env.local and .env
-for (const file of [".env.local", ".env"]) {
-  const fullPath = path.join(rootDir, file);
-  if (fs.existsSync(fullPath)) {
-    const lines = fs.readFileSync(fullPath, "utf-8").split("\n");
-    for (const line of lines) {
-      const match = line.match(/^\s*([\w.-]+)\s*=\s*(.*)?\s*$/);
-      if (match) {
-        const key = match[1];
-        let value = (match[2] || "").trim();
-        if (value.startsWith('"') && value.endsWith('"')) value = value.slice(1, -1);
-        if (value.startsWith("'") && value.endsWith("'")) value = value.slice(1, -1);
-        if (!process.env[key]) process.env[key] = value;
-      }
-    }
-  }
-}
-
 const RPC_URL = (
-  process.env.SOROBAN_RPC_URL || "https://soroban-testnet.stellar.org"
+  process.env.SOROBAN_RPC_URL || "https://rpc.testnet.minepi.com"
 ).trim().replace(/\/$/, "");
 
 const NETWORK_PASSPHRASE =
-  process.env.STELLAR_NETWORK_PASSPHRASE || Networks.TESTNET;
+  process.env.STELLAR_NETWORK_PASSPHRASE || "Pi Testnet";
 
 const CONTRACT_ID =
   process.env.NEXT_PUBLIC_BAZAAR_VAULT_CONTRACT_ID ||
-  "CCLEEATNMEUZGVSYL4NSZYADVCAPU2EFCJNCNV77KVOUDFO3CGM3SKKL";
+  "CAL7VDQBPLM4Z3LDG4TSALUL3DQAWZIJGWOLYQ3JBND3RJTZ7XLKEIUG";
 
-const TARGET_EXTEND_TO_LEDGERS = 100_000; // ~5.7 days of ledger runway
+const SAFETY_THRESHOLD_LEDGERS = 10_000;
+const TARGET_EXTEND_TO_LEDGERS = 100_000;
+
+async function rpcRetry<T>(fn: () => Promise<T>, retries = 5, delayMs = 3000): Promise<T> {
+  for (let i = 1; i <= retries; i++) {
+    try {
+      return await fn();
+    } catch (err: any) {
+      if (i === retries) throw err;
+      console.log(`⚠️ RPC fetch dropped (${err?.message || "fetch failed"}). Retrying ${i + 1}/${retries} in ${delayMs / 1000}s...`);
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+  }
+  throw new Error("RPC request timed out after max retries");
+}
 
 function resolveKeeperKey(): Keypair {
   const envSeed = (
@@ -97,12 +91,12 @@ async function runTtlKeeper() {
     allowHttp: RPC_URL.startsWith("http://"),
   });
 
-  const latestLedger = await server.getLatestLedger();
+  const latestLedger = await rpcRetry(() => server.getLatestLedger());
   const currentSeq = latestLedger.sequence;
   console.log(`📊 Current Network Ledger: ${currentSeq}`);
 
   const instanceKey = buildInstanceKey(CONTRACT_ID);
-  const ledgerResponse = await server.getLedgerEntries(instanceKey);
+  const ledgerResponse = await rpcRetry(() => server.getLedgerEntries(instanceKey));
   const entries = ledgerResponse.entries ?? [];
 
   let minRemainingTtl = Infinity;
@@ -118,77 +112,78 @@ async function runTtlKeeper() {
     }`
   );
 
-  console.log(`⚡ Dispatching Footprint TTL Extension to +${TARGET_EXTEND_TO_LEDGERS} ledgers...`);
+  const needsExtension = minRemainingTtl <= SAFETY_THRESHOLD_LEDGERS || entries.length === 0;
 
-  const account = await server.getAccount(keeper.publicKey());
-  const readOnlyFootprint: xdr.LedgerKey[] = [instanceKey];
+  if (needsExtension) {
+    console.log(`⚡ Dispatching Footprint TTL Extension to +${TARGET_EXTEND_TO_LEDGERS} ledgers...`);
 
-  if (entries.length > 0 && entries[0].val) {
-    try {
-      const entryVal: any = entries[0].val;
-      const ledgerEntryData =
-        typeof entryVal === "string" || Buffer.isBuffer(entryVal)
-          ? xdr.LedgerEntryData.fromXDR(entryVal as any, "base64")
-          : (entryVal as xdr.LedgerEntryData);
-      const contractData = ledgerEntryData.contractData();
-      const instance = contractData.val().instance();
-      const wasmHash = instance.executable().wasmHash();
-      if (wasmHash) {
-        readOnlyFootprint.push(
-          xdr.LedgerKey.contractCode(
-            new xdr.LedgerKeyContractCode({ hash: wasmHash })
-          )
-        );
-      }
-    } catch {}
-  }
+    const account = await rpcRetry(() => server.getAccount(keeper.publicKey()));
+    const readOnlyFootprint: xdr.LedgerKey[] = [instanceKey];
 
-  const sorobanData = new SorobanDataBuilder()
-    .setReadOnly(readOnlyFootprint)
-    .build();
+    if (entries.length > 0 && entries[0].val) {
+      try {
+        const entryVal: any = entries[0].val;
+        const ledgerEntryData =
+          typeof entryVal === "string" || Buffer.isBuffer(entryVal)
+            ? xdr.LedgerEntryData.fromXDR(entryVal as any, "base64")
+            : (entryVal as xdr.LedgerEntryData);
+        const contractData = ledgerEntryData.contractData();
+        const instance = contractData.val().instance();
+        const wasmHash = instance.executable().wasmHash();
+        if (wasmHash) {
+          readOnlyFootprint.push(
+            xdr.LedgerKey.contractCode(
+              new xdr.LedgerKeyContractCode({ hash: wasmHash })
+            )
+          );
+        }
+      } catch {}
+    }
 
-  let tx = new TransactionBuilder(account, {
-    fee: BASE_FEE,
-    networkPassphrase: NETWORK_PASSPHRASE,
-  })
-    .setSorobanData(sorobanData)
-    .addOperation(
-      Operation.extendFootprintTtl({
-        extendTo: TARGET_EXTEND_TO_LEDGERS,
-      })
-    )
-    .setTimeout(30)
-    .build();
+    const sorobanData = new SorobanDataBuilder()
+      .setReadOnly(readOnlyFootprint)
+      .build();
 
-  tx = await server.prepareTransaction(tx);
-  tx.sign(keeper);
+    let tx = new TransactionBuilder(account, {
+      fee: BASE_FEE,
+      networkPassphrase: NETWORK_PASSPHRASE,
+    })
+      .setSorobanData(sorobanData)
+      .addOperation(
+        Operation.extendFootprintTtl({
+          extendTo: TARGET_EXTEND_TO_LEDGERS,
+        })
+      )
+      .setTimeout(30)
+      .build();
 
-  const sendResponse = await server.sendTransaction(tx);
-  if (sendResponse.status === "ERROR") {
-    throw new Error(`Transaction Rejected: ${JSON.stringify(sendResponse.errorResult)}`);
-  }
+    tx = await rpcRetry(() => server.prepareTransaction(tx));
+    tx.sign(keeper);
 
-  console.log(`⏳ Broadcasted successfully. Tx Hash: ${sendResponse.hash}`);
+    const sendResponse = await rpcRetry(() => server.sendTransaction(tx));
+    if (sendResponse.status === "ERROR") {
+      throw new Error(`Transaction Rejected: ${JSON.stringify(sendResponse.errorResult)}`);
+    }
 
-  let txStatus = await server.getTransaction(sendResponse.hash);
-  while (txStatus.status === StellarRpc.Api.GetTransactionStatus.NOT_FOUND) {
-    await new Promise((r) => setTimeout(r, 1500));
-    txStatus = await server.getTransaction(sendResponse.hash);
-  }
+    console.log(`⏳ Broadcasted successfully. Tx Hash: ${sendResponse.hash}`);
 
-  if (txStatus.status === StellarRpc.Api.GetTransactionStatus.SUCCESS) {
-    console.log(`✅ State TTL successfully bumped to +${TARGET_EXTEND_TO_LEDGERS} ledgers!`);
+    let txStatus = await rpcRetry(() => server.getTransaction(sendResponse.hash));
+    while (txStatus.status === StellarRpc.Api.GetTransactionStatus.NOT_FOUND) {
+      await new Promise((r) => setTimeout(r, 2000));
+      txStatus = await rpcRetry(() => server.getTransaction(sendResponse.hash));
+    }
+
+    if (txStatus.status === StellarRpc.Api.GetTransactionStatus.SUCCESS) {
+      console.log(`✅ State TTL successfully bumped to +${TARGET_EXTEND_TO_LEDGERS} ledgers!`);
+    } else {
+      console.error("❌ Extension failed on ledger:", txStatus);
+    }
   } else {
-    console.error("❌ Extension failed:", txStatus);
+    console.log("✨ All monitored contract entries are within safe operational limits.");
   }
 }
 
-const POLLING_INTERVAL_MS = 60 * 60 * 1000; // 1 Hour
-runTtlKeeper().catch((err) => console.error("❌ [KEEPER Error]:", err.message || err));
-setInterval(() => {
-  runTtlKeeper().catch((err) => console.error("❌ [KEEPER Error]:", err.message || err));
-}, POLLING_INTERVAL_MS);((err) => {
+runTtlKeeper().catch((err) => {
   console.error("❌ [KEEPER Error]:", err.message || err);
   process.exit(1);
 });
-

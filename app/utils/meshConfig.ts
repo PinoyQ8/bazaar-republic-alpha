@@ -41,10 +41,10 @@ export function getMasterMeshConfig(): MasterMeshConfig {
       apiBaseUrl: "",
       rpcUrl: process.env.NEXT_PUBLIC_PI_RPC_URL || "https://rpc.testnet.minepi.com",
       networkPassphrase: process.env.NEXT_PUBLIC_PI_NETWORK_PASSPHRASE || "Pi Testnet",
-      sorobanRpcUrl: process.env.NEXT_PUBLIC_SOROBAN_RPC_URL || "https://soroban-testnet.stellar.org",
-      stellarPassphrase: process.env.NEXT_PUBLIC_STELLAR_NETWORK_PASSPHRASE || "Test SDF Network ; September 2015",
-      contractId: process.env.NEXT_PUBLIC_MESH_CONTRACT_ID || "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
-      vaultContractId: process.env.NEXT_PUBLIC_BAZAAR_VAULT_CONTRACT_ID || process.env.NEXT_PUBLIC_VAULT_CONTRACT_ID || "CCLEEATNMEUZGVSYL4NSZYADVCAPU2EFCJNCNV77KVOUDFO3CGM3SKKL",
+      sorobanRpcUrl: process.env.NEXT_PUBLIC_SOROBAN_RPC_URL || "https://rpc.testnet.minepi.com",
+      stellarPassphrase: process.env.NEXT_PUBLIC_STELLAR_NETWORK_PASSPHRASE || "Pi Testnet",
+      contractId: process.env.NEXT_PUBLIC_MESH_CONTRACT_ID || "CDG6ZM2SHXIHD5HZ2E62B7D76RY5DUHDNQVPSHRVDNN7W4EW47FXLEXQ",
+      vaultContractId: process.env.NEXT_PUBLIC_BAZAAR_VAULT_CONTRACT_ID || process.env.NEXT_PUBLIC_VAULT_CONTRACT_ID || "CAL7VDQBPLM4Z3LDG4TSALUL3DQAWZIJGWOLYQ3JBND3RJTZ7XLKEIUG",
       isSandbox: process.env.NEXT_PUBLIC_PI_SANDBOX === "true",
     };
   }
@@ -73,19 +73,19 @@ export function getMasterMeshConfig(): MasterMeshConfig {
 
   const sorobanRpcUrl = network === "MAINNET"
     ? (process.env.NEXT_PUBLIC_SOROBAN_MAINNET_RPC_URL || "https://mainnet.sorobanrpc.com")
-    : (process.env.NEXT_PUBLIC_SOROBAN_RPC_URL || "https://soroban-testnet.stellar.org");
+    : (process.env.NEXT_PUBLIC_SOROBAN_RPC_URL || "https://rpc.testnet.minepi.com");
 
   const stellarPassphrase = network === "MAINNET"
     ? (process.env.NEXT_PUBLIC_STELLAR_MAINNET_PASSPHRASE || "Public Global Stellar Network ; July 2015")
-    : (process.env.NEXT_PUBLIC_STELLAR_NETWORK_PASSPHRASE || "Test SDF Network ; September 2015");
+    : (process.env.NEXT_PUBLIC_STELLAR_NETWORK_PASSPHRASE || "Pi Testnet");
 
   const contractId = network === "MAINNET"
     ? (process.env.NEXT_PUBLIC_MESH_MAINNET_CONTRACT_ID || "")
-    : (process.env.NEXT_PUBLIC_MESH_CONTRACT_ID || "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC");
+    : (process.env.NEXT_PUBLIC_MESH_CONTRACT_ID || "CDG6ZM2SHXIHD5HZ2E62B7D76RY5DUHDNQVPSHRVDNN7W4EW47FXLEXQ");
 
   const vaultContractId = network === "MAINNET"
     ? (process.env.NEXT_PUBLIC_BAZAAR_VAULT_MAINNET_CONTRACT_ID || "")
-    : (process.env.NEXT_PUBLIC_BAZAAR_VAULT_CONTRACT_ID || process.env.NEXT_PUBLIC_VAULT_CONTRACT_ID || "CCLEEATNMEUZGVSYL4NSZYADVCAPU2EFCJNCNV77KVOUDFO3CGM3SKKL");
+    : (process.env.NEXT_PUBLIC_BAZAAR_VAULT_CONTRACT_ID || process.env.NEXT_PUBLIC_VAULT_CONTRACT_ID || "CAL7VDQBPLM4Z3LDG4TSALUL3DQAWZIJGWOLYQ3JBND3RJTZ7XLKEIUG");
 
   return {
     deployment,
