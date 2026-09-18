@@ -1,4 +1,4 @@
-﻿# Dependencies & Framework Caches
+# Dependencies & Framework Caches
 node_modules
 **/node_modules/**
 .next
@@ -18,7 +18,7 @@ cache
 target
 **/target/**
 backend
-contracts
+/contracts
 soroban-nexus
 sdk-ports
 zk-circuits
