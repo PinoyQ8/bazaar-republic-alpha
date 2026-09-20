@@ -1,52 +1,45 @@
-version: '3.8'
-
-services:
-  # 1. Embedded Ledger (Replica Set Enabled)
+﻿services:
   db:
-    image: docker.io/library/mongo:6.0
+    image: mongo:6.0
+    container_name: bzr-db
     restart: always
     ports:
-      - "0.0.0.0:27017:27017" # Exposes DB to LAN for Nitro 5 / client nodes
+      - "27017:27017"
     environment:
       MONGO_INITDB_DATABASE: bazaar_republic
     volumes:
       - mongodb_data:/data/db
     networks:
-      bzr-network:
-        aliases:
-          - mongo
-          - db
+      - bzr-network
     command: ["--replSet", "rs0", "--bind_ip_all"]
     healthcheck:
-      test: ["CMD", "mongosh", "--eval", "try { rs.status().ok } catch (e) { try { rs.initiate({_id: 'rs0', members: [{_id: 0, host: 'db:27017'}]}); } catch (err) { quit(1); } }"]
+      test: ["CMD", "mongosh", "--quiet", "--eval", "try { rs.status().ok } catch (e) { rs.initiate({_id: 'rs0', members: [{_id: 0, host: 'localhost:27017'}]}).ok }"]
       interval: 10s
       timeout: 5s
       retries: 5
 
-  # 2. Next.js Core Application
   web:
-    image: docker.io/pinoyq8/bazaar-republic-alpha:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: bazaar-republic-alpha-web-1
     restart: always
     ports:
       - "3000:3000"
     environment:
-      - NODE_ENV=production
-      - NEXT_PUBLIC_PI_SANDBOX=true
-      - DATABASE_URL=${MONGODB_URI}
-      - MONGODB_URI=${MONGODB_URI}
-      - SOROBAN_RPC_URL=https://soroban-testnet.stellar.org
-      - BAZAAR_VAULT_CONTRACT_ID=CDI5EAXHES3KPZBLAICUWUSDCLFGTN3MDURTFMQCXTQWFSYRK357YPD6
+      NODE_ENV: production
+      NEXT_PUBLIC_PI_SANDBOX: "true"
+      RUNTIME: X570-Master-Command
+      DATABASE_URL: "mongodb://db:27017/bazaar_republic?replicaSet=rs0&readConcernLevel=majority&w=majority"
+      MONGODB_URI: "mongodb://db:27017/bazaar_republic?replicaSet=rs0&readConcernLevel=majority&w=majority"
+      SOROBAN_RPC_URL: https://soroban-testnet.stellar.org
+      BAZAAR_VAULT_CONTRACT_ID: CBM5SVJHLHNAEUR4GA3IV5KZFPCCMGTZGMAJUNURUQIEFPTKZLKXQ3RY
+      NEXT_PUBLIC_BAZAAR_VAULT_CONTRACT_ID: CBM5SVJHLHNAEUR4GA3IV5KZFPCCMGTZGMAJUNURUQIEFPTKZLKXQ3RY
     networks:
       - bzr-network
     depends_on:
       db:
         condition: service_healthy
-    healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
-      interval: 15s
-      timeout: 5s
-      retries: 3
-      start_period: 30s
 
 volumes:
   mongodb_data:
