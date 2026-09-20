@@ -1,4 +1,4 @@
-// services/bazaarVaultService.ts
+﻿// services/bazaarVaultService.ts
 import {
   Account,
   Contract,
@@ -167,15 +167,14 @@ export class BazaarVaultService {
     escrowId: string,
     consumerAddress: string,
     signer: Keypair | ((txXdr: string) => Promise<string>)
-  ): Promise<VaultTxResponse> {
+  ): Promise<StellarRpc.Api.GetTransactionResponse> {
     const sanitizedId = escrowId.replace(/-/g, '_');
-    // On-Chain ABI: release_funds(escrow_id, consumer)
+    // On-Chain ABI Verified: release_funds(escrow_id: Symbol, consumer: Address)
     const callOp = this.contract.call(
       'release_funds',
       nativeToScVal(sanitizedId, { type: 'symbol' }),
       Address.fromString(consumerAddress).toScVal()
     );
-
     return this.executeContractCall(consumerAddress, callOp, signer);
   }
 
