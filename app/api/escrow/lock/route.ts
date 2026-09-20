@@ -9,11 +9,18 @@ import {
 
 export const dynamic = "force-dynamic";
 
+function sanitizeEscrowId(rawId?: string): string {
+  if (!rawId) return `ESC_${Math.floor(Math.random() * 900000 + 100000)}`;
+  let clean = rawId.trim().replace(/-/g, '_');
+  if (!clean.startsWith('ESC_')) clean = `ESC_${clean}`;
+  return clean.slice(0, 32);
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
 
-    const escrowId = body.escrowId || `ESC_${Math.floor(Math.random() * 900000 + 100000)}`;
+    const escrowId = sanitizeEscrowId(body.escrowId);
     const consumer = body.consumerAddress || body.consumerUid || body.consumer;
     const provider = body.providerAddress || body.providerId || body.providerUid || body.provider;
     const rawAmount = body.amount ?? body.amountPi ?? body.piAmount;
@@ -31,7 +38,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const amountStroops = BigInt(Math.round(numericAmount * 10_000_000));
+    // Auto-detect stroops vs whole Pi: values >= 10,000 are treated as raw stroops
+    const amountStroops = numericAmount >= 10_000 
+      ? BigInt(Math.round(numericAmount))
+      : BigInt(Math.round(numericAmount * 10_000_000));
+
     const durationSecs = BigInt(timelockHours * 3600);
 
     const secretKey =
@@ -69,18 +80,18 @@ export async function POST(req: NextRequest) {
 
     console.log(`✅ [MESH-TX] Locked successfully! Hash: ${txResult.hash}`);
 
-    // 2. Persist to MongoDB (Strict Schema v2.7.2 compliance)
+    // 2. Persist to MongoDB off-chain state
     let escrowRecord = null;
     try {
       const db = prisma as any;
       if (db && db.escrowLock) {
         const isValidObjectId = /^[0-9a-fA-F]{24}$/.test(provider);
-        const resolvedProviderId = isValidObjectId ? provider : "65f1a2b3c4d5e6f7a8b9c0d1";
+        const resolvedProviderId = isValidObjectId ? provider : undefined;
 
         escrowRecord = await db.escrowLock.upsert({
           where: { escrowId },
           update: {
-            amount: numericAmount,
+            amount: Number(amountStroops) / 10_000_000,
             consumerUid: consumer,
             status: "LOCKED",
             txid: txResult.hash,
@@ -89,8 +100,8 @@ export async function POST(req: NextRequest) {
           create: {
             escrowId,
             consumerUid: consumer,
-            providerId: resolvedProviderId,
-            amount: numericAmount,
+            ...(resolvedProviderId ? { providerId: resolvedProviderId } : {}),
+            amount: Number(amountStroops) / 10_000_000,
             token: body.token || "PI",
             status: "LOCKED",
             txid: txResult.hash,
@@ -113,9 +124,9 @@ export async function POST(req: NextRequest) {
         escrow: escrowRecord || {
           escrowId,
           consumerUid: consumer,
-          amount: numericAmount,
+          amount: Number(amountStroops) / 10_000_000,
           status: "LOCKED",
-          txHash: txResult.hash
+          txHash: txResult.hash,
         },
       },
       { status: 200 }

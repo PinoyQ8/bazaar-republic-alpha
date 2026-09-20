@@ -19,7 +19,17 @@ export function EscrowCard({
   const [verifying, setVerifying] = useState(false);
   const [verifyStatus, setVerifyStatus] = useState<string | null>(null);
 
-  const { escrow, loading, error, txHash, fetchVault, releaseFunds, disputeEscrow, refundFunds } = useBazaarVault();
+  const { 
+  escrow, 
+  loading, 
+  error, 
+  txHash, 
+  fetchEscrow,
+  fetchVault = fetchEscrow, 
+  releaseFunds, 
+  disputeEscrow, 
+  refundFunds 
+} = useBazaarVault();
 
   useEffect(() => {
     if (initialEscrowId) {
