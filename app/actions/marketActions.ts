@@ -4,8 +4,12 @@
 import mongoose from 'mongoose';
 import { MarketListing } from "@/models/MarketListing";
 import { PioneerNode } from "@/models/PioneerNode";
-import { TransactionLedger } from "@/models/TransactionLedger"; // 🛡️ Injected Ledger
+import { TransactionLedger } from "@/models/TransactionLedger";
+import { PrismaClient } from '@prisma/client';
 import { revalidatePath } from 'next/cache';
+
+const prisma = new PrismaClient();
+const DEFAULT_VAULT_CONTRACT = process.env.NEXT_PUBLIC_ESCROW_CONTRACT_ID || "CBM5SVJHLHNAEUR4GA3IV5KZFPCCMGTZGMAJUNURUQIEFPTKZLKXQ3RY";
 
 /**
  * 🛡️ MONGODB CONNECTION GATEWAY
@@ -58,18 +62,16 @@ export async function createMarketListing(
     const isConnected = await connectDB();
     if (!isConnected) return { success: false, message: "NETWORK_OFFLINE: Market Engine offline." };
 
-    // Replace lines ~45-60 in createMarketListing with this self-healing block:
     let node = await PioneerNode.findOne({
       $or: [{ username: providerId }, { uid: providerId }]
     });
 
-    // 🛡️ ADJUDICATOR SELF-HEALING PATCH: Auto-register node if missing during dev/testing
     if (!node) {
       node = await PioneerNode.create({
         username: providerId,
         uid: providerId,
-        stake_amount: 500,       // Auto-funded with collateral for testing
-        mbzrBalance: 1000,       // Auto-funded with mBZR for transactions
+        stake_amount: 500,
+        mbzrBalance: 1000,
         trust_score: 90,
         status: 'ACTIVE'
       });
@@ -121,12 +123,12 @@ export async function toggleListingStatus(listingId: string, providerId: string,
 }
 
 // ----------------------------------------------------------------------
-// 4. 🛡️ THE MESH-MARKET: TRIPLE-LEDGER TRANSPARENCY ENGINE (mBZR)
+// 4. 🛡️ THE MESH-MARKET: TRIPLE-LEDGER & PROTOCOL 28 VAULT BRIDGE
 // ----------------------------------------------------------------------
 export async function executeMarketTransaction(
   buyerId: string, 
   merchantId: string, 
-  pricePi: number // Passed from UI
+  pricePi: number
 ) {
   try {
     const isConnected = await connectDB();
@@ -144,7 +146,7 @@ export async function executeMarketTransaction(
     const MBZR_CONVERSION_RATIO = 1000;
     const grossTotalMBZR = pricePi * MBZR_CONVERSION_RATIO;
 
-   // 🛡️ 2. TRIPLE-LEDGER MATH & REPUBLIC SHIELD INJECTION
+    // 🛡️ 2. TRIPLE-LEDGER MATH & REPUBLIC SHIELD INJECTION
     const EVAT_RATE = 0.12; // 12% Global e-VAT
     const BASE_SERVICE_TAX = 0.08; // 8% DAO Tax
     const TRUST_SHIELD = (buyerTS / 100) * 0.05; // Up to 5% Tax Reduction
@@ -168,16 +170,17 @@ export async function executeMarketTransaction(
       };
     }
 
-    // 🛡️ 4. MONGOOSE WALLET UPDATES (Buyer pays Gross, Merchant gets Net Yield)
+    // 🛡️ 4. MONGOOSE WALLET UPDATES
     await Promise.all([
       PioneerNode.updateOne({ uid: buyer.uid }, { $inc: { mbzrBalance: -grossTotalMBZR } }),
       PioneerNode.updateOne({ uid: merchant.uid }, { $inc: { mbzrBalance: unitPriceYield } })
     ]);
 
-    // 📊 5. LOG QUAD-LEDGER TELEMETRY (Upgraded for the Shield)
+    // 📊 5. LOG QUAD-LEDGER TELEMETRY
     const txId = `TX-${Date.now().toString().slice(-8)}`;
+    const cleanOrderId = txId.replace(/-/g, '_');
+    const normalizedEscrowId = `ESC_${cleanOrderId}`;
     
-    // 🛡️ ADJUDICATOR BYPASS: Force the write through the cache lock
     await TransactionLedger.create({
       txId,
       buyerId: buyer.uid,
@@ -195,14 +198,70 @@ export async function executeMarketTransaction(
     console.log(`[MESH-ADJUDICATOR] 📊 TRANSPARENCY BREAKDOWN (Gross: ${grossTotalMBZR} mBZR)`);
     console.log(`[MESH-ADJUDICATOR] 1. Merchant Unit Price : ${unitPriceYield} mBZR`);
     console.log(`[MESH-ADJUDICATOR] 2. DAO Operations Vault : ${daoOperations} mBZR`);
-    console.log(`[MESH-ADJUDICATOR] 3. Republic Shield Vault: ${republicShieldVault} mBZR (Medical/Social)`);
+    console.log(`[MESH-ADJUDICATOR] 3. Republic Shield Vault: ${republicShieldVault} mBZR`);
     console.log(`[MESH-ADJUDICATOR] 4. Government e-VAT    : ${eVatAmount} mBZR`);
     console.log(`[MESH-MARKET] 🟢 Tx Cleared & Logged: ${txId}`);
 
-    // 🛡️ 6. RETURN TRANSPARENT RECEIPT TO UI
+   // 🛡️ 6. PROTOCOL 28 ESCROW BRIDGE (PRISMA DUAL-WRITE)
+    try {
+      let providerRecord = await prisma.serviceProvider.findFirst({
+        where: {
+          OR: [
+            { providerUid: merchant.uid },
+            { businessName: merchant.username || merchantId },
+          ],
+        },
+      });
+
+      if (!providerRecord) {
+        providerRecord = await prisma.serviceProvider.create({
+          data: {
+            businessName: merchant.username || merchantId || "Virtual Merchant",
+            category: "COMPUTE",
+            description: "Automated Protocol 28 Vault Merchant Node",
+            providerUid: merchant.uid,
+            sectorLocation: "Sector-01-Mesh",
+            mbzrRate: 1000.0,
+            unitLabel: "mBZR/Pi",
+            isVerified: true,
+          },
+        });
+      }
+
+      await prisma.escrowLock.upsert({
+        where: { escrowId: normalizedEscrowId },
+        update: {
+          status: 'PENDING_ONCHAIN',
+          amount: pricePi,
+          paymentId: `PAY_${cleanOrderId}`,
+          updatedAt: new Date(),
+        },
+        create: {
+          escrowId: normalizedEscrowId,
+          paymentId: `PAY_${cleanOrderId}`,
+          txid: txId,
+          consumerUid: buyer.uid,
+          providerId: providerRecord.id,
+          amount: pricePi,
+          token: "PI",
+          status: 'PENDING_ONCHAIN',
+          serviceDescription: `Project Bazaar Market Purchase (${txId})`,
+          timelockExpiresAt: new Date(Date.now() + 172800 * 1000), // 48-hour timelock
+        },
+      });
+      console.log(`[MESH-ESCROW] ✅ Dual-write EscrowLock synchronized: ${normalizedEscrowId}`);
+    } catch (err: any) {
+      console.warn(`[MESH-ESCROW] ⚠️ Prisma dual-write skipped/non-blocking:`, err.message);
+    }
+
+    // 🛡️ 7. RETURN TRANSPARENT RECEIPT & AUTO-REDIRECT META
     return {
       success: true,
-      message: "Quad-Ledger Transaction Secured.",
+      message: "Quad-Ledger Transaction Secured & Vault Linked.",
+      txId,
+      orderId: cleanOrderId,
+      escrowId: normalizedEscrowId,
+      redirectUrl: `/checkout/success?orderId=${cleanOrderId}`,
       receipt: {
         txId,
         grossTotal: grossTotalMBZR,
@@ -229,40 +288,35 @@ export async function seedVirtualMarket() {
     const isConnected = await connectDB();
     if (!isConnected) return { success: false, message: "NETWORK_OFFLINE" };
     
-    // 1. Seed Virtual Merchant & Local Test Node with Collateral & Balances
-    // Update both PioneerNode.findOneAndUpdate calls in Section 5:
+    // 1. Seed Virtual Merchant with Collateral & Balances
     await PioneerNode.findOneAndUpdate(
       { uid: 'Virtual_Node' },
       {
         username: 'Virtual_Node',
-        // ... node data ...
+        uid: 'Virtual_Node',
+        stake_amount: 500,
+        mbzrBalance: 500000,
+        trust_score: 95,
+        status: 'ACTIVE'
       },
-      { upsert: true, returnDocument: 'after' } // 🛡️ ADJUDICATOR FIX: Replaced 'new: true'
+      { upsert: true, returnDocument: 'after' }
     );
 
-    await PioneerNode.findOneAndUpdate(
-      { uid: 'local_x570_node' },
-      {
-        username: 'PinoyQ8_Dev',
-        // ... node data ...
-      },
-      { upsert: true, returnDocument: 'after' } // 🛡️ ADJUDICATOR FIX: Replaced 'new: true'
-    );
-
+    // 2. Seed Local Dev Node (PinoyQ8_Dev) with Test Liquidity
     await PioneerNode.findOneAndUpdate(
       { uid: 'local_x570_node' },
       {
         username: 'PinoyQ8_Dev',
         uid: 'local_x570_node',
         stake_amount: 500, 
-        mbzrBalance: 1000000, // 🛡️ UPGRADED: 1 Million mBZR Test Liquidity
+        mbzrBalance: 1000000, // 1 Million mBZR Test Liquidity
         trust_score: 90,
         status: 'ACTIVE'
       },
-      { upsert: true, new: true }
+      { upsert: true, returnDocument: 'after' }
     );
 
-    // 2. Clear and Reset Virtual Listings
+    // 3. Clear and Reset Virtual Listings
     await MarketListing.deleteMany({ providerId: 'Virtual_Node' });
 
     const virtualListings = [

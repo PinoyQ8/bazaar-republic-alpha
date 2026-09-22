@@ -1,52 +1,40 @@
-﻿import * as freighter from '@stellar/freighter-api';
+﻿// Location: src/lib/wallet/drivers/freighterDriver.ts
+// 🛡️ BAZAAR REPUBLIC // DEPRECATED FREIGHTER DRIVER STUB
+// Freighter has been purged in favor of Pi Network & Samsung Knox passkeys.
+
 import { ISignerDriver, WalletAccount } from '@/types/wallet';
 
 export class FreighterDriver implements ISignerDriver {
-  type = 'soroban_freighter' as const;
-  name = 'Freighter Wallet';
+  name = 'Freighter (Deprecated)';
+  type = 'freighter' as any;
 
   async isAvailable(): Promise<boolean> {
-    if (typeof window === 'undefined') return false;
-    try {
-      const res = await freighter.isConnected();
-      return !!res;
-    } catch {
-      return false;
-    }
+    return false;
+  }
+
+  async isConnected(): Promise<boolean> {
+    return false;
   }
 
   async connect(): Promise<WalletAccount> {
-    // Request access prompts the extension and returns the public key
-    const pubKey = await freighter.requestAccess();
-    if (!pubKey || typeof pubKey !== 'string') {
-      throw new Error('Freighter connection rejected or public key not found');
-    }
-
-    return {
-      address: pubKey,
-      publicKey: pubKey,
-      driverType: this.type,
-      network: process.env.NEXT_PUBLIC_STELLAR_NETWORK || 'testnet',
-    };
+    throw new Error(
+      "ERR_FREIGHTER_DEPRECATED: Bazaar Republic uses Pi Network and Samsung Knox passkeys. Extension wallets are disabled."
+    );
   }
 
-  async disconnect(): Promise<void> {}
-
-  async signTransaction(xdr: string, opts?: { networkPassphrase?: string }): Promise<string> {
-    const result = await freighter.signTransaction(xdr, {
-      networkPassphrase: opts?.networkPassphrase || process.env.NEXT_PUBLIC_STELLAR_NETWORK_PASSPHRASE,
-    });
-    if (typeof result === 'object' && 'error' in result && result.error) {
-      throw new Error(String(result.error));
-    }
-    return typeof result === 'string' ? result : (result as any).signedTxXdr;
+  async disconnect(): Promise<void> {
+    // No-op for deprecated driver
   }
 
-  async signAuthEntry(entryHash: Buffer | Uint8Array): Promise<Buffer> {
-    const hex = Buffer.from(entryHash).toString('hex');
-    const signedHex = await freighter.signAuthEntry(hex, {
-      networkPassphrase: process.env.NEXT_PUBLIC_STELLAR_NETWORK_PASSPHRASE,
-    });
-    return Buffer.from(typeof signedHex === 'string' ? signedHex : '', 'hex');
+  async signTransaction(txXdr: string): Promise<string> {
+    throw new Error(
+      "ERR_FREIGHTER_DEPRECATED: Client-side extension signing is disabled. Use backend relayer /api/vault."
+    );
+  }
+
+  async signAuthEntry(entryHash: Buffer | Uint8Array): Promise<Buffer | Uint8Array> {
+    throw new Error(
+      "ERR_FREIGHTER_DEPRECATED: Client-side auth entry signing is disabled."
+    );
   }
 }

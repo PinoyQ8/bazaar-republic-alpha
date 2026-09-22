@@ -58,6 +58,89 @@ enum LedgerTxType {
   SLASH_REWARD
   SLASH_SETTLEMENT
   TRANSFER
+  SHIELD_ARM
+  SHIELD_SWEEP
+  MASTER_REVOKE
+}
+
+// =============================================================
+// RFC-002: L1 Anti-Sweeper Shield & Recovery Protocol
+// =============================================================
+
+enum TargetStatus {
+  UNARMED
+  ARMED_2OF2
+  NEUTRALIZED_REVOKED
+}
+
+enum ShieldEventType {
+  AUDIT
+  ARM_SHIELD
+  SWEEP_PAYMENT
+  SWEEP_CREATE_ACCOUNT
+  REVOKE_MASTER
+  SSE_AUTO_SWEEP
+}
+
+model ShieldAccount {
+  id              String       @id @default(auto()) @map("_id") @db.ObjectId
+  targetAddress   String       @unique // 56-char Stellar/Pi public key (G...)
+  guardianAddress String       // Guardian public key (G...)
+  recoveryVault   String       // Cold vault destination (G...)
+  status          TargetStatus @default(UNARMED)
+
+  initialBalance Float @default(0.0)
+  currentBalance Float @default(0.0)
+  reservedBuffer Float @default(1.60)
+  masterWeight   Int   @default(1)
+
+  lowThreshold  Int @default(0)
+  medThreshold  Int @default(0)
+  highThreshold Int @default(0)
+
+  // Direct reference to PioneerNode
+  pioneerUid  String?      @unique
+  pioneerNode PioneerNode? @relation(fields: [pioneerUid], references: [uid])
+
+  recoveries RecoverySettlement[]
+  events     ShieldEvent[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([guardianAddress])
+  @@index([status])
+}
+
+model RecoverySettlement {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  shieldAccountId String   @db.ObjectId
+  evacuatedAmount Float
+  vaultAddress    String
+  operationType   String   @default("PAYMENT") // PAYMENT | CREATE_ACCOUNT
+  armTxHash       String?
+  sweepTxHash     String
+  revokeTxHash    String?
+  settledLedger   Int?
+  settledAt       DateTime @default(now())
+
+  shieldAccount ShieldAccount @relation(fields: [shieldAccountId], references: [id])
+
+  @@index([shieldAccountId])
+  @@index([sweepTxHash])
+}
+
+model ShieldEvent {
+  id              String          @id @default(auto()) @map("_id") @db.ObjectId
+  shieldAccountId String          @db.ObjectId
+  eventType       ShieldEventType
+  txHash          String?
+  details         String? // Serialized JSON string
+  createdAt       DateTime        @default(now())
+
+  shieldAccount ShieldAccount @relation(fields: [shieldAccountId], references: [id])
+
+  @@index([shieldAccountId, eventType])
 }
 
 model PioneerNode {
@@ -94,23 +177,29 @@ model PioneerNode {
   ledgerHeight        Int     @default(0)
   syncState           String  @default("Unknown")
   activePeers         Int     @default(0)
-  protocol            String  @default("28") // Synchronized to Pi Testnet Protocol 28
-  isUnderRemoteRescue Boolean @default(false)
-
-  quarantineStatus    String    @default("NONE")
-  migrationHash       String?
+  protocol            String  @default("28")
+  
+  // RFC-002 Quarantine & Rescue Fields
+  isUnderRemoteRescue Boolean   @default(false)
+  quarantineStatus    String    @default("NONE") // NONE | QUARANTINED | REVOKED
+  quarantineReason    String?
   quarantineDate      DateTime?
+  vaultAddress        String?   // Rerouted cold vault for payouts/yields
+  migrationHash       String?
   dormancyPiBalance   Float     @default(0)
   dormancyMBzrBalance Float     @default(0)
+
+  // Reverse relation to ShieldAccount
+  shieldAccount ShieldAccount?
 
   lastEpochYield    Float     @default(0)
   nextEpochEligible DateTime?
   stakeWeight       Float     @default(0)
 
   // Contributor Security Graph & Governance Fields
-  completedAlphaSessions Int                  @default(0) // Requires >= 3 to unlock Contributor status
+  completedAlphaSessions Int                  @default(0)
   isContributorUnlocked  Boolean              @default(false)
-  isElderEligible        Boolean              @default(false) // VRF selection eligibility for 5-Elder Jury
+  isElderEligible        Boolean              @default(false)
   securityCircleOutbound SecurityCircleEdge[] @relation("TrusterRelation")
   securityCircleInbound  SecurityCircleEdge[] @relation("TrustedRelation")
 
@@ -187,7 +276,7 @@ model EscrowLock {
   providerId         String   @db.ObjectId
   amount             Float
   token              String   @default("PI")
-  status             String   @default("LOCKED")
+  status             String   @default("LOCKED") // "LOCKED" | "RELEASED" | "DISPUTED" | "REFUNDED"
   timelockExpiresAt  DateTime
   serviceDescription String
   createdAt          DateTime @default(now())
@@ -201,28 +290,36 @@ model EscrowLock {
 }
 
 model DisputeRecord {
-  id           String       @id @default(auto()) @map("_id") @db.ObjectId
-  escrowId     String       @unique
-  status       String       @default("PENDING")
-  initiatorUid String
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
-  votes        VoteRecord[]
+  id               String   @id @default(auto()) @map("_id") @db.ObjectId
+  escrowLockId     String   @unique @db.ObjectId
+  initiatorUid     String
+  bondAmount       Float    // Collateral mBZR bond (5-10% of lock)
+  selectedElders   String[] // 5 randomly selected Genesis 100 Elders
+  votesForConsumer Int      @default(0)
+  votesForMerchant Int      @default(0)
+  status           String   @default("VOTING") // "VOTING" | "RESOLVED_CONSUMER" | "RESOLVED_MERCHANT" | "SLASHED"
+  reason           String
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
-  escrowLock EscrowLock @relation(fields: [escrowId], references: [escrowId], onDelete: Cascade)
+  escrowLock EscrowLock   @relation(fields: [escrowLockId], references: [id], onDelete: Cascade)
+  votes      VoteRecord[]
 
+  @@index([initiatorUid])
   @@index([status])
+  @@map("dispute_records")
 }
 
 model VoteRecord {
   id        String        @id @default(auto()) @map("_id") @db.ObjectId
   disputeId String        @db.ObjectId
   voterUid  String
-  decision  String
+  decision  String        // "REFUND_CONSUMER" | "RELEASE_MERCHANT"
   createdAt DateTime      @default(now())
   dispute   DisputeRecord @relation(fields: [disputeId], references: [id], onDelete: Cascade)
 
   @@index([disputeId])
+  @@map("dispute_vote_records")
 }
 
 model MeshLedger {
@@ -297,9 +394,14 @@ model AuditLog {
 }
 
 model RelayerSyncState {
-  id         String   @id @map("_id")
-  lastLedger Int      @default(0)
-  updatedAt  DateTime @updatedAt
+  id                    String   @id @map("_id")
+  network               String   @unique @default("pi-testnet")
+  lastLedger            Int      @default(0)
+  lastSweepTx           String?
+  totalPiEvacuated      Float    @default(0.0)
+  activeShields         Int      @default(0)
+  updatedAt             DateTime @updatedAt
+  syncedAt              DateTime @default(now())
 }
 
 model AcademyLog {
