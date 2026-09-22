@@ -1,18 +1,39 @@
-// Location: lib/wallet/drivers/freighterDriver.ts
-// 🛡️ BAZAAR REPUBLIC // DEPRECATED DRIVER STUB
+// 🛡️ BAZAAR REPUBLIC // DEPRECATED FREIGHTER DRIVER STUB
+// Freighter has been purged in favor of Pi Network & Samsung Knox passkeys.
 
-export async function isConnected(): Promise<boolean> {
-  return false;
-}
+import { ISignerDriver, WalletAccount } from '@/types/wallet';
 
-export async function requestAccess(): Promise<string> {
-  throw new Error("Freighter driver deprecated. Use Pi Network & Samsung Knox passkeys.");
-}
+export class FreighterDriver implements ISignerDriver {
+  name = 'Freighter (Deprecated)';
+  type = 'freighter' as any;
 
-export async function signTransaction(): Promise<string> {
-  throw new Error("Freighter driver deprecated.");
-}
+  async isAvailable(): Promise<boolean> {
+    return false;
+  }
 
-export async function signAuthEntry(): Promise<string> {
-  throw new Error("Freighter driver deprecated.");
+  async isConnected(): Promise<boolean> {
+    return false;
+  }
+
+  async connect(): Promise<WalletAccount> {
+    throw new Error(
+      "ERR_FREIGHTER_DEPRECATED: Bazaar Republic uses Pi Network and Samsung Knox passkeys. Extension wallets are disabled."
+    );
+  }
+
+  async disconnect(): Promise<void> {
+    // No-op for deprecated driver
+  }
+
+  async signTransaction(txXdr: string): Promise<string> {
+    throw new Error(
+      "ERR_FREIGHTER_DEPRECATED: Client-side extension signing is disabled. Use backend relayer /api/vault."
+    );
+  }
+
+  async signAuthEntry(entryHash: Buffer | Uint8Array): Promise<Buffer | Uint8Array> {
+    throw new Error(
+      "ERR_FREIGHTER_DEPRECATED: Client-side auth entry signing is disabled."
+    );
+  }
 }
