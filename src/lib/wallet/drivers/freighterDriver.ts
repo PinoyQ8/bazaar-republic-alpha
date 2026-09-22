@@ -1,4 +1,5 @@
-﻿// 🛡️ BAZAAR REPUBLIC // DEPRECATED FREIGHTER DRIVER STUB
+﻿// Location: src/lib/wallet/drivers/freighterDriver.ts
+// 🛡️ BAZAAR REPUBLIC // DEPRECATED FREIGHTER DRIVER STUB
 // Freighter has been purged in favor of Pi Network & Samsung Knox passkeys.
 
 import { ISignerDriver, WalletAccount } from '@/types/wallet';
