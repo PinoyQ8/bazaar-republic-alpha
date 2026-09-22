@@ -6,6 +6,7 @@ import {
   SAC_TOKEN_CONTRACT 
 } from '@/services/bazaarVaultService';
 import { prisma } from '@/lib/prisma';
+import mongoose from 'mongoose';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -30,6 +31,9 @@ export async function OPTIONS() {
   });
 }
 
+// ----------------------------------------------------------------------
+// 1. GET: CONTRACT LEDGER WITH DUAL-WRITE PRISMA FALLBACK
+// ----------------------------------------------------------------------
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
@@ -45,7 +49,8 @@ export async function GET(req: NextRequest) {
 
     targetEscrowId = formatEscrowId(targetEscrowId);
 
-    const vault: any = await bazaarVaultService.getVault(targetEscrowId);
+    // Step A: Check On-Chain Soroban Smart Contract
+    const vault: any = await bazaarVaultService.getVault(targetEscrowId).catch(() => null);
     if (vault) {
       return NextResponse.json({
         found: true,
@@ -60,8 +65,45 @@ export async function GET(req: NextRequest) {
       }, { status: 200 });
     }
 
+    // Step B: Dual-Write Database Fallback (Prisma EscrowLock)
+    if (db?.escrowLock) {
+      const cleanRawId = rawId.trim();
+      const dbRecord = await db.escrowLock.findFirst({
+        where: {
+          OR: [
+            { escrowId: targetEscrowId },
+            { escrowId: cleanRawId },
+            { txid: cleanRawId },
+            { paymentId: cleanRawId },
+            { paymentId: `PAY_${cleanRawId.replace(/-/g, '_')}` },
+          ],
+        },
+        include: { provider: true },
+      });
+
+      if (dbRecord) {
+        return NextResponse.json({
+          found: true,
+          source: 'DATABASE_PENDING',
+          escrowId: dbRecord.escrowId,
+          contractId: BAZAAR_VAULT_CONTRACT_ID,
+          vault: {
+            escrow_id: dbRecord.escrowId,
+            consumer: dbRecord.consumerUid,
+            provider: dbRecord.provider?.providerUid || dbRecord.provider?.businessName || dbRecord.providerId,
+            amount: (dbRecord.amount * 10_000_000).toString(), // Stroop representation
+            status: dbRecord.status, // "PENDING_ONCHAIN" | "LOCKED"
+            timelock: Math.floor(new Date(dbRecord.timelockExpiresAt).getTime() / 1000).toString(),
+            expires_at: Math.floor(new Date(dbRecord.timelockExpiresAt).getTime() / 1000).toString(),
+            token: dbRecord.token || 'PI',
+            dispute: null,
+          },
+        }, { status: 200 });
+      }
+    }
+
     return NextResponse.json(
-      { found: false, escrowId: targetEscrowId, error: `Escrow '${targetEscrowId}' not found on ledger.` },
+      { found: false, escrowId: targetEscrowId, error: `Escrow '${targetEscrowId}' not found on ledger or database.` },
       { status: 404 }
     );
   } catch (error: any) {
@@ -72,6 +114,9 @@ export async function GET(req: NextRequest) {
   }
 }
 
+// ----------------------------------------------------------------------
+// 2. POST: ON-CHAIN TRANSACTIONS (LOCK / RELEASE / REFUND / DISPUTE)
+// ----------------------------------------------------------------------
 export async function POST(req: NextRequest) {
   try {
     let body: any;
@@ -194,7 +239,7 @@ export async function POST(req: NextRequest) {
 
     const txHash = txResponse?.hash || txResponse?.txHash || 'SETTLED_ON_CHAIN';
 
-    // Optional Prisma Database Dual-Write
+    // Prisma Database Dual-Write with Safe ServiceProvider Linking
     try {
       const db = prisma as any;
       if (db?.escrowLock) {
@@ -204,6 +249,34 @@ export async function POST(req: NextRequest) {
           REFUND: 'REFUNDED',
           DISPUTE: 'DISPUTED',
         };
+
+        const targetProviderUid = providerAddress || 'SYSTEM_VAULT';
+        let providerRecord = await db.serviceProvider.findFirst({
+          where: {
+            OR: [
+              { providerUid: targetProviderUid },
+              { businessName: targetProviderUid },
+            ],
+          },
+        });
+
+        if (!providerRecord) {
+          providerRecord = await db.serviceProvider.create({
+            data: {
+              businessName: targetProviderUid,
+              category: 'FINANCIAL',
+              description: 'Protocol 28 Vault Escrow Gateway',
+              providerUid: targetProviderUid,
+              sectorLocation: 'Sector-01-Mesh',
+              mbzrRate: 1000.0,
+              unitLabel: 'mBZR/Pi',
+              isVerified: true,
+            },
+          });
+        }
+
+        const numericAmount = amount ? Number(amount) : 0;
+        const normalizedPiAmount = numericAmount >= 10_000 ? numericAmount / 10_000_000 : numericAmount;
 
         await db.escrowLock.upsert({
           where: { escrowId: normalizedEscrowId },
@@ -215,18 +288,19 @@ export async function POST(req: NextRequest) {
           create: {
             escrowId: normalizedEscrowId,
             consumerUid: consumerAddress || signer.publicKey(),
-            providerId: providerAddress || 'UNKNOWN',
-            amount: amount ? Number(amount) / 10_000_000 : 0,
+            providerId: providerRecord.id,
+            amount: normalizedPiAmount,
             token: 'PI',
             status: statusMap[actionUpper] || 'LOCKED',
             txid: txHash,
-            paymentId: `pay_${normalizedEscrowId.toLowerCase()}`,
+            paymentId: `PAY_${normalizedEscrowId.toLowerCase()}`,
+            serviceDescription: `Vault Settlement (${actionUpper})`,
             timelockExpiresAt: new Date(Date.now() + 48 * 3600 * 1000),
           },
-        }).catch((e: any) => console.warn('[DB_SYNC_WARN]:', e.message));
+        });
       }
-    } catch {
-      // Non-blocking: on-chain ledger remains the primary source of truth
+    } catch (e: any) {
+      console.warn('[DB_SYNC_WARN]:', e.message);
     }
 
     return NextResponse.json({
