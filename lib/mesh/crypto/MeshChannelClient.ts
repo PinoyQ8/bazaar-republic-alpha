@@ -1,13 +1,11 @@
-// J:\Project-Bazaar\bazaar-republic\bazaar-republic-alpha\mesh-engine\crypto\MeshChannelClient.ts
-
+﻿// Location: lib/mesh/crypto/MeshChannelClient.ts
 import { ethers, Wallet } from "ethers";
 
-// Interface reflecting the state structure matching the Pi Layer-1 smart contract
 export interface ChannelState {
-  channelId: string;   // bytes32 hex string
+  channelId: string;   // 32-byte hex or string identifier
   nonce: number;       // Monotonically increasing sequence number
-  balanceA: bigint;    // Balance of Pioneer A in Wei/Atomic units
-  balanceB: bigint;    // Balance of Pioneer B in Wei/Atomic units
+  balanceA: bigint;    // Balance of Pioneer A in atomic units / stroops
+  balanceB: bigint;    // Balance of Pioneer B in atomic units / stroops
 }
 
 export interface SignedState {
@@ -20,50 +18,65 @@ export class MeshChannelClient {
   private wallet: Wallet;
 
   constructor(privateKey: string) {
-    // Initialize signer wallet with the Pioneer's private key
     this.wallet = new Wallet(privateKey);
   }
 
-  /**
-   * Returns the Ethereum/Pi L1 address of this node
-   */
   public get address(): string {
     return this.wallet.address;
   }
 
   /**
-   * Hash the state channel data strictly matching the Solidity keccak256 packed format
+   * Normalizes a channel ID into a strict 32-byte hex format.
+   * If it's already a 66-character 0x-prefixed hex string, returns it as-is.
+   * Otherwise, hashes the string via keccak256.
+   */
+  public static normalizeChannelId(channelId: string): string {
+    if (channelId.startsWith("0x") && channelId.length === 66) {
+      return channelId;
+    }
+    return ethers.id(channelId);
+  }
+
+  /**
+   * Hash the state channel data strictly matching the packed format
    */
   public hashState(state: ChannelState): string {
+    return MeshChannelClient.hashState(state);
+  }
+
+  public static hashState(state: ChannelState): string {
+    const formattedChannelId = MeshChannelClient.normalizeChannelId(state.channelId);
     return ethers.solidityPackedKeccak256(
       ["bytes32", "uint256", "uint256", "uint256"],
-      [state.channelId, state.nonce, state.balanceA, state.balanceB]
+      [formattedChannelId, state.nonce, state.balanceA, state.balanceB]
     );
   }
 
   /**
-   * Signs a state update using the EIP-191 standard
+   * Signs a state update using EIP-191
    */
   public async signState(state: ChannelState): Promise<string> {
-    const messageHash = this.hashState(state);
+    const messageHash = MeshChannelClient.hashState(state);
     const messageHashBytes = ethers.getBytes(messageHash);
     return await this.wallet.signMessage(messageHashBytes);
   }
 
   /**
-   * Verifies that a given signature belongs to a specific Pioneer address
+   * Cryptographically verifies whether a signature matches a Pioneer's address
    */
   public static verifySignature(
     state: ChannelState,
     signature: string,
     expectedSigner: string
   ): boolean {
-    // Temporary dummy instance just to access the hash method securely
-    const client = new MeshChannelClient("0x" + "1".repeat(64)); 
-    const messageHash = client.hashState(state);
-    const messageHashBytes = ethers.getBytes(messageHash);
-
-    const recoveredAddress = ethers.verifyMessage(messageHashBytes, signature);
-    return recoveredAddress.toLowerCase() === expectedSigner.toLowerCase();
+    try {
+      if (!signature || signature.length < 10) return false;
+      const messageHash = MeshChannelClient.hashState(state);
+      const messageHashBytes = ethers.getBytes(messageHash);
+      const recoveredSigner = ethers.verifyMessage(messageHashBytes, signature);
+      return recoveredSigner.toLowerCase() === expectedSigner.toLowerCase();
+    } catch {
+      return false;
+    }
   }
 }
