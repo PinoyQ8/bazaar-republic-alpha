@@ -1,12 +1,12 @@
-// Location: app/dashboard/command/page.tsx
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import { seedVirtualMarket } from "@/app/actions/marketActions";
 import { Terminal } from "lucide-react";
+import { WatchtowerIncidentFeed } from "@/components/mesh/WatchtowerIncidentFeed";
 
 export default function CommandCenterViewport() {
-  // 🛡️ DEV-TOOL: Virtual Market Seeder
+  // DEV-TOOL: Virtual Market Seeder
   const [isSeeding, setIsSeeding] = useState(false);
   const [seedResult, setSeedResult] = useState<string | null>(null);
 
@@ -29,8 +29,7 @@ export default function CommandCenterViewport() {
 
   return (
     <div className="min-h-screen bg-black text-neutral-300 font-mono p-4 md:p-8 space-y-6 pb-24">
-      
-      {/* 🛰️ HEADER MATRIX */}
+      {/* HEADER MATRIX */}
       <header className="border-b border-purple-900/60 pb-4 space-y-2">
         <div className="flex items-center gap-3">
           <Terminal className="w-6 h-6 text-purple-500" />
@@ -39,39 +38,47 @@ export default function CommandCenterViewport() {
           </h1>
         </div>
         <p className="text-xs text-neutral-500 uppercase tracking-widest">
-          Root Level System Operations & Dev Tools
+          Root Level System Operations & Autonomous Defense
         </p>
       </header>
 
-      {/* ⚡ DEV-TOOL: VIRTUAL MARKET SEEDER */}
-      <div className="max-w-md p-4 bg-purple-950/20 border border-purple-900/50 rounded-lg space-y-3">
-        <div className="flex justify-between items-center">
-          <div>
-            <h3 className="text-xs font-bold text-purple-400 uppercase tracking-widest">
-              Testnet Injection
-            </h3>
-            <p className="text-[10px] text-neutral-500 mt-1">
-              Populates the Service Marketplace with dummy listings for TS calculation testing.
-            </p>
+      {/* OPERATIONAL MATRIX GRID */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+        {/* LEFT COLUMN: DEV & SEEDING CONTROLS */}
+        <div className="space-y-6">
+          <div className="p-4 bg-purple-950/20 border border-purple-900/50 rounded-lg space-y-3">
+            <div className="flex justify-between items-center">
+              <div>
+                <h3 className="text-xs font-bold text-purple-400 uppercase tracking-widest">
+                  Testnet Injection
+                </h3>
+                <p className="text-[10px] text-neutral-500 mt-1">
+                  Populates the Service Marketplace with dummy listings for TS calculation testing.
+                </p>
+              </div>
+            </div>
+            
+            <button
+              onClick={handleSeedMarket}
+              disabled={isSeeding}
+              className="w-full py-2 bg-purple-900/40 hover:bg-purple-800/60 border border-purple-700 text-purple-300 font-bold text-xs uppercase tracking-widest rounded transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isSeeding ? "SEEDING MATRIX..." : "⚡ SEED VIRTUAL MARKET"}
+            </button>
+            
+            {seedResult && (
+              <div className="mt-2 text-[10px] font-mono p-2 bg-black border border-purple-900/50 text-purple-400 rounded">
+                {seedResult}
+              </div>
+            )}
           </div>
         </div>
-        
-        <button
-          onClick={handleSeedMarket}
-          disabled={isSeeding}
-          className="w-full py-2 bg-purple-900/40 hover:bg-purple-800/60 border border-purple-700 text-purple-300 font-bold text-xs uppercase tracking-widest rounded transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {isSeeding ? "SEEDING MATRIX..." : "⚡ SEED VIRTUAL MARKET"}
-        </button>
-        
-        {/* Status Feedback */}
-        {seedResult && (
-          <div className="mt-2 text-[10px] font-mono p-2 bg-black border border-purple-900/50 text-purple-400 rounded">
-            {seedResult}
-          </div>
-        )}
-      </div>
 
+        {/* RIGHT COLUMN: LIVE WATCHTOWER & QUARANTINE FEED */}
+        <div className="lg:col-span-2">
+          <WatchtowerIncidentFeed />
+        </div>
+      </div>
     </div>
   );
 }
