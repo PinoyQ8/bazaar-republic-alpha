@@ -1,9 +1,9 @@
-// J:\Project-Bazaar\bazaar-republic\bazaar-republic-alpha\app\api\mesh\state\route.ts
+﻿// J:\Project-Bazaar\bazaar-republic\bazaar-republic-alpha\app\api\mesh\state\route.ts
 
 import { NextRequest, NextResponse } from "next/server";
 import { ethers } from "ethers";
-import { ChannelBuffer } from "../../../../mesh-engine/node/ChannelBuffer";
-import { SignedState } from "../../../../mesh-engine/crypto/MeshChannelClient";
+import { ChannelBuffer } from "@/lib/mesh/node/ChannelBuffer";
+import { SignedState } from "@/lib/mesh/crypto/MeshChannelClient";
 
 // Global singleton instance for the local node's active memory ledger
 const globalBuffer = new ChannelBuffer();

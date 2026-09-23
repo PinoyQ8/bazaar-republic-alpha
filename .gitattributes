@@ -1,0 +1,9 @@
+﻿# Mark generated and build assets
+.next/** linguist-generated
+build/** linguist-generated
+public/** linguist-documentation
+
+# Mark configuration and environment templates
+*.json linguist-documentation
+*.yml linguist-documentation
+*.mjs linguist-documentation

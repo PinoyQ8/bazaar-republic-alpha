@@ -1,1 +1,0 @@
-J:\Project-Bazaar\bazaar-republic\bazaar-republic-alpha\contracts\bazaar-vault\./out\wasm32-unknown-unknown\release\bazaar_vault.wasm: J:\Project-Bazaar\bazaar-republic\bazaar-republic-alpha\contracts\bazaar-vault\src\lib.rs
