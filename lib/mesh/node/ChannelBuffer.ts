@@ -43,7 +43,10 @@ export class ChannelBuffer {
       };
 
       this.recordFraudIncident(proof);
-      await this.triggerAutonomousDispute(channelId, pioneerB_Address);
+      await Promise.all([
+        this.triggerAutonomousDispute(channelId, pioneerB_Address),
+        this.broadcastQuarantineTelemetry(pioneerA_Address, `Stale Nonce Replay: submitted ${newState.state.nonce} vs canonical ${currentRecord.state.nonce}`)
+      ]);
       return false;
     }
 
@@ -67,7 +70,10 @@ export class ChannelBuffer {
       };
 
       this.recordFraudIncident(proof);
-      await this.triggerAutonomousDispute(channelId, honestParty);
+      await Promise.all([
+        this.triggerAutonomousDispute(channelId, honestParty),
+        this.broadcastQuarantineTelemetry(offendingParty, `Cryptographic Failure: Invalid signature on state channel balance verification`)
+      ]);
       return false;
     }
 
@@ -101,6 +107,33 @@ export class ChannelBuffer {
       console.log(`[MESH:WATCHTOWER] Soroban dispute transaction assembled for ${channelId}:`, disputeTx);
     } catch (err) {
       console.error(`[MESH:WATCHTOWER] Failed to assemble autonomous dispute transaction:`, err);
+    }
+  }
+
+  /**
+   * Broadcasts quarantine status to the node quarantine registry
+   */
+  private async broadcastQuarantineTelemetry(offendingUid: string, reason: string): Promise<void> {
+    try {
+      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+      console.warn(`[MESH:WATCHTOWER] Broadcasting quarantine signal for UID: ${offendingUid}`);
+      
+      const res = await fetch(`${baseUrl}/api/mesh-admin/quarantine`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          uid: offendingUid,
+          reason: `[WATCHTOWER_FLAG] ${reason}`,
+        }),
+      });
+
+      if (!res.ok) {
+        console.warn(`[MESH:WATCHTOWER] Quarantine broadcast returned status: ${res.status}`);
+      } else {
+        console.log(`[MESH:WATCHTOWER] Successfully locked node ${offendingUid} in quarantine registry.`);
+      }
+    } catch (err) {
+      console.error(`[MESH:WATCHTOWER] Failed to broadcast quarantine telemetry:`, err);
     }
   }
 
