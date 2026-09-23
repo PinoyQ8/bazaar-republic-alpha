@@ -1,5 +1,4 @@
-﻿// services/bazaarVaultService.ts
-import {
+﻿import {
   Account,
   Contract,
   Keypair,
@@ -23,30 +22,27 @@ export const BAZAAR_VAULT_CONTRACT_ID =
   'CBM5SVJHLHNAEUR4GA3IV5KZFPCCMGTZGMAJUNURUQIEFPTKZLKXQ3RY';
 
 export const SAC_TOKEN_CONTRACT =
+  process.env.NEXT_PUBLIC_SAC_TOKEN_CONTRACT ||
   process.env.NEXT_PUBLIC_PI_TOKEN_CONTRACT ||
   'CDG6ZM2SHXIHD5HZ2E62B7D76RY5DUHDNQVPSHRVDNN7W4EW47FXLEXQ';
 
 export const SOROBAN_RPC_URL =
-  process.env.NEXT_PUBLIC_PI_RPC_URL ||
-  process.env.PI_RPC_URL ||
+  process.env.NEXT_PUBLIC_STELLAR_RPC_URL ||
   process.env.NEXT_PUBLIC_SOROBAN_RPC_URL ||
-  process.env.SOROBAN_RPC_URL ||
-  'https://rpc.testnet.minepi.com';
+  process.env.NEXT_PUBLIC_PI_RPC_URL ||
+  'https://soroban-testnet.stellar.org';
 
-export const PI_HORIZON_URL =
+export const HORIZON_URL =
+  process.env.NEXT_PUBLIC_HORIZON_URL ||
   process.env.NEXT_PUBLIC_PI_HORIZON_URL ||
-  process.env.PI_HORIZON_URL ||
-  'https://api.testnet.minepi.com';
+  'https://horizon-testnet.stellar.org';
 
 export const NETWORK_PASSPHRASE =
-  process.env.NEXT_PUBLIC_PI_NETWORK_PASSPHRASE ||
-  process.env.PI_NETWORK_PASSPHRASE ||
   process.env.NEXT_PUBLIC_STELLAR_NETWORK_PASSPHRASE ||
-  process.env.STELLAR_NETWORK_PASSPHRASE ||
-  'Pi Testnet';
+  process.env.NEXT_PUBLIC_PI_NETWORK_PASSPHRASE ||
+  'Test SDF Network ; September 2015';
 
-// Pi Testnet minimum base fee is 100,000 stroops (0.01 Test-Pi)
-export const PI_BASE_FEE = '1000000'; // 0.1 Test-Pi inclusion buffer
+export const BASE_FEE = process.env.NEXT_PUBLIC_BASE_FEE || '1000000';
 
 const SIMULATION_FALLBACK_ACCOUNT = 'GAU5Y5UWUQ5ETIEI5HWVJR7VDMXUETTSKQ4UKOIIGIW6GVIMCR354UJ3';
 
@@ -58,7 +54,7 @@ export class BazaarVaultService {
   constructor(
     contractId: string = BAZAAR_VAULT_CONTRACT_ID,
     rpcUrl: string = SOROBAN_RPC_URL,
-    horizonUrl: string = PI_HORIZON_URL
+    horizonUrl: string = HORIZON_URL
   ) {
     this.rpcServer = new StellarRpc.Server(rpcUrl, {
       allowHttp: rpcUrl.startsWith('http://'),
@@ -67,7 +63,7 @@ export class BazaarVaultService {
     this.contract = new Contract(contractId);
   }
 
-  async getPiAccount(accountId: string): Promise<Horizon.AccountResponse> {
+  async getAccount(accountId: string): Promise<Horizon.AccountResponse> {
     return this.horizonServer.loadAccount(accountId);
   }
 
@@ -109,7 +105,7 @@ export class BazaarVaultService {
       const sanitizedId = escrowId.replace(/-/g, '_');
 
       const tx = new TransactionBuilder(dummyAccount, {
-        fee: PI_BASE_FEE,
+        fee: BASE_FEE,
         networkPassphrase: NETWORK_PASSPHRASE,
       })
         .addOperation(
@@ -149,7 +145,6 @@ export class BazaarVaultService {
     const tokenContract = params.tokenContract || SAC_TOKEN_CONTRACT;
     const sanitizedId = params.escrowId.replace(/-/g, '_');
 
-    // On-Chain ABI: lock_funds(escrow_id, token_contract, consumer, provider, amount, duration_secs)
     const callOp = this.contract.call(
       'lock_funds',
       nativeToScVal(sanitizedId, { type: 'symbol' }),
@@ -167,9 +162,8 @@ export class BazaarVaultService {
     escrowId: string,
     consumerAddress: string,
     signer: Keypair | ((txXdr: string) => Promise<string>)
-  ): Promise<StellarRpc.Api.GetTransactionResponse> {
+  ): Promise<VaultTxResponse> {
     const sanitizedId = escrowId.replace(/-/g, '_');
-    // On-Chain ABI Verified: release_funds(escrow_id: Symbol, consumer: Address)
     const callOp = this.contract.call(
       'release_funds',
       nativeToScVal(sanitizedId, { type: 'symbol' }),
@@ -184,13 +178,11 @@ export class BazaarVaultService {
     signer: Keypair | ((txXdr: string) => Promise<string>)
   ): Promise<VaultTxResponse> {
     const sanitizedId = escrowId.replace(/-/g, '_');
-    // On-Chain ABI: dispute_escrow(escrow_id, caller)
     const callOp = this.contract.call(
       'dispute_escrow',
       nativeToScVal(sanitizedId, { type: 'symbol' }),
       Address.fromString(callerAddress).toScVal()
     );
-
     return this.executeContractCall(callerAddress, callOp, signer);
   }
 
@@ -200,46 +192,43 @@ export class BazaarVaultService {
     signer: Keypair | ((txXdr: string) => Promise<string>)
   ): Promise<VaultTxResponse> {
     const sanitizedId = escrowId.replace(/-/g, '_');
-    // On-Chain ABI: refund_funds(escrow_id, initiator)
     const callOp = this.contract.call(
       'refund_funds',
       nativeToScVal(sanitizedId, { type: 'symbol' }),
       Address.fromString(initiatorAddress).toScVal()
     );
-
     return this.executeContractCall(initiatorAddress, callOp, signer);
   }
 
   private async getAccountSequence(sourceAddress: string): Promise<string> {
     const horizonUrl = (
-      process.env.PI_HORIZON_URL ||
-      process.env.NEXT_PUBLIC_PI_HORIZON_URL ||
-      'https://api.testnet.minepi.com'
+      process.env.NEXT_PUBLIC_HORIZON_URL ||
+      HORIZON_URL
     ).replace(/\/$/, '');
 
-    // 1. Direct native fetch against Pi Testnet Horizon
     try {
       const res = await fetch(`${horizonUrl}/accounts/${sourceAddress}`);
       if (res.ok) {
         const data: any = await res.json();
-        if (data && data.sequence) {
-          return String(data.sequence);
-        }
+        if (data && data.sequence) return String(data.sequence);
       }
     } catch {}
 
-    // 2. Fallback to Horizon SDK (Horizon.AccountResponse exposes .sequence as a public field)
     try {
       const horizonAcc = await this.horizonServer.loadAccount(sourceAddress);
-      return horizonAcc.sequence;
+      if (horizonAcc && horizonAcc.sequence) return String(horizonAcc.sequence);
     } catch {}
 
-    // 3. Last resort fallback to Soroban RPC (Account exposes .sequenceNumber())
-    const rpcAcc = await this.rpcServer.getAccount(sourceAddress);
-    return rpcAcc.sequenceNumber();
+    try {
+      const rpcAcc: any = await this.rpcServer.getAccount(sourceAddress);
+      const seq = typeof rpcAcc.sequenceNumber === 'function' ? rpcAcc.sequenceNumber() : rpcAcc.sequence;
+      if (seq) return String(seq);
+    } catch {}
+
+    throw new Error(`Failed to retrieve sequence number for ${sourceAddress}`);
   }
 
- private async executeContractCall(
+  private async executeContractCall(
     sourceAddress: string,
     operation: xdr.Operation,
     signer: Keypair | ((txXdr: string) => Promise<string>)
@@ -248,21 +237,19 @@ export class BazaarVaultService {
     const account = new Account(sourceAddress, sequence);
 
     let tx = new TransactionBuilder(account, {
-      fee: PI_BASE_FEE,
+      fee: BASE_FEE,
       networkPassphrase: NETWORK_PASSPHRASE,
     })
       .addOperation(operation)
       .setTimeout(60)
       .build();
 
-    // 1. Simulate transaction to calculate resource footprints, fees, and auth entries
     const simulation = await this.rpcServer.simulateTransaction(tx);
 
     if (StellarRpc.Api.isSimulationError(simulation)) {
       throw new Error(`Soroban simulation error: ${simulation.error}`);
     }
 
-    // 2. Assemble transaction with simulation results (vital for require_auth() & cross-contract SAC transfers)
     tx = StellarRpc.assembleTransaction(tx, simulation).build();
 
     let signedTx: Transaction | FeeBumpTransaction;
@@ -280,7 +267,7 @@ export class BazaarVaultService {
       throw new Error(`Transaction submission error: ${JSON.stringify(sendRes.errorResult)}`);
     }
 
-    const maxAttempts = 20;
+    const maxAttempts = 25;
     let attempts = 0;
     let txStatus = await this.rpcServer.getTransaction(sendRes.hash);
 
@@ -294,7 +281,7 @@ export class BazaarVaultService {
     }
 
     if (txStatus.status === StellarRpc.Api.GetTransactionStatus.NOT_FOUND) {
-      throw new Error(`Transaction ${sendRes.hash} confirmation timed out after 30s.`);
+      throw new Error(`Transaction ${sendRes.hash} confirmation timed out.`);
     }
 
     if (txStatus.status === StellarRpc.Api.GetTransactionStatus.FAILED) {
