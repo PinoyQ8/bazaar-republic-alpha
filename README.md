@@ -1,56 +1,41 @@
-# 🏛️ Bazaar Republic — Soroban Settlement & Escrow Engine
+﻿# Bazaar Republic Alpha (dApp & SoloHost Node Hub)
 
-[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![Network](https://img.shields.io/badge/Stellar-Testnet-brightgreen.svg)](https://stellar.org)
-[![Soroban](https://img.shields.io/badge/Smart%20Contracts-Soroban%20v22+-orange.svg)](https://soroban.stellar.org)
-
-Bazaar Republic is a high-performance, non-custodial smart escrow and multi-asset settlement engine built on **Stellar** using **Soroban Rust contracts**. Engineered as a modular Web3 commerce primitive, it enables trustless commercial trade, automated fee splits, dispute resolution, and cross-language developer integration across TypeScript, Python, and PHP.
+The production client-facing decentralized application, consumer marketplace, and SoloHost telemetry interface for **Project Bazaar**, built on the Pi Network and Stellar Soroban infrastructure.
 
 ---
 
-## ⚡ Key Features
+## Architecture Overview
 
-* **Non-Custodial Escrows:** Direct on-chain collateral locking via the Stellar Asset Contract (SAC) with zero intermediary custody.
-* **Storage Rent Optimization:** Employs instance storage for global contract configuration and persistent storage partitions with automated extend_ttl operations to minimize ledger rent footprint.
-* **Multi-Language Developer SDKs:**
-  * **TypeScript (/sdk/typescript):** Full transaction simulation, auto-footprint generation, and Stellar Wallets Kit support.
-  * **Python Port (/sdk-ports/python):** Backend automation and server-to-server settlement scripts using stellar-sdk.
-  * **PHP Port (/sdk-ports/php):** Plug-and-play e-commerce integration for standard web merchants.
-* **Non-Custodial Multi-Wallet Compatibility:** Supports Freighter, xBull, and Albedo out of the box.
+While the underlying settlement contracts and multi-language verification SDKs reside in [bazaar-republic-core](https://github.com/PinoyQ8/bazaar-republic-core), this repository hosts the full user experience, state synchronizers, and decentralized host services:
+
+* **Next.js Web3 dApp (pp/, components/)**: Production merchant storefront, escrow interaction flows, decentralized identity routing, and governance voter portals.
+* **SoloHost Node Telemetry (solohost/, solohost.json)**: Daemon processes, container status monitors, healthcheck pingers, and hardware-accelerated telemetry dashboards.
+* **Client Integration Services (services/, lib/, hooks/)**: Client-side transaction builders, state stores, and real-time WebSocket bridges.
 
 ---
 
-## 📦 Smart Contract Entrypoints
+## Getting Started
 
-| Function | Parameters | Description |
-| :--- | :--- | :--- |
-| initialize | admin, fee_recipient, fee_bps | Configures protocol treasury and fee limits (capped at 10%). |
-| create_escrow | buyer, seller, token, amount | Locks SAC tokens into contract vault; generates unique escrow_id. |
-| fulfill | escrow_id | Seller cryptographically signals order completion. |
-| release | escrow_id | Payouts net funds to seller and routes protocol fee to treasury. |
-| refund | escrow_id | Returns locked funds back to buyer upon cancellation or dispute resolution. |
-| set_paused | paused | Emergency circuit breaker callable only by contract admin. |
+### Prerequisites
 
----
+* Node.js v20.x or higher
+* npm or pnpm
+* Modern Web3 browser or Pi Browser viewport emulator
 
-## 🛠️ Local Development & Testing
+### Installation
 
-### 1. Rust Unit Tests
-`ash
-cargo test
-`
+\\\ash
+# Install frontend dependencies
+npm install
 
-### 2. Compile Deterministic WASM
-`ash
-stellar contract build
-`
+# Run the local development server
+npm run dev
+\\\
 
-### 3. Deploy to Stellar Testnet
-`ash
-stellar contract deploy --wasm target/wasm32-unknown-unknown/release/bazaar_escrow.wasm --source <YOUR_IDENTITY> --network testnet
-`
+Open [http://localhost:3000](http://localhost:3000) with your browser or mobile viewport emulator (e.g. S23 Ultra responsive mode) to inspect the interface.
 
 ---
 
-## 📄 License
-This project is licensed under the **Apache License, Version 2.0**. See the [LICENSE](./LICENSE) file for details.
+## Connected Repositories
+
+* **Settlement Engine & SDK Ports**: [bazaar-republic-core](https://github.com/PinoyQ8/bazaar-republic-core) — Soroban Rust smart contracts, WASM build artifacts, and Python/PHP verification test suites.
