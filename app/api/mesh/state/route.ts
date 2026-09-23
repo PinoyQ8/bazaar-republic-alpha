@@ -23,6 +23,7 @@ export async function GET(req: NextRequest) {
 
     const bufferedState = globalBuffer.getLatestState(channelId);
     const onChainEscrow = await fetchVaultEscrow(channelId);
+    const fraudIncidents = globalBuffer.getFraudIncidents(channelId);
 
     return NextResponse.json({
       success: true,
@@ -38,6 +39,7 @@ export async function GET(req: NextRequest) {
           }
         : null,
       onChainEscrow: onChainEscrow || null,
+      fraudIncidents,
     });
   } catch (err: any) {
     console.error("[MESH API GET ERROR]", err);
@@ -117,7 +119,7 @@ export async function POST(req: NextRequest) {
       sigB: signedState.sigB,
     };
 
-    const accepted = globalBuffer.registerStateUpdate(
+    const accepted = await globalBuffer.registerStateUpdate(
       normalizedState,
       pioneerA_Address,
       pioneerB_Address
@@ -125,7 +127,7 @@ export async function POST(req: NextRequest) {
 
     if (!accepted) {
       return NextResponse.json(
-        { success: false, error: "State update rejected: Outdated nonce or invalid cryptographic proof." },
+        { success: false, error: "State update rejected: Outdated nonce or invalid cryptographic proof. Watchtower incident registered." },
         { status: 403 }
       );
     }
