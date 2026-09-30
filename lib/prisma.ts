@@ -1,47 +1,46 @@
-﻿// lib/prisma.ts
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from "@prisma/client";
+
+export * from "@prisma/client";
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
 };
 
-// 1. Resolve connection string with SoloHost & Docker fallback
-const rawUrl = process.env.DATABASE_URL || process.env.MONGODB_URI;
-const dbUrl = rawUrl?.trim();
+function resolveDatabaseUrl(): string {
+  const isDocker = process.env.IS_DOCKER === "true" || process.env.SOLOHOST === "true";
+  let url =
+    process.env.DATABASE_URL ||
+    process.env.MONGODB_URI ||
+    "mongodb://127.0.0.1:27017/bazaar_republic?replicaSet=rs0&directConnection=true&serverSelectionTimeoutMS=3000";
 
-const isValidMongoUrl =
-  Boolean(dbUrl) &&
-  (dbUrl!.startsWith('mongodb://') || dbUrl!.startsWith('mongodb+srv://'));
+  // If running on Windows host, rewrite docker hostname 'db' to loopback
+  if (!isDocker && url.includes("@db:") || (!isDocker && url.startsWith("mongodb://db:"))) {
+    url = url.replace("://db:", "://127.0.0.1:");
+  }
 
-if (!isValidMongoUrl) {
-  console.warn(
-    '[WARN][PRISMA] Active database URL is missing or invalid. Requires mongodb:// or mongodb+srv://'
-  );
+  return url.trim();
 }
 
-// 2. Factory instantiation: Only override datasource if a valid URL exists
-const createPrismaClient = () => {
-  return new PrismaClient({
-    ...(isValidMongoUrl && dbUrl
-      ? {
-          datasources: {
-            db: {
-              url: dbUrl,
-            },
-          },
-        }
-      : {}),
-    log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
-  });
-};
+function getPrismaClient(): PrismaClient {
+  if (!globalForPrisma.prisma) {
+    const dbUrl = resolveDatabaseUrl();
+    process.env.DATABASE_URL = dbUrl;
 
-export const prisma = globalForPrisma.prisma ?? createPrismaClient();
+    globalForPrisma.prisma = new PrismaClient({
+      log: process.env.NODE_ENV === "development" ? ["warn", "error"] : ["error"],
+    });
+  }
 
-// 3. Prevent duplicate connection pool leaks during Next.js HMR
-if (process.env.NODE_ENV !== 'production') {
-  globalForPrisma.prisma = prisma;
+  return globalForPrisma.prisma;
 }
 
-// 4. Dual exports to guarantee backward compatibility across all routes
+export const prisma = new Proxy({} as PrismaClient, {
+  get(_target, prop) {
+    const client = getPrismaClient();
+    const value = (client as any)[prop];
+    return typeof value === "function" ? value.bind(client) : value;
+  },
+}) as any;
+
 export const db = prisma;
 export default prisma;

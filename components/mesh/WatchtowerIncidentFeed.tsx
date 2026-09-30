@@ -14,18 +14,30 @@ export function WatchtowerIncidentFeed() {
   const [nodes, setNodes] = useState<QuarantinedNode[]>([]);
   const [loading, setLoading] = useState(true);
   const [lastRefreshed, setLastRefreshed] = useState<Date>(new Date());
+  const [syncError, setSyncError] = useState<string | null>(null);
 
   const fetchFeed = async () => {
     try {
       setLoading(true);
+      setSyncError(null);
       const res = await fetch("/api/mesh/watchtower/feed");
+      
+      const contentType = res.headers.get("content-type");
+      if (!res.ok || !contentType || !contentType.includes("application/json")) {
+        const text = await res.text();
+        throw new Error(`Invalid response [${res.status}]: Expected JSON but received ${contentType || "HTML"}`);
+      }
+
       const data = await res.json();
       if (data.success) {
         setNodes(data.quarantinedNodes || []);
         setLastRefreshed(new Date());
+      } else {
+        setSyncError(data.error || "Failed to parse telemetry");
       }
-    } catch (err) {
-      console.error("Failed to load Watchtower feed:", err);
+    } catch (err: any) {
+      console.warn("Watchtower feed sync alert:", err.message);
+      setSyncError(err.message);
     } finally {
       setLoading(false);
     }
@@ -39,6 +51,7 @@ export function WatchtowerIncidentFeed() {
 
   return (
     <div className="rounded-xl border border-red-900/40 bg-zinc-950/80 p-5 backdrop-blur-md shadow-2xl">
+      {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-800/80 pb-4">
         <div className="flex items-center gap-3">
           <div className="relative flex h-3 w-3">
@@ -69,6 +82,13 @@ export function WatchtowerIncidentFeed() {
         </div>
       </div>
 
+      {syncError && (
+        <div className="my-3 rounded border border-amber-800/60 bg-amber-950/30 p-2.5 text-xs font-mono text-amber-300">
+          ⚠️ Telemetry Notice: {syncError}
+        </div>
+      )}
+
+      {/* Metrics Bar */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 my-4">
         <div className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-3">
           <div className="text-[11px] font-mono text-zinc-400 uppercase">Quarantined Nodes</div>
@@ -84,6 +104,7 @@ export function WatchtowerIncidentFeed() {
         </div>
       </div>
 
+      {/* Log Feed */}
       <div className="space-y-2.5">
         <div className="text-xs font-mono text-zinc-400 uppercase tracking-wider">
           Enforced Violations

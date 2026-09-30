@@ -1,68 +1,39 @@
-﻿const path = require("path");
-const fs = require("fs");
+const { execSync } = require("child_process");
 
-// 1. Load environment variables
-const envPath = path.resolve(__dirname, "..", ".env");
-if (fs.existsSync(envPath)) {
-  require("dotenv").config({ path: envPath });
-} else {
-  require("dotenv").config();
-}
+const CONTRACT_ID = process.env.NEXT_PUBLIC_ESCROW_CONTRACT_ID || "CBM5SVJHLHNAEUR4GA3IV5KZFPCCMGTZGMAJUNURUQIEFPTKZLKXQ3RY";
+const RPC_URL = process.env.STELLAR_RPC_URL || "https://rpc.testnet.minepi.com";
+const NETWORK_PASSPHRASE = process.env.STELLAR_NETWORK_PASSPHRASE || "Pi Testnet";
+const KEY_NAME = "s23-deployer";
+const EXTEND_HORIZON_LEDGERS = 500000; // ~28 days of runway
+const CHECK_INTERVAL_MS = 60 * 60 * 1000; // Run hourly
 
-if (!process.env.DATABASE_URL) {
-  process.env.DATABASE_URL = "mongodb://127.0.0.1:27017/bazaar-republic?directConnection=true";
-}
+console.log("🛡️ [BZR-TTL-KEEPER] Initializing Sentinel Daemon...");
+console.log(`• Monitored Contract : ${CONTRACT_ID}`);
+console.log(`• RPC Target         : ${RPC_URL}`);
+console.log(`• Target Passphrase  : ${NETWORK_PASSPHRASE}`);
 
-// 2. Load generated Prisma Client
-const clientPath = path.resolve(__dirname, "..", "prisma", "generated", "client");
-const { PrismaClient } = require(clientPath);
-
-const prisma = new PrismaClient();
-const NODE_ID = process.env.NODE_ID || "Node-001-X570-Taichi";
-const SWEEP_INTERVAL_MS = 30000; // Sweep every 30s
-const ESCROW_TTL_SECONDS = parseInt(process.env.ESCROW_TTL_SECONDS || "86400", 10); // Default: 24h
-
-console.log(`[BZR-TTL-KEEPER] Online on ${NODE_ID}. Interval: ${SWEEP_INTERVAL_MS / 1000}s, TTL Window: ${ESCROW_TTL_SECONDS}s`);
-
-async function sweepExpiredLocks() {
+async function extendFootprint() {
   try {
-    const now = new Date();
-    const expirationCutoff = new Date(now.getTime() - ESCROW_TTL_SECONDS * 1000);
+    const timestamp = new Date().toISOString();
+    console.log(`\n[${timestamp}] 🔄 Probing contract footprint & extending TTL...`);
 
-    // Query locked escrows created before the TTL expiration cutoff
-    const expiredLocks = await prisma.escrowLock.findMany({
-      where: {
-        status: "LOCKED",
-        createdAt: { lt: expirationCutoff }
-      }
-    });
-
-    if (expiredLocks.length > 0) {
-      console.log(`[BZR-TTL-KEEPER] Found ${expiredLocks.length} expired escrow(s). Executing auto-refund...`);
-
-      for (const lock of expiredLocks) {
-        const refundTx = `soroban_ttl_refund_${Math.random().toString(36).substring(2, 12)}`;
-        
-        await prisma.escrowLock.update({
-          where: { id: lock.id },
-          data: {
-            status: "REFUNDED",
-            settledByNode: NODE_ID,
-            releasedAt: now,
-            releaseTxHash: refundTx,
-            serviceDescription: `${lock.serviceDescription || ""} [TTL EXPIRED - AUTO-REFUNDED]`,
-            updatedAt: now
-          }
-        });
-
-        console.log(`[BZR-TTL-KEEPER] Escrow ${lock.escrowId || lock.id} auto-refunded -> ${refundTx}`);
-      }
-    }
+    const cmd = `stellar contract extend --id ${CONTRACT_ID} --ledgers-to-extend ${EXTEND_HORIZON_LEDGERS} --source-account ${KEY_NAME} --rpc-url "${RPC_URL}" --network-passphrase "${NETWORK_PASSPHRASE}" --inclusion-fee 10000000`;
+    
+    const output = execSync(cmd, { encoding: "utf8" });
+    console.log(`✅ [TTL-SUCCESS] Extension confirmed on-chain:\n${output.trim()}`);
   } catch (err) {
-    console.error("[BZR-TTL-KEEPER_ERROR]:", err.message);
+    // If the TTL is already near maximum runway, Soroban simulation will exit cleanly
+    const msg = err.stdout || err.stderr || err.message;
+    if (msg.includes("within safe operational limits") || msg.includes("already")) {
+      console.log("ℹ️ [TTL-HEALTHY] Footprint is already at maximum ledger threshold.");
+    } else {
+      console.warn("⚠️ [TTL-WARN] Contract extend response:", msg.trim());
+    }
   }
 }
 
-// Initial sweep then interval loop
-sweepExpiredLocks();
-setInterval(sweepExpiredLocks, SWEEP_INTERVAL_MS);
+// Initial cycle
+extendFootprint();
+
+// Recurring timer
+setInterval(extendFootprint, CHECK_INTERVAL_MS);

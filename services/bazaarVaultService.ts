@@ -1,4 +1,5 @@
-﻿import {
+// services/bazaarVaultService.ts
+import {
   Account,
   Contract,
   Keypair,
@@ -11,40 +12,40 @@
   rpc as StellarRpc,
   Horizon,
   Address,
-} from '@stellar/stellar-sdk';
-import { VaultEscrowRecord, EscrowStatus } from '@/types/bazaar-vault';
+} from "@stellar/stellar-sdk";
+import { VaultEscrowRecord, LockFundsParams, EscrowStatus } from "@/types/bazaar-vault";
 
 export type VaultTxResponse = StellarRpc.Api.GetTransactionResponse & { hash: string };
 
 export const BAZAAR_VAULT_CONTRACT_ID =
   process.env.NEXT_PUBLIC_ESCROW_CONTRACT_ID ||
   process.env.NEXT_PUBLIC_BAZAAR_VAULT_CONTRACT_ID ||
-  'CBM5SVJHLHNAEUR4GA3IV5KZFPCCMGTZGMAJUNURUQIEFPTKZLKXQ3RY';
+  "CBM5SVJHLHNAEUR4GA3IV5KZFPCCMGTZGMAJUNURUQIEFPTKZLKXQ3RY";
 
 export const SAC_TOKEN_CONTRACT =
-  process.env.NEXT_PUBLIC_SAC_TOKEN_CONTRACT ||
   process.env.NEXT_PUBLIC_PI_TOKEN_CONTRACT ||
-  'CDG6ZM2SHXIHD5HZ2E62B7D76RY5DUHDNQVPSHRVDNN7W4EW47FXLEXQ';
+  "CDG6ZM2SHXIHD5HZ2E62B7D76RY5DUHDNQVPSHRVDNN7W4EW47FXLEXQ";
 
 export const SOROBAN_RPC_URL =
-  process.env.NEXT_PUBLIC_STELLAR_RPC_URL ||
-  process.env.NEXT_PUBLIC_SOROBAN_RPC_URL ||
+  process.env.PI_RPC_URL ||
   process.env.NEXT_PUBLIC_PI_RPC_URL ||
-  'https://soroban-testnet.stellar.org';
+  process.env.NEXT_PUBLIC_SOROBAN_RPC_URL ||
+  "https://rpc.testnet.minepi.com";
 
-export const HORIZON_URL =
-  process.env.NEXT_PUBLIC_HORIZON_URL ||
+export const PI_HORIZON_URL =
+  process.env.PI_HORIZON_URL ||
   process.env.NEXT_PUBLIC_PI_HORIZON_URL ||
-  'https://horizon-testnet.stellar.org';
+  "https://api.testnet.minepi.com";
 
 export const NETWORK_PASSPHRASE =
-  process.env.NEXT_PUBLIC_STELLAR_NETWORK_PASSPHRASE ||
+  process.env.PI_NETWORK_PASSPHRASE ||
   process.env.NEXT_PUBLIC_PI_NETWORK_PASSPHRASE ||
-  'Test SDF Network ; September 2015';
+  process.env.NEXT_PUBLIC_STELLAR_NETWORK_PASSPHRASE ||
+  "Pi Testnet";
 
-export const BASE_FEE = process.env.NEXT_PUBLIC_BASE_FEE || '1000000';
+export const PI_BASE_FEE = "1000000"; // 0.1 Test-Pi inclusion buffer
 
-const SIMULATION_FALLBACK_ACCOUNT = 'GAU5Y5UWUQ5ETIEI5HWVJR7VDMXUETTSKQ4UKOIIGIW6GVIMCR354UJ3';
+const SIMULATION_FALLBACK_ACCOUNT = "GAU5Y5UWUQ5ETIEI5HWVJR7VDMXUETTSKQ4UKOIIGIW6GVIMCR354UJ3";
 
 export class BazaarVaultService {
   private rpcServer: StellarRpc.Server;
@@ -54,46 +55,46 @@ export class BazaarVaultService {
   constructor(
     contractId: string = BAZAAR_VAULT_CONTRACT_ID,
     rpcUrl: string = SOROBAN_RPC_URL,
-    horizonUrl: string = HORIZON_URL
+    horizonUrl: string = PI_HORIZON_URL
   ) {
     this.rpcServer = new StellarRpc.Server(rpcUrl, {
-      allowHttp: rpcUrl.startsWith('http://'),
+      allowHttp: rpcUrl.startsWith("http://"),
     });
     this.horizonServer = new Horizon.Server(horizonUrl);
     this.contract = new Contract(contractId);
   }
 
-  async getAccount(accountId: string): Promise<Horizon.AccountResponse> {
+  async getPiAccount(accountId: string): Promise<Horizon.AccountResponse> {
     return this.horizonServer.loadAccount(accountId);
   }
 
   private parseEscrowRecord(raw: any): VaultEscrowRecord {
     const getField = (f: string) => (raw instanceof Map ? raw.get(f) : raw[f]);
 
-    const consumer = getField('consumer');
-    const provider = getField('provider');
-    const amount = getField('amount');
-    const rawStatus = getField('status');
-    const protocolVersion = getField('protocol_version') ?? 28;
-    const tokenContract = getField('token_contract') || SAC_TOKEN_CONTRACT;
-    const expiresAt = getField('expires_at') || BigInt(0);
+    const consumer = getField("consumer");
+    const provider = getField("provider");
+    const amount = getField("amount");
+    const rawStatus = getField("status");
+    const protocolVersion = getField("protocol_version") ?? 28;
+    const tokenContract = getField("token_contract") || SAC_TOKEN_CONTRACT;
+    const expiresAt = getField("expires_at") || BigInt(0);
 
-    let normalizedStatus = 'Locked';
+    let normalizedStatus: EscrowStatus = "Locked";
     if (Array.isArray(rawStatus) && rawStatus.length > 0) {
-      normalizedStatus = String(rawStatus[0]);
-    } else if (typeof rawStatus === 'object' && rawStatus !== null) {
-      normalizedStatus = String(rawStatus.name || Object.keys(rawStatus)[0] || 'Locked');
-    } else if (typeof rawStatus === 'string') {
-      normalizedStatus = rawStatus;
+      normalizedStatus = String(rawStatus[0]) as EscrowStatus;
+    } else if (typeof rawStatus === "object" && rawStatus !== null) {
+      normalizedStatus = String(rawStatus.name || Object.keys(rawStatus)[0] || "Locked") as EscrowStatus;
+    } else if (typeof rawStatus === "string") {
+      normalizedStatus = rawStatus as EscrowStatus;
     }
 
     return {
-      consumer: typeof consumer === 'string' ? consumer : consumer?.toString?.() || '',
-      provider: typeof provider === 'string' ? provider : provider?.toString?.() || '',
+      consumer: typeof consumer === "string" ? consumer : consumer?.toString?.() || "",
+      provider: typeof provider === "string" ? provider : provider?.toString?.() || "",
       amount: BigInt(amount || 0),
-      status: normalizedStatus as EscrowStatus,
+      status: normalizedStatus,
       protocol_version: Number(protocolVersion),
-      token_contract: typeof tokenContract === 'string' ? tokenContract : tokenContract?.toString?.() || '',
+      token_contract: typeof tokenContract === "string" ? tokenContract : tokenContract?.toString?.() || "",
       expires_at: BigInt(expiresAt),
     };
   }
@@ -101,18 +102,15 @@ export class BazaarVaultService {
   async getVault(escrowId: string, callerAddress?: string): Promise<VaultEscrowRecord | null> {
     try {
       const address = callerAddress || SIMULATION_FALLBACK_ACCOUNT;
-      const dummyAccount = new Account(address, '0');
-      const sanitizedId = escrowId.replace(/-/g, '_');
+      const dummyAccount = new Account(address, "0");
+      const sanitizedId = escrowId.replace(/-/g, "_");
 
       const tx = new TransactionBuilder(dummyAccount, {
-        fee: BASE_FEE,
+        fee: PI_BASE_FEE,
         networkPassphrase: NETWORK_PASSPHRASE,
       })
         .addOperation(
-          this.contract.call(
-            'get_vault',
-            nativeToScVal(sanitizedId, { type: 'symbol' })
-          )
+          this.contract.call("get_vault", nativeToScVal(sanitizedId, { type: "symbol" }))
         )
         .setTimeout(30)
         .build();
@@ -130,29 +128,22 @@ export class BazaarVaultService {
   }
 
   async lockFunds(
-    params: {
-      escrowId: string;
-      tokenContract?: string;
-      consumerAddress: string;
-      providerAddress: string;
-      amount: bigint | number | string;
-      durationSecs?: bigint | number;
-    },
+    params: LockFundsParams,
     signer: Keypair | ((txXdr: string) => Promise<string>)
   ): Promise<VaultTxResponse> {
     const amountVal = BigInt(params.amount);
     const durationVal = BigInt(params.durationSecs || 172800);
     const tokenContract = params.tokenContract || SAC_TOKEN_CONTRACT;
-    const sanitizedId = params.escrowId.replace(/-/g, '_');
+    const sanitizedId = params.escrowId.replace(/-/g, "_");
 
     const callOp = this.contract.call(
-      'lock_funds',
-      nativeToScVal(sanitizedId, { type: 'symbol' }),
+      "lock_funds",
+      nativeToScVal(sanitizedId, { type: "symbol" }),
       Address.fromString(tokenContract).toScVal(),
       Address.fromString(params.consumerAddress).toScVal(),
       Address.fromString(params.providerAddress).toScVal(),
-      nativeToScVal(amountVal, { type: 'i128' }),
-      nativeToScVal(durationVal, { type: 'u64' })
+      nativeToScVal(amountVal, { type: "i128" }),
+      nativeToScVal(durationVal, { type: "u64" })
     );
 
     return this.executeContractCall(params.consumerAddress, callOp, signer);
@@ -160,29 +151,16 @@ export class BazaarVaultService {
 
   async releaseFunds(
     escrowId: string,
-    consumerAddress: string,
-    signer: Keypair | ((txXdr: string) => Promise<string>)
-  ): Promise<VaultTxResponse> {
-    const sanitizedId = escrowId.replace(/-/g, '_');
-    const callOp = this.contract.call(
-      'release_funds',
-      nativeToScVal(sanitizedId, { type: 'symbol' }),
-      Address.fromString(consumerAddress).toScVal()
-    );
-    return this.executeContractCall(consumerAddress, callOp, signer);
-  }
-
-  async disputeEscrow(
-    escrowId: string,
     callerAddress: string,
     signer: Keypair | ((txXdr: string) => Promise<string>)
   ): Promise<VaultTxResponse> {
-    const sanitizedId = escrowId.replace(/-/g, '_');
+    const sanitizedId = escrowId.replace(/-/g, "_");
     const callOp = this.contract.call(
-      'dispute_escrow',
-      nativeToScVal(sanitizedId, { type: 'symbol' }),
+      "release_funds",
+      nativeToScVal(sanitizedId, { type: "symbol" }),
       Address.fromString(callerAddress).toScVal()
     );
+
     return this.executeContractCall(callerAddress, callOp, signer);
   }
 
@@ -191,41 +169,73 @@ export class BazaarVaultService {
     initiatorAddress: string,
     signer: Keypair | ((txXdr: string) => Promise<string>)
   ): Promise<VaultTxResponse> {
-    const sanitizedId = escrowId.replace(/-/g, '_');
+    const sanitizedId = escrowId.replace(/-/g, "_");
     const callOp = this.contract.call(
-      'refund_funds',
-      nativeToScVal(sanitizedId, { type: 'symbol' }),
+      "refund_funds",
+      nativeToScVal(sanitizedId, { type: "symbol" }),
       Address.fromString(initiatorAddress).toScVal()
     );
+
     return this.executeContractCall(initiatorAddress, callOp, signer);
   }
 
-  private async getAccountSequence(sourceAddress: string): Promise<string> {
-    const horizonUrl = (
-      process.env.NEXT_PUBLIC_HORIZON_URL ||
-      HORIZON_URL
-    ).replace(/\/$/, '');
+  async disputeEscrow(
+    escrowId: string,
+    claimantAddress: string,
+    signer: Keypair | ((txXdr: string) => Promise<string>)
+  ): Promise<VaultTxResponse> {
+    const sanitizedId = escrowId.replace(/-/g, "_");
+    const callOp = this.contract.call(
+      "dispute_escrow",
+      nativeToScVal(sanitizedId, { type: "symbol" }),
+      Address.fromString(claimantAddress).toScVal()
+    );
 
+    return this.executeContractCall(claimantAddress, callOp, signer);
+  }
+
+  async resolveDispute(
+    params: {
+      escrowId: string;
+      adminAddress: string;
+      payoutToAddress: string;
+    },
+    signer: Keypair | ((txXdr: string) => Promise<string>)
+  ): Promise<VaultTxResponse> {
+    const sanitizedId = params.escrowId.replace(/-/g, "_");
+    const callOp = this.contract.call(
+      "resolve_dispute",
+      nativeToScVal(sanitizedId, { type: "symbol" }),
+      Address.fromString(params.adminAddress).toScVal(),
+      Address.fromString(params.payoutToAddress).toScVal()
+    );
+
+    return this.executeContractCall(params.adminAddress, callOp, signer);
+  }
+
+ private async getAccountSequence(sourceAddress: string): Promise<string> {
+    // 1. Direct REST fetch to Pi Horizon (raw JSON response has public .sequence string)
     try {
-      const res = await fetch(`${horizonUrl}/accounts/${sourceAddress}`);
+      const res = await fetch(`${PI_HORIZON_URL.replace(/\/$/, "")}/accounts/${sourceAddress}`);
       if (res.ok) {
-        const data: any = await res.json();
-        if (data && data.sequence) return String(data.sequence);
+        const data = (await res.json()) as any;
+        if (data?.sequence) return String(data.sequence);
       }
     } catch {}
 
+    // 2. Fallback to Horizon SDK (AccountResponse inherits .sequenceNumber())
     try {
       const horizonAcc = await this.horizonServer.loadAccount(sourceAddress);
-      if (horizonAcc && horizonAcc.sequence) return String(horizonAcc.sequence);
+      return horizonAcc.sequenceNumber();
     } catch {}
 
+    // 3. Fallback to Soroban RPC (Account exposes .sequenceNumber())
     try {
-      const rpcAcc: any = await this.rpcServer.getAccount(sourceAddress);
-      const seq = typeof rpcAcc.sequenceNumber === 'function' ? rpcAcc.sequenceNumber() : rpcAcc.sequence;
-      if (seq) return String(seq);
-    } catch {}
-
-    throw new Error(`Failed to retrieve sequence number for ${sourceAddress}`);
+      const rpcAcc = await this.rpcServer.getAccount(sourceAddress);
+      return rpcAcc.sequenceNumber();
+    } catch (err: any) {
+      throw new Error(`Failed to load account sequence for ${sourceAddress}: ${err?.message || err}`);
+    }
   }
 
   private async executeContractCall(
@@ -236,38 +246,31 @@ export class BazaarVaultService {
     const sequence = await this.getAccountSequence(sourceAddress);
     const account = new Account(sourceAddress, sequence);
 
-    let tx = new TransactionBuilder(account, {
-      fee: BASE_FEE,
+    const tx = new TransactionBuilder(account, {
+      fee: PI_BASE_FEE,
       networkPassphrase: NETWORK_PASSPHRASE,
     })
       .addOperation(operation)
       .setTimeout(60)
       .build();
 
-    const simulation = await this.rpcServer.simulateTransaction(tx);
-
-    if (StellarRpc.Api.isSimulationError(simulation)) {
-      throw new Error(`Soroban simulation error: ${simulation.error}`);
-    }
-
-    tx = StellarRpc.assembleTransaction(tx, simulation).build();
-
+    const preparedTx = await this.rpcServer.prepareTransaction(tx);
     let signedTx: Transaction | FeeBumpTransaction;
 
     if (signer instanceof Keypair) {
-      tx.sign(signer);
-      signedTx = tx;
+      (preparedTx as Transaction).sign(signer);
+      signedTx = preparedTx;
     } else {
-      const signedXdr = await signer(tx.toXDR());
+      const signedXdr = await signer(preparedTx.toXDR());
       signedTx = TransactionBuilder.fromXDR(signedXdr, NETWORK_PASSPHRASE);
     }
 
     const sendRes = await this.rpcServer.sendTransaction(signedTx);
-    if (sendRes.status === 'ERROR') {
+    if (sendRes.status === "ERROR") {
       throw new Error(`Transaction submission error: ${JSON.stringify(sendRes.errorResult)}`);
     }
 
-    const maxAttempts = 25;
+    const maxAttempts = 20;
     let attempts = 0;
     let txStatus = await this.rpcServer.getTransaction(sendRes.hash);
 
@@ -281,7 +284,7 @@ export class BazaarVaultService {
     }
 
     if (txStatus.status === StellarRpc.Api.GetTransactionStatus.NOT_FOUND) {
-      throw new Error(`Transaction ${sendRes.hash} confirmation timed out.`);
+      throw new Error(`Transaction ${sendRes.hash} confirmation timed out after 30s.`);
     }
 
     if (txStatus.status === StellarRpc.Api.GetTransactionStatus.FAILED) {
@@ -294,3 +297,4 @@ export class BazaarVaultService {
 }
 
 export const bazaarVaultService = new BazaarVaultService();
+export default bazaarVaultService;

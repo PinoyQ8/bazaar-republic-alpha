@@ -85,8 +85,8 @@ enum ShieldEventType {
 model ShieldAccount {
   id              String       @id @default(auto()) @map("_id") @db.ObjectId
   targetAddress   String       @unique // 56-char Stellar/Pi public key (G...)
-  guardianAddress String       // Guardian public key (G...)
-  recoveryVault   String       // Cold vault destination (G...)
+  guardianAddress String // Guardian public key (G...)
+  recoveryVault   String // Cold vault destination (G...)
   status          TargetStatus @default(UNARMED)
 
   initialBalance Float @default(0.0)
@@ -171,20 +171,20 @@ model PioneerNode {
   accumulatedDowntime Float   @default(0)
   uptimeShield        Float   @default(100.0)
 
-  stakedPi            Float   @default(0)
-  mintedPiTotal       Float   @default(0)
-  signature           String?
-  ledgerHeight        Int     @default(0)
-  syncState           String  @default("Unknown")
-  activePeers         Int     @default(0)
-  protocol            String  @default("28")
-  
+  stakedPi      Float   @default(0)
+  mintedPiTotal Float   @default(0)
+  signature     String?
+  ledgerHeight  Int     @default(0)
+  syncState     String  @default("Unknown")
+  activePeers   Int     @default(0)
+  protocol      String  @default("28")
+
   // RFC-002 Quarantine & Rescue Fields
   isUnderRemoteRescue Boolean   @default(false)
   quarantineStatus    String    @default("NONE") // NONE | QUARANTINED | REVOKED
   quarantineReason    String?
   quarantineDate      DateTime?
-  vaultAddress        String?   // Rerouted cold vault for payouts/yields
+  vaultAddress        String? // Rerouted cold vault for payouts/yields
   migrationHash       String?
   dormancyPiBalance   Float     @default(0)
   dormancyMBzrBalance Float     @default(0)
@@ -268,13 +268,18 @@ model ServiceProvider {
 }
 
 model EscrowLock {
-  id                 String   @id @default(auto()) @map("_id") @db.ObjectId
-  escrowId           String   @unique
-  paymentId          String?  @unique
-  txid               String?  @unique
+  id       String @id @default(auto()) @map("_id") @db.ObjectId
+  escrowId String @unique
+
+  // 🛡️ Null-safe: Removed @unique to prevent MongoDB E11000 null collision crashes
+  paymentId     String?
+  txid          String? // Stellar / Pi Horizon Transaction Hash
+  sorobanTxHash String? // Protocol 28 Soroban Contract Hash
+  contractId    String? // Active Vault Contract ID
+
   consumerUid        String
-  providerId         String   @db.ObjectId
-  amount             Float
+  providerId         String?  @db.ObjectId
+  amount             Float // Canonical collateral in Pi
   token              String   @default("PI")
   status             String   @default("LOCKED") // "LOCKED" | "RELEASED" | "DISPUTED" | "REFUNDED"
   timelockExpiresAt  DateTime
@@ -282,18 +287,21 @@ model EscrowLock {
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
-  provider ServiceProvider @relation(fields: [providerId], references: [id])
+  // 🛡️ Optional relation prevents deserialization crashes on orphaned documents
+  provider ServiceProvider? @relation(fields: [providerId], references: [id])
   dispute  DisputeRecord?
 
   @@index([consumerUid])
   @@index([status])
+  @@index([txid])
+  @@index([paymentId])
 }
 
 model DisputeRecord {
   id               String   @id @default(auto()) @map("_id") @db.ObjectId
   escrowLockId     String   @unique @db.ObjectId
   initiatorUid     String
-  bondAmount       Float    // Collateral mBZR bond (5-10% of lock)
+  bondAmount       Float // Collateral mBZR bond (5-10% of lock)
   selectedElders   String[] // 5 randomly selected Genesis 100 Elders
   votesForConsumer Int      @default(0)
   votesForMerchant Int      @default(0)
@@ -314,7 +322,7 @@ model VoteRecord {
   id        String        @id @default(auto()) @map("_id") @db.ObjectId
   disputeId String        @db.ObjectId
   voterUid  String
-  decision  String        // "REFUND_CONSUMER" | "RELEASE_MERCHANT"
+  decision  String // "REFUND_CONSUMER" | "RELEASE_MERCHANT"
   createdAt DateTime      @default(now())
   dispute   DisputeRecord @relation(fields: [disputeId], references: [id], onDelete: Cascade)
 
@@ -394,14 +402,14 @@ model AuditLog {
 }
 
 model RelayerSyncState {
-  id                    String   @id @map("_id")
-  network               String   @unique @default("pi-testnet")
-  lastLedger            Int      @default(0)
-  lastSweepTx           String?
-  totalPiEvacuated      Float    @default(0.0)
-  activeShields         Int      @default(0)
-  updatedAt             DateTime @updatedAt
-  syncedAt              DateTime @default(now())
+  id               String   @id @map("_id")
+  network          String   @unique @default("pi-testnet")
+  lastLedger       Int      @default(0)
+  lastSweepTx      String?
+  totalPiEvacuated Float    @default(0.0)
+  activeShields    Int      @default(0)
+  updatedAt        DateTime @updatedAt
+  syncedAt         DateTime @default(now())
 }
 
 model AcademyLog {
