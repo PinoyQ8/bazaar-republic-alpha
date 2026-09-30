@@ -1,4 +1,4 @@
-﻿// Location: app/mesh/escrow/page.tsx
+// Location: app/mesh/escrow/page.tsx
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -18,11 +18,13 @@ import PioneerAuthGate from '@/app/components/PioneerAuthGate';
 import { EscrowCard } from '@/components/vault/EscrowCard';
 import { useAuth } from '@/context/AuthContext';
 
-interface EscrowVaultItem {
+export interface EscrowVaultItem {
   id: string;
+  escrowId?: string;
   provider: string;
   consumer: string;
   amount: number;
+  amountPi?: number; // 🛡️ Optional backward-compatibility with mock telemetry
   token: 'PI';
   status: 'LOCKED' | 'PENDING_RELEASE' | 'RELEASED' | 'DISPUTED';
   timelockRemainingSeconds?: number;
@@ -355,10 +357,11 @@ export default function MeshEscrowPage() {
             onClose={() => setIsDisputeModalOpen(false)}
             disputeData={{
               id: selectedDisputeVault.id,
-              escrowId: selectedDisputeVault.id,
+              escrowId: selectedDisputeVault.escrowId || selectedDisputeVault.id,
               consumerUid: selectedDisputeVault.consumer,
               providerName: selectedDisputeVault.provider,
-              escrowAmount: selectedDisputeVault.amount,
+              escrowAmount: Number(selectedDisputeVault.amount ?? selectedDisputeVault.amountPi ?? 50),
+              amount: Number(selectedDisputeVault.amount ?? selectedDisputeVault.amountPi ?? 50),
               bondAmount: selectedDisputeVault.bondAmount || 5000,
               serviceDescription: selectedDisputeVault.serviceDescription,
               consumerClaim: selectedDisputeVault.consumerClaim || 'SLA verification failed.',
