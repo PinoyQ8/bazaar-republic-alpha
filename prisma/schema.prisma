@@ -271,7 +271,7 @@ model EscrowLock {
   id       String @id @default(auto()) @map("_id") @db.ObjectId
   escrowId String @unique
 
-  // 🛡️ Null-safe: Removed @unique to prevent MongoDB E11000 null collision crashes
+  // 🛡️ Null-safe: No @unique constraints to avoid MongoDB E11000 null collision crashes
   paymentId     String?
   txid          String? // Stellar / Pi Horizon Transaction Hash
   sorobanTxHash String? // Protocol 28 Soroban Contract Hash
@@ -287,7 +287,7 @@ model EscrowLock {
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
-  // 🛡️ Optional relation prevents deserialization crashes on orphaned documents
+  // 🛡️ Optional relation prevents deserialization crashes on unlinked/orphaned documents
   provider ServiceProvider? @relation(fields: [providerId], references: [id])
   dispute  DisputeRecord?
 
@@ -299,6 +299,7 @@ model EscrowLock {
 
 model DisputeRecord {
   id               String   @id @default(auto()) @map("_id") @db.ObjectId
+  escrowId         String   @unique
   escrowLockId     String   @unique @db.ObjectId
   initiatorUid     String
   bondAmount       Float // Collateral mBZR bond (5-10% of lock)

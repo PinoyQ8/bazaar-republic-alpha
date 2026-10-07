@@ -7,7 +7,7 @@ export default function DebugUID() {
   useEffect(() => {
     // Standard Pi SDK Authentication Call
     if (typeof window !== 'undefined' && window.Pi) {
-      window.Pi.init({ version: '2.0', sandbox: true });
+      window.Pi.init({ version: '2.0', sandbox: typeof navigator !== 'undefined' && !/PiBrowser/i.test(navigator.userAgent) });
       window.Pi.authenticate(['payments'], ['username']).then((auth: any) => {
         setUid(auth.user.uid);
       }).catch((err: any) => setUid('Error: ' + err.message));

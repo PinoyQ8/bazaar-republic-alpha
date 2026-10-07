@@ -4,6 +4,7 @@ import Script from 'next/script';
 import { AuthProvider } from '@/context/AuthContext';
 import { TestnetNoticeBanner } from '@/components/TestnetNoticeBanner';
 import MeshMobileNav from '@/components/MeshMobileNav';
+import ClientHydrationGuard from '@/components/ClientHydrationGuard';
 
 export const metadata: Metadata = {
   title: 'Project Bazaar DAO | MESH Protocol',
@@ -15,6 +16,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
+  themeColor: '#020617', // slate-950
 };
 
 export default function RootLayout({
@@ -24,21 +26,23 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className="dark" data-scroll-behavior="smooth">
-      <body className="bg-neutral-950 text-slate-100 font-sans antialiased min-h-dvh flex flex-col items-center justify-start overflow-x-hidden">
-        {/* Load Pi SDK without blocking client-side page rendering */}
+      <body className="bg-slate-950 text-slate-100 font-sans antialiased min-h-dvh flex flex-col items-center justify-start overflow-x-hidden">
+        {/* Pi SDK root injection with beforeInteractive priority */}
         <Script
-  src="https://sdk.minepi.com/pi-sdk.js"
-  strategy="beforeInteractive"
-/>
-        
+          src="https://sdk.minepi.com/pi-sdk.js"
+          strategy="beforeInteractive"
+        />
+
         <AuthProvider>
-          <div className="w-full max-w-[384px] min-h-dvh flex flex-col relative border-x border-neutral-900 shadow-2xl bg-neutral-950">
-            <TestnetNoticeBanner />
-            <main className="flex-1 px-3 pt-3 pb-24 transition-all duration-200">
-              {children}
-            </main>
-            <MeshMobileNav />
-          </div>
+          <ClientHydrationGuard>
+            <div className="w-full max-w-[384px] min-h-dvh flex flex-col relative border-x border-slate-900 shadow-2xl bg-slate-950">
+              <TestnetNoticeBanner />
+              <main className="flex-1 px-3 pt-3 pb-24 transition-all duration-200">
+                {children}
+              </main>
+              <MeshMobileNav />
+            </div>
+          </ClientHydrationGuard>
         </AuthProvider>
       </body>
     </html>

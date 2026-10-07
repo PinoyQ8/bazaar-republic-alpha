@@ -48,7 +48,7 @@ export function MeshInitializer({ children }: { children: React.ReactNode }) {
         // ====================================================================
         if (typeof window !== "undefined" && window.Pi) {
           try {
-            window.Pi.init({ version: "2.0", sandbox: true });
+            window.Pi.init({ version: '2.0', sandbox: typeof navigator !== 'undefined' && !/PiBrowser/i.test(navigator.userAgent) });
             console.log("[MESH-SCAN] Pi SDK Successfully Initialized (Sandbox Mode).");
           } catch (sdkError) {
             console.warn("[MESH-SCAN] Pi.init() warning or already initialized:", sdkError);
