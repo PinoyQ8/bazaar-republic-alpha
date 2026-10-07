@@ -20,7 +20,7 @@ export default function PiAuthButton() {
         throw new Error('Pi SDK not detected. Open inside Pi Browser.');
       }
 
-      window.Pi.init({ version: '2.0', sandbox: true });
+      window.Pi.init({ version: '2.0', sandbox: typeof navigator !== 'undefined' && !/PiBrowser/i.test(navigator.userAgent) });
 
       const scopes = ['username', 'payments'];
       const onIncompletePaymentFound = (payment: any) => {

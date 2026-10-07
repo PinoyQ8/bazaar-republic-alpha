@@ -4,7 +4,7 @@
       name: "bzr-db-keeper",
       script: "scripts/bzr-ttl-keeper.cjs",
       cwd: "J:/Project-Bazaar/bazaar-republic/bazaar-republic-alpha",
-      instances: 1,
+      interpreter: "node",
       autorestart: true,
       watch: false,
       max_memory_restart: "300M",
@@ -16,21 +16,17 @@
       }
     },
     {
-      name: "soroban-ttl-sentinel",
-      script: "scripts/ttl-keeper.ts",
+      name: "bzr-ttl-sentinel",
+      script: "scripts/bzr-ttl-keeper.ts",
       cwd: "J:/Project-Bazaar/bazaar-republic/bazaar-republic-alpha",
       interpreter: "node",
-      interpreter_args: "--import tsx",
-      instances: 1,
+      node_args: "--import tsx --dns-result-order=ipv4first",
       autorestart: true,
-      // cron disabled in favor of internal loop
       watch: false,
       max_memory_restart: "400M",
       env: {
-        NODE_ENV: "production",
-        NEXT_PUBLIC_BAZAAR_VAULT_CONTRACT_ID: "CCLEEATNMEUZGVSYL4NSZYADVCAPU2EFCJNCNV77KVOUDFO3CGM3SKKL"
+        NODE_ENV: "production"
       }
     }
   ]
 };
-

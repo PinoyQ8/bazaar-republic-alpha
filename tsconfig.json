@@ -85,6 +85,8 @@
     "**/*.test.tsx",
     "**/*.spec.ts",
     "**/*.spec.tsx",
-    "bazaar_integration_test*.*"
+    "bazaar_integration_test*.*",
+    "scripts",
+    "scripts/**/*"
   ]
 }

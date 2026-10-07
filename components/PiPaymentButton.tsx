@@ -11,7 +11,7 @@ export default function PiPaymentButton({ amount, memo, metadata }: { amount: nu
       if (typeof window !== 'undefined' && window.Pi) {
         // Set sandbox: true since we are testing in the alpha-track
         // @ts-ignore
-        window.Pi.init({ version: "2.0", sandbox: true });
+        window.Pi.init({ version: '2.0', sandbox: typeof navigator !== 'undefined' && !/PiBrowser/i.test(navigator.userAgent) });
         console.log("[MESH-SCAN] 🟢 Pi SDK Initialized (Sandbox Mode)");
       }
     } catch (err) {

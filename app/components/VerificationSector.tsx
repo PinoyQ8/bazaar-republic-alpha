@@ -35,7 +35,7 @@ export default function VerificationSector() {
       const piNode = (window as any).Pi;
       if (piNode) {
         try {
-          await (window as any).Pi.init({ version: "2.0", sandbox: true });
+          await (window as any).Pi.init({ version: '2.0', sandbox: typeof navigator !== 'undefined' && !/PiBrowser/i.test(navigator.userAgent) });
           initAttempted.current = true;
           setTimeout(() => setIsBridgeHot(true), 1500);
         } catch (err) {

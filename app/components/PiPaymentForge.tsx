@@ -1,9 +1,9 @@
-// Location: app/components/PiPaymentForge.tsx
+﻿// Location: app/components/PiPaymentForge.tsx
 'use client';
 
 import React, { useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
-import { ensurePiInitialized, safePiAuthenticate } from '@/app/utils/safePi';
+import { safePiAuthenticate } from '@/app/utils/safePi';
 import { Loader2, Coins, AlertTriangle, CheckCircle2 } from 'lucide-react';
 
 interface PiPaymentForgeProps {
@@ -39,7 +39,6 @@ export default function PiPaymentForge({
 
     try {
       // 1. Mandatory Pi.init call on current window context
-      ensurePiInitialized(true);
 
       // 2. Re-assert authentication with 'payments' scope
       const auth = await safePiAuthenticate(['username', 'payments']);
@@ -192,3 +191,5 @@ export default function PiPaymentForge({
     </div>
   );
 }
+
+
