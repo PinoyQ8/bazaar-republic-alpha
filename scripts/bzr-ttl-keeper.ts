@@ -1,37 +1,86 @@
-﻿import dotenv from "dotenv";
-dotenv.config({ path: ".env.local" });
-
+﻿import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+import { execSync } from "child_process";
 import {
   Address,
+  BASE_FEE,
   Keypair,
+  Networks,
   Operation,
   rpc as StellarRpc,
+  SorobanDataBuilder,
   TransactionBuilder,
   xdr,
 } from "@stellar/stellar-sdk";
 
-const PI_RPC_URL = process.env.NEXT_PUBLIC_SOROBAN_RPC_URL || "https://rpc.testnet.minepi.com";
-const CONTRACT_ID =
-  process.env.NEXT_PUBLIC_BAZAAR_VAULT_CONTRACT_ID ||
-  "CBM5SVJHLHNAEUR4GA3IV5KZFPCCMGTZGMAJUNURUQIEFPTKZLKXQ3RY";
-const NETWORK_PASSPHRASE = process.env.NEXT_PUBLIC_STELLAR_NETWORK_PASSPHRASE || "Pi Testnet";
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const rootDir = path.resolve(__dirname, "..");
 
-const secret =
-  process.env.STELLAR_VAULT_SEED ||
-  process.env.KEEPER_SIGNER_SECRET ||
-  process.env.STELLAR_DEPLOYER_SECRET ||
-  "";
-
-if (!secret || !secret.startsWith("S") || secret.length !== 56) {
-  console.error("❌ Invalid secret key. Define STELLAR_VAULT_SEED in environment.");
-  process.exit(1);
+// 1. Synchronize environment configuration
+for (const file of [".env.local", ".env"]) {
+  const fullPath = path.join(rootDir, file);
+  if (fs.existsSync(fullPath)) {
+    const lines = fs.readFileSync(fullPath, "utf-8").split("\n");
+    for (const line of lines) {
+      const match = line.match(/^\s*([\w.-]+)\s*=\s*(.*)?\s*$/);
+      if (match) {
+        const key = match[1];
+        let value = (match[2] || "").trim();
+        if (value.startsWith('"') && value.endsWith('"')) value = value.slice(1, -1);
+        if (value.startsWith("'") && value.endsWith("'")) value = value.slice(1, -1);
+        if (!process.env[key]) process.env[key] = value;
+      }
+    }
+  }
 }
 
-const keeperKey = Keypair.fromSecret(secret);
-const server = new StellarRpc.Server(PI_RPC_URL, { allowHttp: false });
+const RPC_URL = (
+  process.env.SOROBAN_RPC_URL ||
+  process.env.NEXT_PUBLIC_PI_RPC_URL ||
+  "https://rpc.testnet.minepi.com"
+).trim().replace(/\/$/, "");
+
+const NETWORK_PASSPHRASE =
+  process.env.STELLAR_NETWORK_PASSPHRASE ||
+  process.env.NEXT_PUBLIC_PI_NETWORK_PASSPHRASE ||
+  "Pi Testnet";
+
+const CONTRACT_ID =
+  process.env.NEXT_PUBLIC_BAZAAR_VAULT_CONTRACT_ID ||
+  process.env.NEXT_PUBLIC_ESCROW_CONTRACT_ID ||
+  "CBM5SVJHLHNAEUR4GA3IV5KZFPCCMGTZGMAJUNURUQIEFPTKZLKXQ3RY";
 
 const SAFETY_THRESHOLD_LEDGERS = 50_000;
-const EXTEND_DELTA_LEDGERS = 100_000;
+const TARGET_EXTEND_TO_LEDGERS = 100_000; // ~5.7 days of runway
+const POLL_INTERVAL_MS = 60 * 60 * 1000; // Hourly check
+
+function resolveSigner(): Keypair {
+  const envKey = (
+    process.env.KEEPER_SIGNER_SECRET ||
+    process.env.STELLAR_VAULT_SEED ||
+    process.env.STELLAR_DEPLOYER_SECRET ||
+    ""
+  ).trim();
+
+  if (envKey.startsWith("S") && envKey.length === 56) {
+    try {
+      return Keypair.fromSecret(envKey);
+    } catch {}
+  }
+
+  try {
+    const cliOutput = execSync("stellar keys secret s23-deployer", {
+      encoding: "utf-8",
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
+    const match = cliOutput.match(/S[A-Z2-7]{55}/);
+    if (match) return Keypair.fromSecret(match[0]);
+  } catch {}
+
+  throw new Error("Unable to resolve valid 56-character secret key for Keeper daemon.");
+}
 
 function buildInstanceKey(contractId: string): xdr.LedgerKey {
   return xdr.LedgerKey.contractData(
@@ -43,91 +92,104 @@ function buildInstanceKey(contractId: string): xdr.LedgerKey {
   );
 }
 
-async function checkAndExtendTTL(): Promise<void> {
-  console.log(`\n🛡️ [BZR TTL KEEPER] Polling state leases for ${CONTRACT_ID} on Pi Testnet Protocol 28...`);
-
-  let latestLedger: StellarRpc.Api.GetLatestLedgerResponse | null = null;
-  for (let attempt = 1; attempt <= 3; attempt++) {
-    try {
-      latestLedger = await server.getLatestLedger();
-      break;
-    } catch (err: any) {
-      console.warn(`⚠️ [KEEPER] RPC handshake attempt ${attempt}/3 failed: ${err?.message || err}`);
-      if (attempt === 3) return;
-      await new Promise((r) => setTimeout(r, 2000));
-    }
-  }
-
-  if (!latestLedger) return;
-
+async function checkAndExtendTTL() {
+  console.log(`\n[${new Date().toISOString()}] 🛡️ [SENTINEL-SWEEP] Probing state leases for ${CONTRACT_ID}...`);
   try {
+    const keeper = resolveSigner();
+    const server = new StellarRpc.Server(RPC_URL, {
+      allowHttp: RPC_URL.startsWith("http://"),
+    });
+
+    const latestLedger = await server.getLatestLedger();
     const currentSeq = latestLedger.sequence;
-    console.log(`📡 [KEEPER] Signer: ${keeperKey.publicKey()}`);
-    console.log(`📡 [KEEPER] Current Ledger Sequence: ${currentSeq}`);
+    console.log(`📡 Current Network Ledger : ${currentSeq}`);
 
     const instanceKey = buildInstanceKey(CONTRACT_ID);
     const ledgerResponse = await server.getLedgerEntries(instanceKey);
     const entries = ledgerResponse.entries ?? [];
 
-    let liveUntil = 0;
-    if (entries.length > 0 && entries[0].liveUntilLedgerSeq) {
-      liveUntil = entries[0].liveUntilLedgerSeq;
+    if (entries.length === 0) {
+      console.warn("⚠️ Contract instance entry not found on ledger.");
+      return;
     }
 
-    const remainingTtl = liveUntil > currentSeq ? liveUntil - currentSeq : 0;
+    let minRemaining = Infinity;
+    for (const entry of entries) {
+      const liveUntil = entry.liveUntilLedgerSeq ?? 0;
+      const remaining = liveUntil > currentSeq ? liveUntil - currentSeq : 0;
+      if (remaining < minRemaining) minRemaining = remaining;
+    }
 
-    console.log(`📍 [KEEPER] Instance Leased Until: Ledger ${liveUntil || "26824147"}`);
-    console.log(
-      `🔍 [KEEPER] Remaining TTL: ${
-        remainingTtl > 0 ? `${remainingTtl.toLocaleString()} ledgers` : "Leased through consensus"
-      }`
-    );
+    console.log(`📊 Vault Instance Lease   : Remaining TTL = ${minRemaining} ledgers`);
 
-    if (remainingTtl > 0 && remainingTtl <= SAFETY_THRESHOLD_LEDGERS) {
-      console.log(`⚡ [KEEPER] Threshold reached. Extending TTL (+${EXTEND_DELTA_LEDGERS} ledgers)...`);
+    if (minRemaining <= SAFETY_THRESHOLD_LEDGERS) {
+      console.log(`⚡ TTL below threshold (${SAFETY_THRESHOLD_LEDGERS}). Assembling footprint extension...`);
 
-      const account = await server.getAccount(keeperKey.publicKey());
+      const account = await server.getAccount(keeper.publicKey());
+      const readOnlyFootprint: xdr.LedgerKey[] = [instanceKey];
 
-      const rawTx = new TransactionBuilder(account, {
-        fee: "10000000",
+      // Extract and append WASM bytecode key to protect from code archival
+      if (entries[0].val) {
+        try {
+          const entryVal: any = entries[0].val;
+          const ledgerEntryData =
+            typeof entryVal === "string" || Buffer.isBuffer(entryVal)
+              ? xdr.LedgerEntryData.fromXDR(entryVal as any, "base64")
+              : (entryVal as xdr.LedgerEntryData);
+          const wasmHash = ledgerEntryData.contractData().val().instance().executable().wasmHash();
+          if (wasmHash) {
+            readOnlyFootprint.push(
+              xdr.LedgerKey.contractCode(
+                new xdr.LedgerKeyContractCode({ hash: wasmHash })
+              )
+            );
+          }
+        } catch {}
+      }
+
+      const sorobanData = new SorobanDataBuilder().setReadOnly(readOnlyFootprint).build();
+
+      let tx = new TransactionBuilder(account, {
+        fee: BASE_FEE,
         networkPassphrase: NETWORK_PASSPHRASE,
       })
+        .setSorobanData(sorobanData)
         .addOperation(
           Operation.extendFootprintTtl({
-            extendTo: EXTEND_DELTA_LEDGERS,
+            extendTo: TARGET_EXTEND_TO_LEDGERS,
           })
         )
         .setTimeout(30)
         .build();
 
-      const preparedTx = await server.prepareTransaction(rawTx);
-      preparedTx.sign(keeperKey);
+      tx = await server.prepareTransaction(tx);
+      tx.sign(keeper);
 
-      const sendRes = await server.sendTransaction(preparedTx);
-      if (sendRes.status === "ERROR") {
-        console.error("❌ Consensus rejection:", JSON.stringify(sendRes.errorResult));
-        return;
+      const sendResponse = await server.sendTransaction(tx);
+      if (sendResponse.status === "ERROR") {
+        throw new Error(`Consensus Rejection: ${JSON.stringify(sendResponse.errorResult)}`);
       }
 
-      console.log(`⏳ Broadcasted extension. Tx Hash: ${sendRes.hash}`);
-      let txStatus = await server.getTransaction(sendRes.hash);
+      console.log(`⏳ Broadcasted extension. Tx Hash: ${sendResponse.hash}`);
+
+      let txStatus = await server.getTransaction(sendResponse.hash);
       while (txStatus.status === StellarRpc.Api.GetTransactionStatus.NOT_FOUND) {
-        await new Promise((r) => setTimeout(r, 2000));
-        txStatus = await server.getTransaction(sendRes.hash);
+        await new Promise((r) => setTimeout(r, 1500));
+        txStatus = await server.getTransaction(sendResponse.hash);
       }
 
       if (txStatus.status === StellarRpc.Api.GetTransactionStatus.SUCCESS) {
-        console.log(`✅ [KEEPER] State TTL successfully bumped!`);
+        console.log(`✅ State TTL successfully bumped to +${TARGET_EXTEND_TO_LEDGERS} ledgers!`);
       } else {
-        console.error("❌ [KEEPER] Inclusion failed:", txStatus);
+        console.error("❌ Extension inclusion failed:", txStatus);
       }
     } else {
-      console.log(`✨ [KEEPER] Contract state is secure. No extension required.`);
+      console.log(`✨ [HEALTHY] TTL is well above threshold. No extension required.`);
     }
   } catch (err: any) {
-    console.warn(`⚠️ [KEEPER] Lease check deferred: ${err?.message || err}`);
+    console.error("❌ [KEEPER-FAULT]:", err.message || err);
   }
 }
 
 checkAndExtendTTL();
-setInterval(checkAndExtendTTL, 60 * 60 * 1000);
+setInterval(checkAndExtendTTL, POLL_INTERVAL_MS);

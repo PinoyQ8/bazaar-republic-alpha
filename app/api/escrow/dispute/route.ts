@@ -1,126 +1,94 @@
 ﻿import { NextRequest, NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
+import { prisma } from "@/lib/prisma";
+import crypto from "crypto";
 
 export const dynamic = "force-dynamic";
+
+const GENESIS_ELDERS_POOL = [
+  "usr_elder_alpha_01",
+  "usr_elder_beta_02",
+  "usr_elder_gamma_03",
+  "usr_elder_delta_04",
+  "usr_elder_epsilon_05",
+  "usr_elder_zeta_06",
+  "usr_elder_eta_07",
+  "usr_elder_theta_08",
+];
+
+function selectVrfElders(seed: string, count = 5): string[] {
+  const hash = crypto.createHash("sha256").update(seed).digest("hex");
+  const shuffled = [...GENESIS_ELDERS_POOL].sort((a, b) => {
+    const valA = crypto.createHash("md5").update(a + hash).digest("hex");
+    const valB = crypto.createHash("md5").update(b + hash).digest("hex");
+    return valA.localeCompare(valB);
+  });
+  return shuffled.slice(0, count);
+}
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { escrowId, initiatorUid, reason, evidenceHash, expectedChecksum } = body;
+    const { escrowId, initiatorUid, reason, bondAmount } = body || {};
 
-    if (!escrowId || !initiatorUid || !reason) {
-      return NextResponse.json(
-        { success: false, error: "Missing required fields: escrowId, initiatorUid, reason" },
-        { status: 400 }
-      );
+    if (!escrowId || !initiatorUid) {
+      return NextResponse.json({ success: false, error: "Missing escrowId or initiatorUid" }, { status: 400 });
     }
 
     const db = prisma as any;
+    const cleanId = escrowId.trim();
 
-    let lock = await db.escrowLock.findFirst({
-      where: { escrowId },
+    const escrow = await db.escrowLock.findFirst({
+      where: /^[0-9a-fA-F]{24}$/.test(cleanId)
+        ? { OR: [{ id: cleanId }, { escrowId: cleanId }] }
+        : { escrowId: cleanId },
     });
 
-    if (!lock && /^[0-9a-fA-F]{24}$/.test(escrowId)) {
-      lock = await db.escrowLock.findUnique({
-        where: { id: escrowId },
-      });
+    if (!escrow) {
+      return NextResponse.json({ success: false, error: "Escrow lock not found" }, { status: 404 });
     }
 
-    if (!lock) {
-      return NextResponse.json(
-        { success: false, error: `Escrow record '${escrowId}' not found.` },
-        { status: 404 }
-      );
-    }
+    const vrfSeed = `${escrow.escrowId}_${Date.now()}_${escrow.amount}`;
+    const selectedElders = selectVrfElders(vrfSeed, 5);
+    const computedBond = bondAmount || Math.max(0.5, escrow.amount * 0.05);
 
-    if (lock.status !== "LOCKED") {
-      return NextResponse.json(
-        { success: false, error: `Cannot dispute escrow in status '${lock.status}'` },
-        { status: 400 }
-      );
-    }
+    const dispute = await db.disputeRecord.upsert({
+      where: { escrowId: escrow.escrowId },
+      update: {
+        status: "VOTING",
+        reason: reason || "Dispute escalated to Genesis Council",
+        selectedElders,
+        bondAmount: computedBond,
+        updatedAt: new Date(),
+      },
+      create: {
+        escrowId: escrow.escrowId,
+        escrowLockId: escrow.id,
+        initiatorUid: initiatorUid,
+        bondAmount: computedBond,
+        selectedElders,
+        status: "VOTING",
+        reason: reason || "Dispute escalated to Genesis Council",
+      },
+    });
 
-    const resolvedEscrowId = lock.escrowId || lock.id;
-
-    // TIER 1: Deterministic Checksum Match
-    const isTier1Match =
-      expectedChecksum &&
-      evidenceHash &&
-      expectedChecksum.toLowerCase() === evidenceHash.toLowerCase();
-
-    if (isTier1Match) {
-      const releaseTxHash = `soroban_auto_t1_${Math.random().toString(36).substring(2, 12)}`;
-      const resolutionNotice = `[TIER 1 AUTO-SETTLED] Checksum match: ${evidenceHash}`;
-
-      const [updatedLock, dispute] = await db.$transaction([
-        db.escrowLock.update({
-          where: { id: lock.id },
-          data: {
-            status: "REFUNDED",
-            settledByNode: process.env.NODE_ID || "Node-001-X570-Taichi",
-            releasedAt: new Date(),
-            releaseTxHash,
-            serviceDescription: `${lock.serviceDescription} ${resolutionNotice}`,
-            updatedAt: new Date(),
-          },
-        }),
-        db.disputeRecord.create({
-          data: {
-            escrowId: resolvedEscrowId,
-            initiatorUid,
-            reason: `${reason} (Checksum Verified)`,
-            status: "AUTO_RESOLVED_CHECKSUM",
-            escrowLock: { connect: { id: lock.id } },
-          },
-        }),
-      ]);
-
-      return NextResponse.json({
-        success: true,
-        tier: 1,
-        resolution: "AUTO_REFUNDED",
-        escrow: updatedLock,
-        dispute,
-      }, { status: 200 });
-    }
-
-    // TIER 2: Subjective Dispute -> Escalate to Council Quorum
-    const [updatedLock, dispute] = await db.$transaction([
-      db.escrowLock.update({
-        where: { id: lock.id },
-        data: {
-          status: "DISPUTED",
-          updatedAt: new Date(),
-        },
-      }),
-      db.disputeRecord.create({
-        data: {
-          escrowId: resolvedEscrowId,
-          initiatorUid,
-          reason,
-          status: "OPEN",
-          votesForConsumer: 0,
-          votesForMerchant: 0,
-          selectedElders: [],
-          escrowLock: { connect: { id: lock.id } },
-        },
-      }),
-    ]);
+    await db.escrowLock.update({
+      where: { id: escrow.id },
+      data: { status: "DISPUTED", updatedAt: new Date() },
+    });
 
     return NextResponse.json({
       success: true,
-      tier: 2,
-      resolution: "ESCALATED_TO_COUNCIL",
-      escrow: updatedLock,
-      dispute,
+      protocol: "5-ELDER-VRF-v1",
+      escrowId: escrow.escrowId,
+      disputeId: dispute.id,
+      status: "DISPUTED",
+      bondAmount: computedBond,
+      selectedElders,
+      message: "Escrow transitioned to DISPUTED. 5 Elders selected via VRF.",
     }, { status: 200 });
 
-  } catch (error: any) {
-    console.error("[API_ESCROW_DISPUTE_ERROR]:", error);
-    return NextResponse.json(
-      { success: false, error: error?.message || "Failed to process dispute." },
-      { status: 500 }
-    );
+  } catch (err: any) {
+    console.error("[DISPUTE_INIT_ERROR]:", err);
+    return NextResponse.json({ success: false, error: err?.message || "Internal Server Error" }, { status: 500 });
   }
 }
