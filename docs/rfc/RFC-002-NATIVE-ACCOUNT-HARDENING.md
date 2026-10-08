@@ -12,37 +12,34 @@
 ---
 
 ## 1. Executive Summary
-Compromised 24-word passphrases allow automated bots to drain unlocked balances via sub-second mempool monitoring. Because Pi Network uses standard fixed minimum transaction fees without private mempools, latency competitions fail. This RFC specifies a consensus-level defense leveraging native Stellar Consensus Protocol (SCP) `SetOptions` operations to escalate thresholds to 2-of-2 multisig, blocking single-sig bots with `op_bad_auth` and permanently deprecating leaked keys.
+Compromised 24-word passphrases allow automated bots to drain unlocked balances via sub-second mempool monitoring. Because Pi Network uses standard fixed minimum transaction fees without private mempools, latency competitions fail. This RFC specifies a consensus-level defense leveraging native Stellar Consensus Protocol (SCP) SetOptions operations to escalate thresholds to 2-of-2 multisig, blocking single-sig bots with op_bad_auth and permanently deprecating leaked keys.
 
 ---
 
 ## 2. Empirical Verification Telemetry (Pi Testnet Protocol 28)
 - **Horizon Node:** `https://api.testnet.minepi.com`
 - **Network Passphrase:** `Pi Testnet`
-- **Funder Account:** `GAU5Y5UWUQ5ETIEI5HWVJR7VDMXUETTSKQ4UKOIIGIW6GVIMCR354UJ3`
-- **Victim Account (Compromised):** `GBSB2TRCW2W3O435DQFEQ37T7S2HB5O77UX3QQA54J2W5UK2CM3ENU6N`
-- **Isolated Guardian Key:** `GBROPBB3VV4BJ4ZHTMWFACDYVEK2ARMGEVLYGSB4NQUL5SJSWVDEDGV7`
-- **Attacker Bot Target:** `GBECO3UJOCSTKGNAHH4HPPKOJ4YAM6RJL36QA5LJZATF7EY43IU7WXHD`
-- **Safe Recovery Target:** `GC2EMMRBZ4XTUPBJ5TRLSPMOKPKTR377DCYH2YYEZJAK46UMXRWR3CNO`
+- **Deployer Account:** `GAU5Y5UWUQ5ETIEI5HWVJR7VDMXUETTSKQ4UKOIIGIW6GVIMCR354UJ3`
+- **Victim Account (Compromised):** `GBATLIM5WHOJQ4NPHQCO4ZJ43UTNFYKG7CH3FBIV5IICO5PHKQSYTL6W`
+- **Isolated Guardian Key:** `GAOFDO3GWBNVHBS7GXDKTDEODSWITUH6AFDHTP2S3ZKYRMW7QPUUP35T`
+- **Attacker Bot Target:** `GBZE4BQYS2GNHHBPHUE4A6F2XU7H2ZKEBJHDJNUCTUTX6PES6C745OHS`
+- **Safe Recovery Target:** `GBR36EUGWKE66RPYR6AE53625RTOH6MPXFSVN47CJLFIC2EWS7PUCBYO`
 
 ### Verified On-Chain Transaction Audit Log:
-1. **Step 1 (Defense SetOptions):**
-   - **Tx Hash:** `69d173ed725ce6efb87d2bc074f40139d0d38f03e8929369dacea54f5d6c7e00`
+1. **Victim Initialization:**
+   - **Tx Hash:** `ee522fec4e2b12de8f43fe617b80870f0d9e7218b7b299d2bf79bb7020610e75`
+2. **Safe Vault Initialization:**
+   - **Tx Hash:** `cc53492f66f2187ce789abec519567a0edd440ef8af31c79a3bf19987882ce6e`
+3. **Step 1 (Defense SetOptions):**
+   - **Tx Hash:** `b7984f98f69508fdab005b02f93cb0eb3b6f5c62e02fa6b7885c8c6f619937a0`
    - **Configuration:** `masterWeight: 1`, `signerWeight: 1`, `low/med/highThreshold: 2`
-2. **Step 2 (Sweeper Bot Blocked):**
+4. **Step 2 (Sweeper Bot Blocked):**
    - **Transaction Result:** `tx_bad_auth`
    - **Operation Result:** `["op_bad_auth"]`
    - **Consensus Verification:** Single-sig bot (Weight 1) < Medium Threshold (2).
-3. **Step 3 (Authorized 2-of-2 Multisig Sweep):**
-   - **Tx Hash:** `b42e6f8c660f847ebb65498a7794bc3b4454c3c401ece6ccd05d1a4b0a6e1ed4`
+5. **Step 3 (Authorized 2-of-2 Multisig Sweep):**
+   - **Tx Hash:** `7d422f1cd1e768a46a5764d2c882e4cfa29776fba54185e2dff17e7d1f1b5d6c`
    - **Outcome:** Assets transferred safely to the recovery vault.
-4. **Step 4 (Permanent Master Key Revocation):**
-   - **Tx Hash:** `c4cac6f1ba33e16e57558a794eb11c9261374e54778a19ecc04589d4f229dea9`
+6. **Step 4 (Permanent Master Key Revocation):**
+   - **Tx Hash:** `c2ed1582e55dfa8dc2695618ef745a69a123fc2a3327e54a6b397db69bce8906`
    - **Outcome:** `masterWeight = 0`. Leaked 24-word passphrase permanently deactivated on-chain.
-
----
-
-## 3. Proposed Ecosystem Standards
-1. **In-App Emergency Shield:** Add an emergency threshold escalation trigger inside the official Pi Browser Wallet.
-2. **Pre-Migration Hardening:** Allow Pioneers with suspected passphrase leaks to escalate thresholds before token migration.
-3. **CAP-0015 Fee-Bump Relays:** Standardize zero-gas inner payment sweeps sponsored by outer fee-bump accounts.
