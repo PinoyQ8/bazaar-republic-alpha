@@ -5,15 +5,30 @@ export default function DebugUID() {
   const [uid, setUid] = useState<string>('Authenticating...');
 
   useEffect(() => {
-    // Standard Pi SDK Authentication Call
-    if (typeof window !== 'undefined' && window.Pi) {
-      window.Pi.init({ version: '2.0', sandbox: typeof navigator !== 'undefined' && !/PiBrowser/i.test(navigator.userAgent) });
-      window.Pi.authenticate(['payments'], ['username']).then((auth: any) => {
-        setUid(auth.user.uid);
-      }).catch((err: any) => setUid('Error: ' + err.message));
-    } else {
+    const Pi = typeof window !== 'undefined' ? (window as any).Pi : null;
+    if (!Pi) {
       setUid('Pi SDK not found. Open this in Pi Browser.');
+      return;
     }
+
+    const isPiBrowser =
+      typeof navigator !== 'undefined' && /PiBrowser/i.test(navigator.userAgent);
+
+    try {
+      Pi.init({ version: '2.0', sandbox: !isPiBrowser });
+    } catch {
+      // Already initialized on this window lifecycle
+    }
+
+    const onIncompletePaymentFound = (payment: any) => {
+      console.warn('[debug-uid] Incomplete payment detected:', payment?.identifier);
+    };
+
+    Pi.authenticate(['username', 'payments', 'wallet_address'], onIncompletePaymentFound)
+      .then((auth: any) => {
+        setUid(auth?.user?.uid || 'UID missing from Pi auth payload.');
+      })
+      .catch((err: any) => setUid('Error: ' + (err?.message || 'Auth failed')));
   }, []);
 
   return (

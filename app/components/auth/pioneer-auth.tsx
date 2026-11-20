@@ -6,7 +6,6 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
-// Define the Pioneer payload structure expected from the UI
 interface PioneerData {
   uid: string;
   username: string;
@@ -19,27 +18,24 @@ export default function PioneerAuth() {
   const [pioneer, setPioneer] = useState<PioneerData | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
 
-  // 🛡️ TIMING RETRY LOOP: Ensure Pi SDK initializes even with slower edge networks
   useEffect(() => {
     let checkCount = 0;
-    
+
     const initializePiSDK = () => {
       if (typeof window !== 'undefined' && (window as any).Pi) {
+        const pi = (window as any).Pi;
+        const isPiBrowser =
+          typeof navigator !== 'undefined' && /PiBrowser/i.test(navigator.userAgent);
+
         try {
-          const pi = (window as any).Pi;
-          // Sandbox flags true for Vercel preview deployments, false for live mainnet address
-          const isLiveMainnet = window.location.hostname.includes("bazaatmainnet-dao.vercel.app");
-          
-          pi.init({ version: "2.0", sandbox: !isLiveMainnet });
-          
-          // [MESH-FIX]: Physically set the flag in the window object so the guard can read it.
-          (window as any).__PI_INITIALIZED__ = true; 
-          
-          console.log(`[MESH-BRIDGE] 🟢 Pi SDK Initialized cleanly. Sandbox Mode: ${!isLiveMainnet}`);
+          pi.init({ version: "2.0", sandbox: !isPiBrowser });
+          (window as any).__PI_INITIALIZED__ = true;
+          console.log(`[MESH-BRIDGE] 🟢 Pi SDK Initialized cleanly. Sandbox Mode: ${!isPiBrowser}`);
           return true;
         } catch (err) {
-          console.warn("[MESH-BRIDGE] SDK initialization collision handled.", err);
-          return true; // Already initialized elsewhere
+          (window as any).__PI_INITIALIZED__ = true;
+          console.warn("[MESH-BRIDGE] SDK already initialized elsewhere.", err);
+          return true;
         }
       }
       return false;
@@ -52,7 +48,7 @@ export default function PioneerAuth() {
       if (initializePiSDK() || checkCount > 20) {
         clearInterval(syncInterval);
         if (checkCount > 20) {
-           console.warn("[MESH-BRIDGE] ⚠️ Pi SDK load timed out. Running in local X570 Dev Mode.");
+          console.warn("[MESH-BRIDGE] ⚠️ Pi SDK load timed out.");
         }
       }
     }, 250);
@@ -60,44 +56,69 @@ export default function PioneerAuth() {
     return () => clearInterval(syncInterval);
   }, []);
 
-  // Callback for orphaned payments (Protocol 24 Prep)
-  const onIncompletePaymentFound = (payment: any) => {
-    console.log("[MESH-BRIDGE] ⚠️ Orphaned payment detected. Routing to DEX resolve...", payment);
+  const onIncompletePaymentFound = async (payment: any) => {
+    console.warn("[MESH-BRIDGE] ⚠️ Orphaned payment detected:", payment?.identifier);
+    if (payment?.identifier && payment?.transaction?.txid) {
+      await fetch('/api/pi/complete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          paymentId: payment.identifier,
+          txid: payment.transaction.txid,
+        }),
+      }).catch((err) => console.error("[MESH-BRIDGE] Payment recovery failed:", err));
+    }
   };
 
-  // 🛡️ ENFORCE A RIGID HANDSHAKE GUARD AT THE RUNTIME LAYER
   const handlePioneerLogin = async () => {
     setIsAuthenticating(true);
     setAuthError(null);
-  
+
     try {
       let activeUid = "";
       let activeUsername = "";
+      let activeAccessToken: string | undefined;
 
-      // 1. ENVIRONMENT CHECK: Pi Browser vs X570 Local Dev
-      if (typeof window !== 'undefined' && (window as any).__PI_INITIALIZED__) {
+      const pi = typeof window !== 'undefined' ? (window as any).Pi : null;
+      const isLocalDev =
+        typeof window !== 'undefined' &&
+        (window.location.hostname === 'localhost' ||
+          window.location.hostname === '127.0.0.1' ||
+          window.location.hostname.startsWith('192.168.'));
+
+      // 1. ENVIRONMENT CHECK: Pi Browser SDK vs Local X570 Dev
+      if (pi && (window as any).__PI_INITIALIZED__) {
         console.log("[MESH-BRIDGE] 🛰️ Triggering Native Authenticate Prompt...");
-        const pi = (window as any).Pi;
-        const scopes = ['username', 'payments'];
+        const scopes = ['username', 'payments', 'wallet_address'];
         const authResults = await pi.authenticate(scopes, onIncompletePaymentFound);
-        
-        activeUid = authResults.user.uid;
-        activeUsername = authResults.user.username;
-      } else {
-        // X570 Local Override (Ensures you can still test the dashboard on Chrome)
+
+        activeUid = authResults?.user?.uid || "";
+        activeUsername = authResults?.user?.username || "";
+        activeAccessToken = authResults?.accessToken;
+      } else if (isLocalDev) {
         console.warn("[MESH-BRIDGE] ⚠️ Bypassing SDK for Local X570 Environment.");
         activeUid = "DEV_NODE_001";
         activeUsername = "Bazaar_Founder";
+      } else {
+        throw new Error("Pi SDK not detected. Please open Bazaar Republic inside Pi Browser.");
       }
 
-      // 2. THE GATEWAY BRIDGE: Routing to our new Zero-Trust Backend
+      if (!activeUid) {
+        throw new Error("No valid Pioneer UID returned from authentication.");
+      }
+
+      // 2. THE GATEWAY BRIDGE: Routing to Zero-Trust Backend
       const backendVerify = await fetch('/api/pioneer/handshake', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ uid: activeUid })
+        body: JSON.stringify({
+          uid: activeUid,
+          username: activeUsername,
+          accessToken: activeAccessToken,
+        }),
       });
 
-      const result = await backendVerify.json();
+      const result = await backendVerify.json().catch(() => ({}));
 
       if (!backendVerify.ok || !result.success) {
         throw new Error(result.error || `Vault check failed. Status: ${backendVerify.status}.`);
@@ -107,6 +128,7 @@ export default function PioneerAuth() {
       setPioneer({
         uid: activeUid,
         username: activeUsername,
+        accessToken: activeAccessToken,
       });
 
       console.log(`[MESH-BRIDGE] 🟢 Pioneer @${activeUsername} fully authorized & locked.`);
@@ -114,11 +136,11 @@ export default function PioneerAuth() {
       // 4. ROUTE TO DASHBOARD
       setTimeout(() => {
         router.push('/dashboard');
-      }, 1000); // 1-second delay so the user sees the Success UI before transition
+      }, 1000);
 
     } catch (error: any) {
       console.error("[MESH-BRIDGE] 🚨 Handshake rejected.", error);
-      setAuthError(error.message || "Failed to sync secure session. Check network / whitelist settings.");
+      setAuthError(error?.message || "Failed to sync secure session. Check network / whitelist settings.");
     } finally {
       setIsAuthenticating(false);
     }
@@ -152,7 +174,7 @@ export default function PioneerAuth() {
               Initiate Node Uplink
             </button>
           )}
-          
+
           {authError && (
             <div className="mt-4 p-3 w-full bg-red-950/40 border border-red-900 text-red-400 text-xs rounded text-center">
               ⚠️ {authError}
