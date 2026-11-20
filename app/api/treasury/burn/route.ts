@@ -1,21 +1,24 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 
-// 🛡️ THE MESH OVERRIDE: Legacy NoSQL imports completely purged.
-// ❌ PURGED: import { connectToDatabase } from '@/lib/db';
-// ❌ PURGED: All Mongoose/MongoClient dependencies removed.
+export const dynamic = 'force-dynamic';
 
-export async function POST(req: Request) {
-    console.log("🚀 [MESH-SYNC] Legacy Treasury-Burn route offline for Drizzle migration.");
+export async function POST(req: NextRequest) {
+  try {
+    await req.json().catch(() => null);
 
-    try {
-        // 🛡️ THE MESH OVERRIDE: Legacy NoSQL logic neutralized.
-        return NextResponse.json({ 
-            status: "MIGRATING", 
-            message: "Treasury-Burn engine transitioning to Neon Postgres." 
-        }, { status: 200 });
-
-    } catch (error: any) {
-        console.error("❌ MESH CRITICAL ERROR:", error.message);
-        return NextResponse.json({ error: "Routing failed during migration." }, { status: 500 });
-    }
+    return NextResponse.json(
+      {
+        success: false,
+        status: 'MIGRATING',
+        message: 'Treasury-burn endpoint is currently offline for storage alignment.',
+      },
+      { status: 503 }
+    );
+  } catch (error: any) {
+    console.error('[TREASURY_BURN_ROUTE_ERROR]:', error?.message || error);
+    return NextResponse.json(
+      { success: false, error: 'Routing failed during migration.' },
+      { status: 500 }
+    );
+  }
 }

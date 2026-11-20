@@ -1,28 +1,42 @@
 // Location: app/onboarding/page.tsx
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { Shield, ArrowRight, Loader2, Wallet, RefreshCw } from 'lucide-react';
 import { PiAuthGate } from '@/components/PiAuthGate';
 
+function isPiBrowserUa(): boolean {
+  return typeof navigator !== 'undefined' && /PiBrowser/i.test(navigator.userAgent);
+}
+
 export default function OnboardingPage() {
-  const { pioneer, login, isHydrated } = useAuth();
+  const { login, isHydrated } = useAuth();
   const router = useRouter();
   const [isAuthenticating, setIsAuthenticating] = useState(false);
-  const [telemetryMsg, setTelemetryMsg] = useState('Initializing MESH Protocol Node...');
+  const [telemetryMsg, setTelemetryMsg] = useState(
+    'Initializing MESH Protocol Node...'
+  );
   const [isOutsidePiBrowser, setIsOutsidePiBrowser] = useState(false);
+  const redirectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (redirectTimerRef.current) {
+        clearTimeout(redirectTimerRef.current);
+      }
+    };
+  }, []);
 
   // 1. Safe detection of Pi Browser environment without race conditions
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
     const checkPiEnvironment = () => {
-      const isPiUserAgent = /PiBrowser/i.test(navigator.userAgent);
-      const hasPiSDK = !!(window as any).Pi;
+      const hasPiSDK = Boolean((window as any).Pi);
 
-      if (!isPiUserAgent && !hasPiSDK) {
+      if (!isPiBrowserUa() && !hasPiSDK) {
         setIsOutsidePiBrowser(true);
         setTelemetryMsg('[DETECT] Web Gateway Node detected. OAuth required.');
       } else {
@@ -31,15 +45,15 @@ export default function OnboardingPage() {
       }
     };
 
-    // Immediate check + fallback interval to allow script hydration
     checkPiEnvironment();
     const timeout = setTimeout(checkPiEnvironment, 400);
 
     return () => clearTimeout(timeout);
   }, []);
 
-  // 2. Real Pi SDK Handshake & Verification Hand-off
+  // 2. Pi SDK Handshake & Verification Hand-off
   const handlePiAuth = async () => {
+    if (isAuthenticating) return;
     setIsAuthenticating(true);
     setTelemetryMsg('[INIT] Engaging Pi SDK sandbox handshake...');
 
@@ -49,7 +63,10 @@ export default function OnboardingPage() {
       }
 
       const Pi = (window as any).Pi;
-      Pi.init({ version: '2.0', sandbox: typeof navigator !== 'undefined' && !/PiBrowser/i.test(navigator.userAgent) });
+      Pi.init({
+        version: '2.0',
+        sandbox: !isPiBrowserUa(),
+      });
 
       const scopes = ['username', 'payments'];
       const onIncompletePaymentFound = (payment: any) => {
@@ -61,7 +78,6 @@ export default function OnboardingPage() {
 
       setTelemetryMsg('[VERIFY] Signature acquired. Pinging serverless callback...');
 
-      // 3. Post to API Route for Pi Core Verification
       const response = await fetch('/api/auth/callback', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -74,10 +90,9 @@ export default function OnboardingPage() {
       const data = await response.json().catch(() => ({}));
 
       if (!response.ok) {
-        console.warn('[AUTH_WARN] Callback verification notice:', data.error);
+        console.warn('[AUTH_WARN] Callback verification notice:', data?.error);
       }
 
-      // 4. Commit Pioneer to MESH State
       const verifiedUid = data?.user?.uid || authResult.user.uid;
       const verifiedUser = data?.user?.username || authResult.user.username;
 
@@ -90,25 +105,30 @@ export default function OnboardingPage() {
         trustScore: 100,
       });
 
-      setTelemetryMsg(`[STATUS 200] Pioneer @${verifiedUser} verified. Directing to Academy...`);
+      setTelemetryMsg(
+        `[STATUS 200] Pioneer @${verifiedUser} verified. Directing to Academy...`
+      );
 
-      setTimeout(() => {
+      redirectTimerRef.current = setTimeout(() => {
         router.replace('/academy');
       }, 700);
     } catch (err: any) {
       console.error('[AUTH_FAULT]:', err);
-      setTelemetryMsg(`[FAULT] ${err.message || 'Authentication sequence interrupted.'}`);
+      setTelemetryMsg(
+        `[FAULT] ${err?.message || 'Authentication sequence interrupted.'}`
+      );
     } finally {
       setIsAuthenticating(false);
     }
   };
 
-  // 5. Loading placeholder during Context hydration
   if (!isHydrated) {
     return (
       <main className="w-full max-w-[384px] mx-auto min-h-dvh bg-slate-950 text-slate-100 p-4 font-mono flex flex-col items-center justify-center">
         <Loader2 className="w-6 h-6 animate-spin text-amber-500 mb-2" />
-        <p className="text-[10px] text-slate-400 uppercase tracking-widest">Hydrating MESH Matrix...</p>
+        <p className="text-[10px] text-slate-400 uppercase tracking-widest">
+          Hydrating MESH Matrix...
+        </p>
       </main>
     );
   }
@@ -126,7 +146,9 @@ export default function OnboardingPage() {
           <h1 className="text-base font-bold uppercase tracking-wider text-slate-100">
             NEO PROTOCOL
           </h1>
-          <p className="text-[10px] text-slate-400 mt-0.5">Stage 1: Identity & Node Genesis</p>
+          <p className="text-[10px] text-slate-400 mt-0.5">
+            Stage 1: Identity & Node Genesis
+          </p>
         </div>
 
         {/* Telemetry Window */}
@@ -151,10 +173,16 @@ export default function OnboardingPage() {
                 Sign in with your Pi Network account using OAuth.
               </p>
             </div>
-            <PiAuthGate clientId={process.env.NEXT_PUBLIC_PI_TESTNET_CLIENT_ID || 'FtbUB9fO3zfZZG3cp2SEpEdgzTNEgqpliDl8Q7Jr9Nc'} />
+            <PiAuthGate
+              clientId={
+                process.env.NEXT_PUBLIC_PI_TESTNET_CLIENT_ID ||
+                'FtbUB9fO3zfZZG3cp2SEpEdgzTNEgqpliDl8Q7Jr9Nc'
+              }
+            />
           </div>
         ) : (
           <button
+            type="button"
             onClick={handlePiAuth}
             disabled={isAuthenticating}
             className="w-full py-3.5 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 text-xs font-bold uppercase tracking-wider rounded-xl transition shadow-lg flex items-center justify-center gap-2"
@@ -172,6 +200,7 @@ export default function OnboardingPage() {
 
         {/* Force Retry / Sync Reset Link */}
         <button
+          type="button"
           onClick={() => {
             localStorage.clear();
             window.location.reload();

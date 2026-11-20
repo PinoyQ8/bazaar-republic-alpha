@@ -1,4 +1,3 @@
-// services/bazaarVaultService.ts
 import {
   Account,
   Contract,
@@ -45,7 +44,8 @@ export const NETWORK_PASSPHRASE =
 
 export const PI_BASE_FEE = "1000000"; // 0.1 Test-Pi inclusion buffer
 
-const SIMULATION_FALLBACK_ACCOUNT = "GAU5Y5UWUQ5ETIEI5HWVJR7VDMXUETTSKQ4UKOIIGIW6GVIMCR354UJ3";
+const SIMULATION_FALLBACK_ACCOUNT =
+  "GAU5Y5UWUQ5ETIEI5HWVJR7VDMXUETTSKQ4UKOIIGIW6GVIMCR354UJ3";
 
 export class BazaarVaultService {
   private rpcServer: StellarRpc.Server;
@@ -83,23 +83,33 @@ export class BazaarVaultService {
     if (Array.isArray(rawStatus) && rawStatus.length > 0) {
       normalizedStatus = String(rawStatus[0]) as EscrowStatus;
     } else if (typeof rawStatus === "object" && rawStatus !== null) {
-      normalizedStatus = String(rawStatus.name || Object.keys(rawStatus)[0] || "Locked") as EscrowStatus;
+      normalizedStatus = String(
+        rawStatus.name || Object.keys(rawStatus)[0] || "Locked"
+      ) as EscrowStatus;
     } else if (typeof rawStatus === "string") {
       normalizedStatus = rawStatus as EscrowStatus;
     }
 
     return {
-      consumer: typeof consumer === "string" ? consumer : consumer?.toString?.() || "",
-      provider: typeof provider === "string" ? provider : provider?.toString?.() || "",
+      consumer:
+        typeof consumer === "string" ? consumer : consumer?.toString?.() || "",
+      provider:
+        typeof provider === "string" ? provider : provider?.toString?.() || "",
       amount: BigInt(amount || 0),
       status: normalizedStatus,
       protocol_version: Number(protocolVersion),
-      token_contract: typeof tokenContract === "string" ? tokenContract : tokenContract?.toString?.() || "",
+      token_contract:
+        typeof tokenContract === "string"
+          ? tokenContract
+          : tokenContract?.toString?.() || "",
       expires_at: BigInt(expiresAt),
     };
   }
 
-  async getVault(escrowId: string, callerAddress?: string): Promise<VaultEscrowRecord | null> {
+  async getVault(
+    escrowId: string,
+    callerAddress?: string
+  ): Promise<VaultEscrowRecord | null> {
     try {
       const address = callerAddress || SIMULATION_FALLBACK_ACCOUNT;
       const dummyAccount = new Account(address, "0");
@@ -110,7 +120,10 @@ export class BazaarVaultService {
         networkPassphrase: NETWORK_PASSPHRASE,
       })
         .addOperation(
-          this.contract.call("get_vault", nativeToScVal(sanitizedId, { type: "symbol" }))
+          this.contract.call(
+            "get_vault",
+            nativeToScVal(sanitizedId, { type: "symbol" })
+          )
         )
         .setTimeout(30)
         .build();
@@ -129,7 +142,8 @@ export class BazaarVaultService {
 
   async lockFunds(
     params: LockFundsParams,
-    signer: Keypair | ((txXdr: string) => Promise<string>)
+    signer: Keypair | ((txXdr: string) => Promise<string>),
+    sourceAccountOverride?: string
   ): Promise<VaultTxResponse> {
     const amountVal = BigInt(params.amount);
     const durationVal = BigInt(params.durationSecs || 172800);
@@ -146,7 +160,11 @@ export class BazaarVaultService {
       nativeToScVal(durationVal, { type: "u64" })
     );
 
-    return this.executeContractCall(params.consumerAddress, callOp, signer);
+    const txSource =
+      sourceAccountOverride ||
+      (signer instanceof Keypair ? signer.publicKey() : params.consumerAddress);
+
+    return this.executeContractCall(txSource, callOp, signer);
   }
 
   async releaseFunds(
@@ -213,28 +231,36 @@ export class BazaarVaultService {
     return this.executeContractCall(params.adminAddress, callOp, signer);
   }
 
- private async getAccountSequence(sourceAddress: string): Promise<string> {
-    // 1. Direct REST fetch to Pi Horizon (raw JSON response has public .sequence string)
+  private async getAccountSequence(sourceAddress: string): Promise<string> {
+    const horizonBase = (
+      process.env.PI_HORIZON_URL ||
+      process.env.NEXT_PUBLIC_PI_HORIZON_URL ||
+      PI_HORIZON_URL
+    ).replace(/\/$/, "");
+
+    // 1. Direct REST fetch to Pi Horizon
     try {
-      const res = await fetch(`${PI_HORIZON_URL.replace(/\/$/, "")}/accounts/${sourceAddress}`);
+      const res = await fetch(`${horizonBase}/accounts/${sourceAddress}`);
       if (res.ok) {
         const data = (await res.json()) as any;
         if (data?.sequence) return String(data.sequence);
       }
     } catch {}
 
-    // 2. Fallback to Horizon SDK (AccountResponse inherits .sequenceNumber())
+    // 2. Fallback to Horizon SDK
     try {
       const horizonAcc = await this.horizonServer.loadAccount(sourceAddress);
       return horizonAcc.sequenceNumber();
     } catch {}
 
-    // 3. Fallback to Soroban RPC (Account exposes .sequenceNumber())
+    // 3. Fallback to Soroban RPC
     try {
       const rpcAcc = await this.rpcServer.getAccount(sourceAddress);
       return rpcAcc.sequenceNumber();
     } catch (err: any) {
-      throw new Error(`Failed to load account sequence for ${sourceAddress}: ${err?.message || err}`);
+      throw new Error(
+        `Failed to load account sequence for ${sourceAddress}: ${err?.message || err}`
+      );
     }
   }
 
@@ -267,7 +293,9 @@ export class BazaarVaultService {
 
     const sendRes = await this.rpcServer.sendTransaction(signedTx);
     if (sendRes.status === "ERROR") {
-      throw new Error(`Transaction submission error: ${JSON.stringify(sendRes.errorResult)}`);
+      throw new Error(
+        `Transaction submission error: ${JSON.stringify(sendRes.errorResult)}`
+      );
     }
 
     const maxAttempts = 20;
@@ -284,12 +312,16 @@ export class BazaarVaultService {
     }
 
     if (txStatus.status === StellarRpc.Api.GetTransactionStatus.NOT_FOUND) {
-      throw new Error(`Transaction ${sendRes.hash} confirmation timed out after 30s.`);
+      throw new Error(
+        `Transaction ${sendRes.hash} confirmation timed out after 30s.`
+      );
     }
 
     if (txStatus.status === StellarRpc.Api.GetTransactionStatus.FAILED) {
       const errorDetail = (txStatus as any).resultXdr || JSON.stringify(txStatus);
-      throw new Error(`Transaction ${sendRes.hash} execution failed on-chain: ${errorDetail}`);
+      throw new Error(
+        `Transaction ${sendRes.hash} execution failed on-chain: ${errorDetail}`
+      );
     }
 
     return Object.assign(txStatus, { hash: sendRes.hash });

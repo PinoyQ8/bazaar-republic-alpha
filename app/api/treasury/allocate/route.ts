@@ -1,23 +1,24 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
-// 🛡️ PURGED: import { connectToDatabase } from "@/lib/db";
-// 🛡️ PURGED: import Token from "@/models/Token";
+export const dynamic = "force-dynamic";
 
-export async function POST(req: Request) {
-    console.log("🚀 MESH ENGINE: Treasury allocation route offline for Drizzle migration.");
+export async function POST(req: NextRequest) {
+  try {
+    await req.json().catch(() => null);
 
-    try {
-        // 🛡️ ALL LEGACY NOSQL LOGIC NEUTRALIZED
-        // The await connectToDatabase() call and Mongoose mutations are disconnected.
-        // You will rebuild this using db.update(tokens)... when Mainnet is secured.
-
-        return NextResponse.json({ 
-            status: "MIGRATING", 
-            message: "Treasury allocation engine transitioning to Neon Postgres." 
-        }, { status: 200 });
-
-    } catch (error: any) {
-        console.error("❌ MESH CRITICAL ERROR:", error.message);
-        return NextResponse.json({ error: "Allocation routing failed." }, { status: 500 });
-    }
+    return NextResponse.json(
+      {
+        success: false,
+        status: "MIGRATING",
+        message: "Treasury allocation engine is currently offline for storage alignment.",
+      },
+      { status: 503 }
+    );
+  } catch (error: any) {
+    console.error("[TREASURY_ALLOCATE_ROUTE_ERROR]:", error?.message || error);
+    return NextResponse.json(
+      { success: false, error: "Allocation routing failed." },
+      { status: 500 }
+    );
+  }
 }

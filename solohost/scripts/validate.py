@@ -7,21 +7,6 @@ so an author or agent can catch obvious problems locally. It is NOT the real
 validator — the SoloHost backend and Pi Desktop validators are authoritative, and a
 `PASS` here does not guarantee acceptance. When in doubt, submit to SoloHost.
 
-Checks (enforced-today, per the contract):
-  files.present     both docker-compose.yml and config_options.yml exist and parse
-  compose.services  top-level `services:` present and non-empty
-  compose.image     every service has an `image:`; `build:` is not supported
-  compose.blocked   blocks privileged, host/container network modes, host namespaces,
-                    userns_mode: host, devices, bind mounts, host-driver networks,
-                    top-level include, bind-backed volumes, file-backed secrets/configs
-  compose.ports     at least one service publishes a port
-  config.schema     config_options has a `fields:` list (+ optional `fixed_values:`)
-  config.fields     supported field types only; placeholder/min/max are rejected
-  config.detect     fixed_values detect is one of uid | gid
-  env.declared      every ${VAR} in the compose is declared in config_options
-                    (a field name or a fixed_values name; note: select `set:` keys do
-                    NOT count as declared — declare them as a hidden field too)
-
 Usage:
   python3 scripts/validate.py <package-dir> [<package-dir> ...]
   python3 scripts/validate.py            # defaults to every dir under examples/
@@ -43,9 +28,10 @@ COMPOSE = "docker-compose.yml"
 CONFIG = "config_options.yml"
 FIELD_TYPES = {"text", "password", "number", "select", "hidden"}
 UNSUPPORTED_FIELD_KEYS = {"placeholder", "min", "max"}
-DETECT_VALUES = {"uid", "gid"}   # v0: pi_username is not accepted by the validator yet
+DETECT_VALUES = {"uid", "gid"}
 HOST_NAMESPACE_KEYS = ("pid", "ipc", "uts", "cgroup")
-VAR_RE = re.compile(r"\$\{?([A-Za-z_][A-Za-z0-9_]*)")
+# Match single $VAR or ${VAR}, ignoring escaped $$ sequences
+VAR_RE = re.compile(r"(?<!\$)\$(?!\$)\{?([A-Za-z_][A-Za-z0-9_]*)")
 
 
 class Report:
@@ -61,7 +47,7 @@ class Report:
 
 
 def load_yaml(path):
-    with open(path) as f:
+    with open(path, encoding="utf-8") as f:
         return yaml.safe_load(f)
 
 
@@ -97,12 +83,14 @@ def check_compose(compose, r):
         return
     r.ok("compose.services", f"{len(services)} service(s) declared")
 
-    # image / build
     img_ok = True
     for name, svc in services.items():
         svc = svc or {}
         if "build" in svc:
-            r.fail("compose.image", f"service `{name}` uses `build:` (not supported — use a pushed image)")
+            r.fail(
+                "compose.image",
+                f"service `{name}` uses `build:` (not supported — use a pushed image)",
+            )
             img_ok = False
         if not svc.get("image"):
             r.fail("compose.image", f"service `{name}` has no `image:`")
@@ -110,7 +98,6 @@ def check_compose(compose, r):
     if img_ok:
         r.ok("compose.image", "every service references a published image; no `build:`")
 
-    # blocked service-level fields
     blocked = []
     for name, svc in services.items():
         svc = svc or {}
@@ -130,7 +117,6 @@ def check_compose(compose, r):
             if is_bind_mount(vol):
                 blocked.append(f"{name}: bind mount {vol!r}")
 
-    # blocked top-level constructs
     if "include" in compose:
         blocked.append("top-level include")
     for vname, vdef in (compose.get("volumes") or {}).items():
@@ -150,7 +136,6 @@ def check_compose(compose, r):
     else:
         r.ok("compose.blocked", "no blocked compose constructs")
 
-    # published ports required
     if any((svc or {}).get("ports") for svc in services.values()):
         r.ok("compose.ports", "at least one service publishes a port")
     else:
@@ -185,7 +170,6 @@ def check_config(config, r):
         return
     r.ok("config.schema", f"{len(fields)} field(s); top-level shape looks right")
 
-    # field types + unsupported keys
     fields_ok = True
     for f in fields:
         if not isinstance(f, dict):
@@ -198,16 +182,21 @@ def check_config(config, r):
             fields_ok = False
         bad = UNSUPPORTED_FIELD_KEYS & set(f.keys())
         if bad:
-            r.fail("config.fields", f"field `{f.get('name')}` uses unsupported key(s): {', '.join(sorted(bad))}")
+            r.fail(
+                "config.fields",
+                f"field `{f.get('name')}` uses unsupported key(s): {', '.join(sorted(bad))}",
+            )
             fields_ok = False
     if fields_ok:
         r.ok("config.fields", "all field types supported; no unsupported keys")
 
-    # detect values
     detect_ok = True
     for fv in config.get("fixed_values", []) or []:
         if isinstance(fv, dict) and "detect" in fv and fv["detect"] not in DETECT_VALUES:
-            r.fail("config.detect", f"fixed_value `{fv.get('name')}` has unknown detect `{fv['detect']}`")
+            r.fail(
+                "config.detect",
+                f"fixed_value `{fv.get('name')}` has unknown detect `{fv['detect']}`",
+            )
             detect_ok = False
     if detect_ok:
         r.ok("config.detect", "fixed_values detect values are valid")
@@ -233,7 +222,6 @@ def check_package(pkg):
     check_compose(compose, r)
     check_config(config, r)
 
-    # env declared (backend ignores select set: keys, so we do too)
     used = set()
     find_vars(compose, used)
     declared, set_keys = collect_declared(config)
@@ -242,7 +230,10 @@ def check_package(pkg):
         hint = ""
         if set(undeclared) & set_keys:
             hint = " (some are only in a select `set:` — declare them as a hidden field too)"
-        r.fail("env.declared", f"${{VAR}} used in compose but not declared in {CONFIG}: {', '.join(undeclared)}{hint}")
+        r.fail(
+            "env.declared",
+            f"${{VAR}} used in compose but not declared in {CONFIG}: {', '.join(undeclared)}{hint}",
+        )
     else:
         r.ok("env.declared", "every ${VAR} in the compose is declared")
     return r
@@ -255,8 +246,14 @@ def main():
         pkgs = args
     else:
         ex = os.path.join(root, "examples")
-        pkgs = sorted(os.path.join(ex, d) for d in os.listdir(ex)
-                      if os.path.isdir(os.path.join(ex, d)))
+        if not os.path.isdir(ex):
+            sys.stderr.write("usage: validate.py <package-dir> [...]\n")
+            sys.exit(2)
+        pkgs = sorted(
+            os.path.join(ex, d)
+            for d in os.listdir(ex)
+            if os.path.isdir(os.path.join(ex, d))
+        )
 
     print("SoloHost pre-flight check (non-authoritative — see SOLOHOST.md)")
     total = 0

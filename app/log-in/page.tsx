@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Shield, Lock, Terminal, AlertTriangle, CheckCircle, Loader2 } from "lucide-react";
-import { useAuth } from "@/app/context/AuthContext"; // 🛡️ Import the master context
+import { useAuth } from "@/app/context/AuthContext";
 
 export default function LoginNode() {
   const [pioneerId, setPioneerId] = useState("");
@@ -11,7 +11,22 @@ export default function LoginNode() {
   const [status, setStatus] = useState<"IDLE" | "AUTHENTICATING" | "SUCCESS" | "ERROR">("IDLE");
   const [errorMessage, setErrorMessage] = useState("");
   const router = useRouter();
-  const { login } = useAuth(); // 🛡️ Pull the context login method
+  const { login } = useAuth();
+
+  const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+
+  useEffect(() => {
+    return () => {
+      timersRef.current.forEach((timer) => clearTimeout(timer));
+      timersRef.current = [];
+    };
+  }, []);
+
+  const scheduleTimeout = (fn: () => void, ms: number) => {
+    const id = setTimeout(fn, ms);
+    timersRef.current.push(id);
+    return id;
+  };
 
   const handleHandshake = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -19,51 +34,54 @@ export default function LoginNode() {
     setErrorMessage("");
 
     try {
-      // 🛡️ MESH LOCAL VALIDATION PROTOCOL
-      // Enforcing master founder parameters or client-side check
-      if (!pioneerId.trim() || !passkey.trim()) {
+      const trimmedId = pioneerId.trim();
+      const trimmedPasskey = passkey.trim();
+
+      if (!trimmedId || !trimmedPasskey) {
         throw new Error("Adjudicator Intercept: Missing Pioneer credentials.");
       }
 
-      // Simulate cryptographic calculation delay
-      await new Promise((resolve) => setTimeout(resolve, 600));
+      await new Promise<void>((resolve) => {
+        scheduleTimeout(resolve, 600);
+      });
 
-      // 🛡️ Forge the Session State in localStorage & Context
       login({
-        username: pioneerId,
-        uid: pioneerId,
-        tier: pioneerId.toLowerCase().includes("founder") ? "BAZAAR_FOUNDER" : "MESH_GUARDIAN",
+        username: trimmedId,
+        uid: trimmedId,
+        tier: trimmedId.toLowerCase().includes("founder")
+          ? "BAZAAR_FOUNDER"
+          : "MESH_GUARDIAN",
         status: "ACTIVE",
         isAuthenticated: true,
       });
 
       setStatus("SUCCESS");
-      
-      // 🚀 The Bridge: Auto-route to Dashboard/Governance after successful handshake
-      setTimeout(() => {
+
+      scheduleTimeout(() => {
         router.push("/dashboard");
       }, 800);
-
     } catch (error: any) {
       setStatus("ERROR");
-      setErrorMessage(error.message || "Cryptographic Handshake Failed.");
+      setErrorMessage(error?.message || "Cryptographic Handshake Failed.");
     }
   };
 
   return (
     <main className="min-h-screen bg-black flex items-center justify-center font-mono p-4">
       <div className="bg-neutral-950 p-8 border border-neutral-800 rounded-lg w-full max-w-md shadow-2xl shadow-black/80">
-        
         {/* HEADER */}
         <div className="flex flex-col items-center justify-center mb-8 border-b border-amber-900/50 pb-6">
           <Shield className="w-12 h-12 text-amber-500 mb-4" />
-          <h1 className="text-2xl font-bold tracking-widest text-amber-500 uppercase">Project Bazaar</h1>
-          <p className="text-neutral-500 text-sm tracking-widest mt-1">THE MESH PROTOCOL</p>
+          <h1 className="text-2xl font-bold tracking-widest text-amber-500 uppercase">
+            Project Bazaar
+          </h1>
+          <p className="text-neutral-500 text-sm tracking-widest mt-1">
+            THE MESH PROTOCOL
+          </p>
         </div>
 
         {/* AUTH FORM */}
         <form onSubmit={handleHandshake} className="space-y-6">
-          
           <div className="space-y-2">
             <label className="flex items-center space-x-2 text-sm text-neutral-400 uppercase tracking-wider">
               <Terminal className="w-4 h-4" />
@@ -128,7 +146,6 @@ export default function LoginNode() {
               <span>Establish Link</span>
             )}
           </button>
-
         </form>
       </div>
     </main>

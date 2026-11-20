@@ -1,66 +1,88 @@
 import { NextResponse } from 'next/server';
-import { connectToLedger } from "@/lib/mongodb";
+import { connectToLedger } from '@/lib/mongodb';
+
+export const dynamic = 'force-dynamic';
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
-    const { wallet_address } = body;
+    const body = await req.json().catch(() => null);
+    const walletAddress =
+      typeof body?.wallet_address === 'string' ? body.wallet_address.trim() : '';
 
-    if (!wallet_address) {
-      return NextResponse.json({ error: 'NODE_IDENTITY_MISSING' }, { status: 400 });
+    if (!walletAddress) {
+      return NextResponse.json(
+        { success: false, error: 'NODE_IDENTITY_MISSING' },
+        { status: 400 }
+      );
     }
 
-    // 1. Extract payload (Assuming wallet_address is parsed here)
-    // const { wallet_address } = ...
-
-    // 🛡️ MESH-FIX: Establish the ledger connection to instantiate 'db'
     const db = await connectToLedger();
-
-    // 🛡️ MESH-SCAN: Direct collection access
-    const collection = db.collection("pioneer_registry");
-
-    // 2. Locate Pioneer in the Data Fortress
-    const pioneer = await collection.findOne({ wallet_address });
-    if (!pioneer) {
-      return NextResponse.json({ error: 'LEDGER_VOID' }, { status: 404 });
+    if (!db) {
+      return NextResponse.json(
+        { success: false, error: 'LEDGER_CONNECTION_UNAVAILABLE' },
+        { status: 503 }
+      );
     }
 
-    // 3. Mutate L_sync
+    const collection = db.collection('pioneer_registry');
+
+    const pioneer = await collection.findOne({ wallet_address: walletAddress });
+    if (!pioneer) {
+      return NextResponse.json(
+        { success: false, error: 'LEDGER_VOID' },
+        { status: 404 }
+      );
+    }
+
+    const nowIso = new Date().toISOString();
+    const existingQuadrants =
+      pioneer.quadrants && typeof pioneer.quadrants === 'object'
+        ? pioneer.quadrants
+        : {};
+
     const updatedQuadrants = {
-      ...pioneer.quadrants,
-      L_sync: { score: 1.0, last_updated: new Date().toISOString() }
+      ...existingQuadrants,
+      L_sync: {
+        score: 1.0,
+        last_updated: nowIso,
+      },
     };
 
-    // 4. Recalculate Master TrustScore
-    const P = updatedQuadrants.P_align?.score || 0.25;
-    const S = updatedQuadrants.S_stake?.score || 0.25;
-    const C = updatedQuadrants.C_eco?.score || 0.25;
-    const L = updatedQuadrants.L_sync.score;
-    
-    const calculated_ts = (P + S + C + L) / 4;
-    const governance_eligible = calculated_ts >= 0.90;
+    const P = Number(updatedQuadrants.P_align?.score ?? 0.25);
+    const S = Number(updatedQuadrants.S_stake?.score ?? 0.25);
+    const C = Number(updatedQuadrants.C_eco?.score ?? 0.25);
+    const L = Number(updatedQuadrants.L_sync?.score ?? 1.0);
 
-    // 5. Commit Mutation to Ledger
+    const calculated_ts = (P + S + C + L) / 4;
+    const governance_eligible = calculated_ts >= 0.9;
+
     await collection.updateOne(
-      { wallet_address },
-      { 
-        $set: { 
+      { wallet_address: walletAddress },
+      {
+        $set: {
           quadrants: updatedQuadrants,
           calculated_ts,
           governance_eligible,
-          last_sync: new Date().toISOString()
-        } 
+          last_sync: nowIso,
+        },
       }
     );
 
-    return NextResponse.json({ 
-      status: 'LEDGER_UPDATED', 
-      new_ts: calculated_ts,
-      governance_eligible 
-    });
-
+    return NextResponse.json(
+      {
+        success: true,
+        status: 'LEDGER_UPDATED',
+        wallet_address: walletAddress,
+        new_ts: calculated_ts,
+        governance_eligible,
+      },
+      { status: 200 }
+    );
   } catch (error) {
-    console.error("❌ MESH-SCAN: Backend Forge Failed", error);
-    return NextResponse.json({ error: 'VAULT_ACCESS_FAILED' }, { status: 500 });
+    console.error('[MESH-SCAN] Backend Forge Failed:', error);
+    return NextResponse.json(
+      { success: false, error: 'VAULT_ACCESS_FAILED' },
+      { status: 500 }
+    );
   }
 }

@@ -8,7 +8,8 @@ import ClientHydrationGuard from '@/components/ClientHydrationGuard';
 
 export const metadata: Metadata = {
   title: 'Project Bazaar DAO | MESH Protocol',
-  description: 'Decentralized Autonomous Marketplace & Pioneer Verification Grid',
+  description:
+    'Decentralized Autonomous Marketplace & Pioneer Verification Grid',
 };
 
 export const viewport: Viewport = {
@@ -27,7 +28,7 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark" data-scroll-behavior="smooth">
       <body className="bg-slate-950 text-slate-100 font-sans antialiased min-h-dvh flex flex-col items-center justify-start overflow-x-hidden">
-        {/* Pi SDK root injection with beforeInteractive priority */}
+        {/* Pi SDK root injection */}
         <Script
           src="https://sdk.minepi.com/pi-sdk.js"
           strategy="beforeInteractive"

@@ -1,35 +1,27 @@
-'use client';
-
 import React from 'react';
 import Link from 'next/link';
-import { 
-  Layers, 
-  Repeat, 
-  ShieldCheck, 
-  Cpu, 
-  Smartphone, 
-  Terminal, 
-  Zap, 
-  Lock, 
-  Activity, 
-  ArrowUpRight, 
+import {
+  Layers,
+  Repeat,
+  ShieldCheck,
+  Cpu,
+  Smartphone,
+  Terminal,
+  Zap,
+  Lock,
+  Activity,
+  ArrowUpRight,
   CheckCircle2,
-  TrendingUp,
   Coins,
-  Shield
 } from 'lucide-react';
 
 export default function MeshHubPage() {
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-100 p-4 md:p-8 font-sans pb-28">
       <div className="max-w-5xl mx-auto space-y-6">
-        
-        {/* ========================================================================= */}
-        {/* HERO / PROTOCOL STATUS HEADER                                            */}
-        {/* ========================================================================= */}
+        {/* HERO / PROTOCOL STATUS HEADER */}
         <div className="bg-linear-to-br from-neutral-900 via-neutral-900/90 to-cyan-950/30 border border-neutral-800 rounded-2xl p-5 md:p-6 shadow-2xl relative overflow-hidden">
-          {/* Subtle Glow Backdrop */}
-          <div className="absolute -top-12 -right-12 w-48 h-48 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none"></div>
+          <div className="absolute -top-12 -right-12 w-48 h-48 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none" />
 
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-10">
             <div>
@@ -45,7 +37,10 @@ export default function MeshHubPage() {
                 Layer-2 Protocol Hub
               </h1>
               <p className="text-xs md:text-sm text-neutral-400 font-mono mt-1">
-                Architected by <span className="text-amber-400 font-bold">PinoyQ8 - Founder & Co-Pioneer</span>
+                Architected by{' '}
+                <span className="text-amber-400 font-bold">
+                  PinoyQ8 - Founder & Co-Pioneer
+                </span>
               </p>
             </div>
 
@@ -54,14 +49,18 @@ export default function MeshHubPage() {
               <div className="bg-neutral-950/80 border border-neutral-800 px-3 py-2 rounded-xl flex items-center gap-2">
                 <Activity size={16} className="text-emerald-400" />
                 <div>
-                  <div className="text-[9px] text-neutral-500 uppercase">Shield Health</div>
+                  <div className="text-[9px] text-neutral-500 uppercase">
+                    Shield Health
+                  </div>
                   <div className="font-bold text-emerald-400">92% Uptime</div>
                 </div>
               </div>
               <div className="bg-neutral-950/80 border border-neutral-800 px-3 py-2 rounded-xl flex items-center gap-2">
                 <Coins size={16} className="text-amber-400" />
                 <div>
-                  <div className="text-[9px] text-neutral-500 uppercase">Gas Buffer</div>
+                  <div className="text-[9px] text-neutral-500 uppercase">
+                    Gas Buffer
+                  </div>
                   <div className="font-bold text-amber-400">50.0 PI Safe</div>
                 </div>
               </div>
@@ -69,47 +68,64 @@ export default function MeshHubPage() {
           </div>
         </div>
 
-        {/* ========================================================================= */}
-        {/* LIVE METRICS BAR                                                         */}
-        {/* ========================================================================= */}
+        {/* LIVE METRICS BAR */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 font-mono text-xs">
           <div className="bg-neutral-900/60 border border-neutral-800/80 p-3 rounded-xl space-y-1">
-            <span className="text-[10px] text-neutral-500 uppercase tracking-wider block">AMM Invariant (k)</span>
-            <span className="text-sm font-bold text-cyan-400 truncate block">100,000,000,000</span>
-            <span className="text-[9px] text-neutral-400">PI / mBZR Constant Pool</span>
+            <span className="text-[10px] text-neutral-500 uppercase tracking-wider block">
+              AMM Invariant (k)
+            </span>
+            <span className="text-sm font-bold text-cyan-400 truncate block">
+              100,000,000,000
+            </span>
+            <span className="text-[9px] text-neutral-400">
+              PI / mBZR Constant Pool
+            </span>
           </div>
           <div className="bg-neutral-900/60 border border-neutral-800/80 p-3 rounded-xl space-y-1">
-            <span className="text-[10px] text-neutral-500 uppercase tracking-wider block">Passkey Enclave</span>
+            <span className="text-[10px] text-neutral-500 uppercase tracking-wider block">
+              Passkey Enclave
+            </span>
             <span className="text-sm font-bold text-emerald-400 flex items-center gap-1">
               <Lock size={12} /> secp256r1
             </span>
-            <span className="text-[9px] text-neutral-400">Hardware WebAuthn</span>
+            <span className="text-[9px] text-neutral-400">
+              Hardware WebAuthn
+            </span>
           </div>
           <div className="bg-neutral-900/60 border border-neutral-800/80 p-3 rounded-xl space-y-1">
-            <span className="text-[10px] text-neutral-500 uppercase tracking-wider block">Timelock Window</span>
-            <span className="text-sm font-bold text-indigo-400 block">48 Hours</span>
-            <span className="text-[9px] text-neutral-400">Escrow Auto-Payout</span>
+            <span className="text-[10px] text-neutral-500 uppercase tracking-wider block">
+              Timelock Window
+            </span>
+            <span className="text-sm font-bold text-indigo-400 block">
+              48 Hours
+            </span>
+            <span className="text-[9px] text-neutral-400">
+              Escrow Auto-Payout
+            </span>
           </div>
           <div className="bg-neutral-900/60 border border-neutral-800/80 p-3 rounded-xl space-y-1">
-            <span className="text-[10px] text-neutral-500 uppercase tracking-wider block">DePIN Stake Lock</span>
-            <span className="text-sm font-bold text-amber-400 block">10,000 mBZR</span>
-            <span className="text-[9px] text-neutral-400">Adjudicator Collateral</span>
+            <span className="text-[10px] text-neutral-500 uppercase tracking-wider block">
+              DePIN Stake Lock
+            </span>
+            <span className="text-sm font-bold text-amber-400 block">
+              10,000 mBZR
+            </span>
+            <span className="text-[9px] text-neutral-400">
+              Adjudicator Collateral
+            </span>
           </div>
         </div>
 
-        {/* ========================================================================= */}
-        {/* CORE SECTOR NAVIGATION GRID                                              */}
-        {/* ========================================================================= */}
+        {/* CORE SECTOR NAVIGATION GRID */}
         <div className="space-y-3">
           <h2 className="text-xs font-mono font-bold text-neutral-400 uppercase tracking-widest flex items-center gap-2">
             <Layers size={14} className="text-cyan-400" /> MESH Layer-2 Engine Sectors
           </h2>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            
             {/* SECTOR 1: AMM SWAP */}
-            <Link 
-              href="/mesh/swap" 
+            <Link
+              href="/mesh/swap"
               className="group p-5 bg-neutral-900/70 hover:bg-neutral-900 border border-neutral-800 hover:border-cyan-500/50 rounded-2xl transition-all duration-200 space-y-3 relative overflow-hidden"
             >
               <div className="flex justify-between items-start">
@@ -130,14 +146,15 @@ export default function MeshHubPage() {
                   </span>
                 </div>
                 <p className="text-xs text-neutral-400 mt-1 leading-relaxed">
-                  Execute instant zero-gas micro-swaps between $PI and internal $mBZR token reserves powered by the Smart Order Router (SOR).
+                  Execute instant zero-gas micro-swaps between $PI and internal
+                  $mBZR token reserves powered by the Smart Order Router (SOR).
                 </p>
               </div>
             </Link>
 
             {/* SECTOR 2: ESCROW ENGINE */}
-            <Link 
-              href="/mesh/escrow" 
+            <Link
+              href="/mesh/escrow"
               className="group p-5 bg-neutral-900/70 hover:bg-neutral-900 border border-neutral-800 hover:border-indigo-500/50 rounded-2xl transition-all duration-200 space-y-3 relative overflow-hidden"
             >
               <div className="flex justify-between items-start">
@@ -158,14 +175,16 @@ export default function MeshHubPage() {
                   </span>
                 </div>
                 <p className="text-xs text-neutral-400 mt-1 leading-relaxed">
-                  Decentralized escrow vault for service providers featuring 48-hour timelock auto-release and biometric Passkey authorizations.
+                  Decentralized escrow vault for service providers featuring
+                  48-hour timelock auto-release and biometric Passkey
+                  authorizations.
                 </p>
               </div>
             </Link>
 
             {/* SECTOR 3: DePIN NODE OPERATOR */}
-            <Link 
-              href="/mesh/node" 
+            <Link
+              href="/mesh/node"
               className="group p-5 bg-neutral-900/70 hover:bg-neutral-900 border border-neutral-800 hover:border-emerald-500/50 rounded-2xl transition-all duration-200 space-y-3 relative overflow-hidden"
             >
               <div className="flex justify-between items-start">
@@ -186,14 +205,15 @@ export default function MeshHubPage() {
                   </span>
                 </div>
                 <p className="text-xs text-neutral-400 mt-1 leading-relaxed">
-                  Host off-chain ZK relayers, state channels, and A2U payment recovery workers to earn $mBZR service yields.
+                  Host off-chain ZK relayers, state channels, and A2U payment
+                  recovery workers to earn $mBZR service yields.
                 </p>
               </div>
             </Link>
 
             {/* SECTOR 4: S23 TEST HARNESS */}
-            <Link 
-              href="/mesh/harness" 
+            <Link
+              href="/mesh/harness"
               className="group p-5 bg-neutral-900/70 hover:bg-neutral-900 border border-neutral-800 hover:border-amber-500/50 rounded-2xl transition-all duration-200 space-y-3 relative overflow-hidden"
             >
               <div className="flex justify-between items-start">
@@ -214,17 +234,16 @@ export default function MeshHubPage() {
                   </span>
                 </div>
                 <p className="text-xs text-neutral-400 mt-1 leading-relaxed">
-                  Simulate Pi SDK v2.0 auth, Samsung Knox WebAuthn enclave enrollment, and mock error injection inside the mobile viewport.
+                  Simulate Pi SDK v2.0 auth, Samsung Knox WebAuthn enclave
+                  enrollment, and mock error injection inside the mobile
+                  viewport.
                 </p>
               </div>
             </Link>
-
           </div>
         </div>
 
-        {/* ========================================================================= */}
-        {/* SYSTEM OPERATIONS BANNER                                                 */}
-        {/* ========================================================================= */}
+        {/* SYSTEM OPERATIONS BANNER */}
         <div className="bg-neutral-900/40 border border-green-900/40 p-4 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div className="flex items-center space-x-3">
             <div className="p-2 bg-green-950/80 border border-green-800 rounded-lg text-green-400 shrink-0">
@@ -235,7 +254,8 @@ export default function MeshHubPage() {
                 MESH-SCAN Payout Uplink
               </div>
               <div className="text-xs text-neutral-400">
-                Monitor real-time Stellar L1 blockchain settlements & A2U payment recovery logs.
+                Monitor real-time Stellar L1 blockchain settlements & A2U payment
+                recovery logs.
               </div>
             </div>
           </div>
@@ -248,18 +268,17 @@ export default function MeshHubPage() {
           </Link>
         </div>
 
-        {/* ========================================================================= */}
-        {/* PROTOCOL FOOTER INFORMATION                                               */}
-        {/* ========================================================================= */}
+        {/* PROTOCOL FOOTER INFORMATION */}
         <div className="text-center pt-4 border-t border-neutral-900 space-y-1">
           <p className="text-[11px] font-mono text-neutral-500">
-            Project Bazaar • Built for Real Pioneers inside the Pi Network Ecosystem
+            Project Bazaar • Built for Real Pioneers inside the Pi Network
+            Ecosystem
           </p>
           <p className="text-[10px] font-mono text-neutral-600">
-            Copyright (c) 2026 Bazaar Republic / PinoyQ8 - Founder & Co-Pioneer • Licensed under PiOS
+            Copyright (c) 2026 Bazaar Republic / PinoyQ8 - Founder & Co-Pioneer
+            • Licensed under PiOS
           </p>
         </div>
-
       </div>
     </div>
   );

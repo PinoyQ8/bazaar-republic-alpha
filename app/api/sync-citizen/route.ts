@@ -1,47 +1,64 @@
-import { NextResponse } from 'next/server';
-import { db } from '@vercel/postgres';
+import { NextRequest, NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
 
-export async function POST(request: Request) {
-  const client = await db.connect();
+export const dynamic = 'force-dynamic';
 
+export async function POST(request: NextRequest) {
   try {
-    const { citizen_uid } = await request.json();
+    const body = await request.json().catch(() => null);
+    const citizenUid =
+      typeof body?.citizen_uid === 'string' ? body.citizen_uid.trim() : '';
 
-    // 🛡️ 1. FETCH CITIZEN STATE
-    const citizenData = await client.sql`
-      SELECT id, vault_status, uptime_shield FROM citizens 
-      WHERE citizen_uid = ${citizen_uid}
-    `;
-
-    if (citizenData.rowCount === 0) {
-      return NextResponse.json({ message: "NEW_CITIZEN" }, { status: 200 });
+    if (!citizenUid) {
+      return NextResponse.json(
+        { status: 'ERROR', message: 'MISSING_CITIZEN_UID' },
+        { status: 400 }
+      );
     }
 
-    const citizen = citizenData.rows[0];
+    const db = prisma as any;
+    const node = await db.pioneerNode?.findUnique({
+      where: { uid: citizenUid },
+    });
 
-    // 🛡️ 2. FETCH AUDIT HISTORY (The Matrix Feed)
-    const logsData = await client.sql`
-      SELECT event_type, event_status, created_at 
-      FROM audit_logs 
-      WHERE citizen_id = ${citizen.id} 
-      ORDER BY created_at DESC LIMIT 5
-    `;
+    if (!node) {
+      return NextResponse.json(
+        { status: 'NEW_CITIZEN', message: 'NEW_CITIZEN' },
+        { status: 200 }
+      );
+    }
 
-    // 🛡️ 3. UPDATE LAST SYNC (Heartbeat)
-    await client.sql`
-      UPDATE citizens SET last_sync = CURRENT_TIMESTAMP WHERE id = ${citizen.id}
-    `;
+    const logs =
+      (await db.auditLog
+        ?.findMany({
+          where: { nodeId: node.id ?? citizenUid },
+          orderBy: { timestamp: 'desc' },
+          take: 5,
+        })
+        .catch(() => [])) ?? [];
 
-    return NextResponse.json({
-      status: "SUCCESS",
-      vault_status: citizen.vault_status,
-      uptime_shield: citizen.uptime_shield,
-      logs: logsData.rows
-    }, { status: 200 });
+    await db.pioneerNode?.update({
+      where: { uid: citizenUid },
+      data: {
+        lastHeartbeat: new Date(),
+        lastActivityTimestamp: new Date(),
+      },
+    });
 
+    return NextResponse.json(
+      {
+        status: 'SUCCESS',
+        vault_status: node.isFrozen ? 'Locked' : node.status || 'ACTIVE',
+        uptime_shield: node.uptimeShield ?? 100.0,
+        logs,
+      },
+      { status: 200 }
+    );
   } catch (error) {
-    return NextResponse.json({ message: "SYNC_FAILED" }, { status: 500 });
-  } finally {
-    client.release();
+    console.error('[CITIZEN_SYNC_ERROR]:', error);
+    return NextResponse.json(
+      { status: 'ERROR', message: 'SYNC_FAILED' },
+      { status: 500 }
+    );
   }
 }

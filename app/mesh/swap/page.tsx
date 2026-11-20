@@ -2,19 +2,19 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
-import { 
-  Repeat, 
-  ArrowDown, 
-  Settings, 
-  Coins, 
-  RefreshCw, 
-  Lock, 
-  ShieldCheck, 
+import {
+  Repeat,
+  ArrowDown,
+  Settings,
+  Coins,
+  RefreshCw,
+  Lock,
+  ShieldCheck,
   ArrowLeft,
   CheckCircle2,
   PieChart,
   Sparkles,
-  Globe
+  Globe,
 } from 'lucide-react';
 
 export default function MeshSwapPage() {
@@ -27,24 +27,25 @@ export default function MeshSwapPage() {
   const mbzrSymbol = isTestnet ? 'TEST_mBZR' : 'mBZR';
 
   // Pool Reserves: Anchored to 1 PI = 1,000 mBZR Peg Baseline (x * y = k)
-  const [piReserve, setPiReserve] = useState<number>(100000); // 100k PI
-  const [mbzrReserve, setMbzrReserve] = useState<number>(100000000); // 100M mBZR
+  const [piReserve, setPiReserve] = useState<number>(100000);
+  const [mbzrReserve, setMbzrReserve] = useState<number>(100000000);
 
   // Swap State
   const [payAmount, setPayAmount] = useState<string>('10');
   const [swapDirection, setSwapDirection] = useState<'PI_TO_MBZR' | 'MBZR_TO_PI'>('PI_TO_MBZR');
-  const [slippage, setSlippage] = useState<number>(0.5); // 0.5%
+  const [slippage, setSlippage] = useState<number>(0.5);
   const [showSettings, setShowSettings] = useState<boolean>(false);
-  
-  // Execution State
+
+  // Execution & Feedback State
   const [isSwapping, setIsSwapping] = useState<boolean>(false);
   const [txSuccess, setTxSuccess] = useState<boolean>(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [lastTxHash, setLastTxHash] = useState<string>('');
 
   // User Balances
   const [userBalances, setUserBalances] = useState({
-    pi: 142.50,
-    mbzr: 25000.00
+    pi: 142.5,
+    mbzr: 25000.0,
   });
 
   // Dynamic Font Sizer to prevent mobile UI overlaps
@@ -56,78 +57,110 @@ export default function MeshSwapPage() {
   };
 
   // Calculate AMM Output using x * y = k (0.3% Fee)
-  const calculateOutput = (inputVal: number, inputReserve: number, outputReserve: number) => {
-    if (!inputVal || inputVal <= 0) return 0;
-    const inputWithFee = inputVal * 0.997; // Deducts 0.3% protocol fee
+  const calculateOutput = (
+    inputVal: number,
+    inputReserve: number,
+    outputReserve: number
+  ) => {
+    if (!Number.isFinite(inputVal) || inputVal <= 0) return 0;
+    const inputWithFee = inputVal * 0.997;
     const numerator = inputWithFee * outputReserve;
     const denominator = inputReserve + inputWithFee;
-    return numerator / denominator;
+    return denominator > 0 ? numerator / denominator : 0;
   };
 
   const payNum = parseFloat(payAmount) || 0;
-  
-  const receiveAmount = swapDirection === 'PI_TO_MBZR'
-    ? calculateOutput(payNum, piReserve, mbzrReserve)
-    : calculateOutput(payNum, mbzrReserve, piReserve);
+  const activeBalance =
+    swapDirection === 'PI_TO_MBZR' ? userBalances.pi : userBalances.mbzr;
+  const exceedsBalance = payNum > activeBalance;
 
-  const formattedReceive = receiveAmount 
-    ? (receiveAmount > 100000 ? receiveAmount.toFixed(2) : receiveAmount.toFixed(4)) 
+  const receiveAmount =
+    swapDirection === 'PI_TO_MBZR'
+      ? calculateOutput(payNum, piReserve, mbzrReserve)
+      : calculateOutput(payNum, mbzrReserve, piReserve);
+
+  const formattedReceive = receiveAmount
+    ? receiveAmount > 100000
+      ? receiveAmount.toFixed(2)
+      : receiveAmount.toFixed(4)
     : '0.00';
 
   // Fee Calculations (0.3% Fee Split -> 70% Node Yield / 30% Treasury POL)
   const totalFee = payNum * 0.003;
-  const nodeYieldShare = totalFee * 0.70;
-  const treasuryPolShare = totalFee * 0.30;
+  const nodeYieldShare = totalFee * 0.7;
+  const treasuryPolShare = totalFee * 0.3;
 
   // Calculate Spot Price & Price Impact
-  const spotPrice = swapDirection === 'PI_TO_MBZR'
-    ? mbzrReserve / piReserve
-    : piReserve / mbzrReserve;
+  const spotPrice =
+    swapDirection === 'PI_TO_MBZR'
+      ? mbzrReserve / piReserve
+      : piReserve / mbzrReserve;
 
   const executionPrice = payNum > 0 ? receiveAmount / payNum : spotPrice;
-  const priceImpact = payNum > 0 ? Math.max(0, ((spotPrice - executionPrice) / spotPrice) * 100) : 0;
+  const priceImpact =
+    payNum > 0 ? Math.max(0, ((spotPrice - executionPrice) / spotPrice) * 100) : 0;
   const minimumReceived = receiveAmount * (1 - slippage / 100);
 
   // Handle Token Direction Switch
   const handleSwitchDirection = () => {
-    setSwapDirection((prev) => (prev === 'PI_TO_MBZR' ? 'MBZR_TO_PI' : 'PI_TO_MBZR'));
+    setSwapDirection((prev) =>
+      prev === 'PI_TO_MBZR' ? 'MBZR_TO_PI' : 'PI_TO_MBZR'
+    );
     setPayAmount('10');
+    setErrorMsg(null);
   };
 
   // Simulate Passkey Handshake & AMM Swap Execution
   const handleExecuteSwap = async () => {
-    if (payNum <= 0) return;
+    if (isSwapping || payNum <= 0) return;
+
+    if (exceedsBalance) {
+      setErrorMsg(
+        `Insufficient ${swapDirection === 'PI_TO_MBZR' ? piSymbol : mbzrSymbol} balance.`
+      );
+      return;
+    }
 
     setIsSwapping(true);
     setTxSuccess(false);
+    setErrorMsg(null);
 
     try {
-      // 1. Simulate Passkey Hardware Signing Delay
       await new Promise((resolve) => setTimeout(resolve, 1800));
 
-      // 2. Update Pool Reserves & User Balances
       if (swapDirection === 'PI_TO_MBZR') {
+        if (receiveAmount <= 0 || receiveAmount >= mbzrReserve) {
+          throw new Error('Insufficient pool liquidity for swap size.');
+        }
         setPiReserve((prev) => prev + payNum);
         setMbzrReserve((prev) => prev - receiveAmount);
         setUserBalances((prev) => ({
-          pi: prev.pi - payNum,
-          mbzr: prev.mbzr + receiveAmount
+          pi: Math.max(0, prev.pi - payNum),
+          mbzr: prev.mbzr + receiveAmount,
         }));
       } else {
+        if (receiveAmount <= 0 || receiveAmount >= piReserve) {
+          throw new Error('Insufficient pool liquidity for swap size.');
+        }
         setMbzrReserve((prev) => prev + payNum);
         setPiReserve((prev) => prev - receiveAmount);
         setUserBalances((prev) => ({
-          mbzr: prev.mbzr - payNum,
-          pi: prev.pi + receiveAmount
+          mbzr: Math.max(0, prev.mbzr - payNum),
+          pi: prev.pi + receiveAmount,
         }));
       }
 
-      const mockHash = '0x' + Array.from({ length: 16 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
+      const mockHash =
+        '0x' +
+        Array.from({ length: 16 }, () =>
+          Math.floor(Math.random() * 16).toString(16)
+        ).join('');
       setLastTxHash(mockHash);
       setTxSuccess(true);
       setPayAmount('0');
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
+      setErrorMsg(err?.message || 'Swap execution failed.');
     } finally {
       setIsSwapping(false);
     }
@@ -136,11 +169,10 @@ export default function MeshSwapPage() {
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-100 p-3 sm:p-6 font-sans pb-28 overflow-x-hidden">
       <div className="max-w-md mx-auto space-y-4 w-full">
-        
         {/* TOP NAVIGATION / HEADER */}
         <div className="flex items-center justify-between pt-2">
-          <Link 
-            href="/mesh" 
+          <Link
+            href="/mesh"
             className="p-2 bg-neutral-900 border border-neutral-800 rounded-xl text-neutral-400 hover:text-white transition flex items-center gap-1.5 text-xs font-mono"
           >
             <ArrowLeft size={16} /> Hub
@@ -176,9 +208,10 @@ export default function MeshSwapPage() {
             <button
               type="button"
               onClick={() => setShowSettings(!showSettings)}
+              aria-label="Toggle Swap Settings"
               className={`p-2 rounded-xl border transition ${
-                showSettings 
-                  ? 'bg-cyan-950 border-cyan-700 text-cyan-400' 
+                showSettings
+                  ? 'bg-cyan-950 border-cyan-700 text-cyan-400'
                   : 'bg-neutral-900 border-neutral-800 text-neutral-400 hover:text-white'
               }`}
             >
@@ -191,10 +224,16 @@ export default function MeshSwapPage() {
         {showSettings && (
           <div className="bg-neutral-900/90 border border-neutral-800 p-3.5 rounded-2xl space-y-3 font-mono text-xs animate-in fade-in">
             <div className="flex justify-between items-center text-neutral-400">
-              <span className="flex items-center gap-1.5"><Globe size={14} className="text-cyan-400" /> Active Network</span>
-              <span className={`font-bold px-2 py-0.5 rounded text-[10px] ${
-                isTestnet ? 'bg-amber-950 text-amber-400 border border-amber-800' : 'bg-emerald-950 text-emerald-400 border border-emerald-800'
-              }`}>
+              <span className="flex items-center gap-1.5">
+                <Globe size={14} className="text-cyan-400" /> Active Network
+              </span>
+              <span
+                className={`font-bold px-2 py-0.5 rounded text-[10px] ${
+                  isTestnet
+                    ? 'bg-amber-950 text-amber-400 border border-amber-800'
+                    : 'bg-emerald-950 text-emerald-400 border border-emerald-800'
+                }`}
+              >
                 {network}
               </span>
             </div>
@@ -222,9 +261,20 @@ export default function MeshSwapPage() {
               <div className="relative">
                 <input
                   type="number"
+                  step="0.1"
+                  min="0.01"
+                  max="50"
+                  aria-label="Custom Slippage"
                   placeholder="Custom"
                   value={slippage}
-                  onChange={(e) => setSlippage(parseFloat(e.target.value) || 0.5)}
+                  onChange={(e) => {
+                    const parsed = parseFloat(e.target.value);
+                    setSlippage(
+                      Number.isFinite(parsed) && parsed > 0
+                        ? Math.min(50, parsed)
+                        : 0.5
+                    );
+                  }}
                   className="w-full h-full bg-neutral-950 border border-neutral-800 rounded-lg text-center px-1 text-cyan-300 focus:outline-none focus:border-cyan-600"
                 />
               </div>
@@ -234,14 +284,17 @@ export default function MeshSwapPage() {
 
         {/* SWAP CARD CONTAINER */}
         <div className="bg-neutral-900 border border-neutral-800 rounded-3xl p-4 shadow-2xl space-y-3 relative">
-          
           <div className="flex justify-between items-center px-1">
             <h1 className="text-base font-bold text-white flex items-center gap-2">
               <Repeat size={18} className="text-cyan-400" /> AMM Swap Engine
             </h1>
-            <span className={`text-[10px] font-mono border px-2 py-0.5 rounded font-bold flex items-center gap-1 ${
-              isTestnet ? 'bg-amber-950 text-amber-400 border-amber-800/80' : 'bg-emerald-950 text-emerald-400 border-emerald-800/80'
-            }`}>
+            <span
+              className={`text-[10px] font-mono border px-2 py-0.5 rounded font-bold flex items-center gap-1 ${
+                isTestnet
+                  ? 'bg-amber-950 text-amber-400 border-amber-800/80'
+                  : 'bg-emerald-950 text-emerald-400 border-emerald-800/80'
+              }`}
+            >
               <Sparkles size={10} /> 1 {piSymbol} = 1,000 {mbzrSymbol}
             </span>
           </div>
@@ -250,25 +303,39 @@ export default function MeshSwapPage() {
           <div className="bg-neutral-950 border border-neutral-800/80 p-3.5 rounded-2xl space-y-2">
             <div className="flex justify-between text-xs font-mono text-neutral-400">
               <span>You Pay</span>
-              <span>
-                Balance: {swapDirection === 'PI_TO_MBZR' ? userBalances.pi.toFixed(2) : userBalances.mbzr.toFixed(2)}
+              <span className={exceedsBalance ? 'text-rose-400 font-bold' : ''}>
+                Balance: {activeBalance.toFixed(2)}
               </span>
             </div>
             <div className="flex items-center justify-between gap-2">
               <div className="flex-1 min-w-0">
                 <input
                   type="number"
+                  min="0"
+                  step="any"
                   value={payAmount}
-                  onChange={(e) => setPayAmount(e.target.value)}
+                  onChange={(e) => {
+                    setPayAmount(e.target.value);
+                    setErrorMsg(null);
+                  }}
                   placeholder="0.0"
                   className={`w-full bg-transparent font-bold font-mono text-white focus:outline-none truncate ${getFontSizeClass(payAmount)}`}
                 />
               </div>
-              <button 
-                type="button" 
+              <button
+                type="button"
                 className="bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 px-3 py-1.5 rounded-xl font-mono text-xs font-bold text-white flex items-center gap-2 shrink-0"
               >
-                <Coins size={14} className={swapDirection === 'PI_TO_MBZR' ? (isTestnet ? 'text-amber-400' : 'text-emerald-400') : 'text-cyan-400'} />
+                <Coins
+                  size={14}
+                  className={
+                    swapDirection === 'PI_TO_MBZR'
+                      ? isTestnet
+                        ? 'text-amber-400'
+                        : 'text-emerald-400'
+                      : 'text-cyan-400'
+                  }
+                />
                 {swapDirection === 'PI_TO_MBZR' ? piSymbol : mbzrSymbol}
               </button>
             </div>
@@ -279,6 +346,7 @@ export default function MeshSwapPage() {
             <button
               type="button"
               onClick={handleSwitchDirection}
+              aria-label="Switch Swap Direction"
               className="p-2.5 bg-neutral-900 hover:bg-neutral-800 border border-neutral-700 hover:border-cyan-500 text-cyan-400 rounded-2xl shadow-xl transition-all active:scale-95"
             >
               <ArrowDown size={18} />
@@ -290,7 +358,10 @@ export default function MeshSwapPage() {
             <div className="flex justify-between text-xs font-mono text-neutral-400">
               <span>You Receive (Estimated)</span>
               <span>
-                Balance: {swapDirection === 'PI_TO_MBZR' ? userBalances.mbzr.toFixed(2) : userBalances.pi.toFixed(2)}
+                Balance:{' '}
+                {swapDirection === 'PI_TO_MBZR'
+                  ? userBalances.mbzr.toFixed(2)
+                  : userBalances.pi.toFixed(2)}
               </span>
             </div>
             <div className="flex items-center justify-between gap-2">
@@ -302,11 +373,20 @@ export default function MeshSwapPage() {
                   className={`w-full bg-transparent font-bold font-mono text-cyan-300 focus:outline-none truncate ${getFontSizeClass(formattedReceive)}`}
                 />
               </div>
-              <button 
-                type="button" 
+              <button
+                type="button"
                 className="bg-neutral-800 border border-neutral-700 px-3 py-1.5 rounded-xl font-mono text-xs font-bold text-white flex items-center gap-2 shrink-0"
               >
-                <Coins size={14} className={swapDirection === 'PI_TO_MBZR' ? 'text-cyan-400' : (isTestnet ? 'text-amber-400' : 'text-emerald-400')} />
+                <Coins
+                  size={14}
+                  className={
+                    swapDirection === 'PI_TO_MBZR'
+                      ? 'text-cyan-400'
+                      : isTestnet
+                        ? 'text-amber-400'
+                        : 'text-emerald-400'
+                  }
+                />
                 {swapDirection === 'PI_TO_MBZR' ? mbzrSymbol : piSymbol}
               </button>
             </div>
@@ -317,12 +397,20 @@ export default function MeshSwapPage() {
             <div className="flex justify-between">
               <span>Peg Exchange Rate</span>
               <span className="text-neutral-200">
-                1 {swapDirection === 'PI_TO_MBZR' ? piSymbol : mbzrSymbol} ≈ {spotPrice.toFixed(2)} {swapDirection === 'PI_TO_MBZR' ? mbzrSymbol : piSymbol}
+                1 {swapDirection === 'PI_TO_MBZR' ? piSymbol : mbzrSymbol} ≈{' '}
+                {spotPrice.toFixed(2)}{' '}
+                {swapDirection === 'PI_TO_MBZR' ? mbzrSymbol : piSymbol}
               </span>
             </div>
             <div className="flex justify-between">
               <span>Price Impact</span>
-              <span className={priceImpact > 2 ? 'text-rose-400 font-bold' : 'text-emerald-400'}>
+              <span
+                className={
+                  priceImpact > 2
+                    ? 'text-rose-400 font-bold'
+                    : 'text-emerald-400'
+                }
+              >
                 {priceImpact < 0.01 ? '<0.01%' : `${priceImpact.toFixed(2)}%`}
               </span>
             </div>
@@ -337,30 +425,47 @@ export default function MeshSwapPage() {
                 <span className="flex items-center gap-1">
                   <ShieldCheck size={12} /> Protocol Swap Fee (0.3%)
                 </span>
-                <span>{totalFee.toFixed(4)} {swapDirection === 'PI_TO_MBZR' ? piSymbol : mbzrSymbol}</span>
+                <span>
+                  {totalFee.toFixed(4)}{' '}
+                  {swapDirection === 'PI_TO_MBZR' ? piSymbol : mbzrSymbol}
+                </span>
               </div>
               <div className="flex justify-between text-[10px] text-neutral-500 pl-3">
-                <span className="flex items-center gap-1">├ 70% Node Yield Matrix</span>
-                <span className="text-emerald-400">+{nodeYieldShare.toFixed(4)}</span>
+                <span className="flex items-center gap-1">
+                  ├ 70% Node Yield Matrix
+                </span>
+                <span className="text-emerald-400">
+                  +{nodeYieldShare.toFixed(4)}
+                </span>
               </div>
               <div className="flex justify-between text-[10px] text-neutral-500 pl-3">
-                <span className="flex items-center gap-1">└ 30% Treasury POL Buffer</span>
-                <span className="text-indigo-400">+{treasuryPolShare.toFixed(4)}</span>
+                <span className="flex items-center gap-1">
+                  └ 30% Treasury POL Buffer
+                </span>
+                <span className="text-indigo-400">
+                  +{treasuryPolShare.toFixed(4)}
+                </span>
               </div>
             </div>
           </div>
+
+          {errorMsg && (
+            <div className="bg-rose-950/70 border border-rose-800 p-2.5 rounded-xl font-mono text-[11px] text-rose-300">
+              {errorMsg}
+            </div>
+          )}
 
           {/* SWAP ACTION BUTTON */}
           <button
             type="button"
             onClick={handleExecuteSwap}
-            disabled={isSwapping || payNum <= 0}
+            disabled={isSwapping || payNum <= 0 || exceedsBalance}
             className={`w-full py-3.5 px-4 rounded-xl font-bold text-xs uppercase tracking-wider transition-all shadow-lg flex items-center justify-center gap-2 ${
               isSwapping
                 ? 'bg-cyan-950 border border-cyan-800 text-cyan-400 cursor-wait'
-                : payNum <= 0
-                ? 'bg-neutral-800 text-neutral-500 cursor-not-allowed'
-                : 'bg-linear-to-r from-cyan-600 to-indigo-600 hover:from-cyan-500 hover:to-indigo-500 text-white shadow-cyan-950/50'
+                : payNum <= 0 || exceedsBalance
+                  ? 'bg-neutral-800 text-neutral-500 cursor-not-allowed'
+                  : 'bg-linear-to-r from-cyan-600 to-indigo-600 hover:from-cyan-500 hover:to-indigo-500 text-white shadow-cyan-950/50'
             }`}
           >
             {isSwapping ? (
@@ -368,6 +473,8 @@ export default function MeshSwapPage() {
                 <RefreshCw size={16} className="animate-spin text-cyan-400" />
                 Prompting Knox Biometrics...
               </>
+            ) : exceedsBalance ? (
+              <span>Insufficient Balance</span>
             ) : (
               <>
                 <Lock size={16} />
@@ -375,7 +482,6 @@ export default function MeshSwapPage() {
               </>
             )}
           </button>
-
         </div>
 
         {/* SUCCESS TRANSACTION BANNER */}
@@ -396,22 +502,37 @@ export default function MeshSwapPage() {
             <span className="font-bold text-neutral-300 flex items-center gap-1.5">
               <PieChart size={14} className="text-cyan-400" /> Anchored Liquidity Depth
             </span>
-            <span className={`text-[10px] font-bold ${isTestnet ? 'text-amber-400' : 'text-emerald-400'}`}>
+            <span
+              className={`text-[10px] font-bold ${
+                isTestnet ? 'text-amber-400' : 'text-emerald-400'
+              }`}
+            >
               1:1000 Peg ({network})
             </span>
           </div>
           <div className="grid grid-cols-2 gap-2 text-[11px]">
             <div>
-              <span className="text-neutral-500 block text-[9px]">{piSymbol} Reserve (L1 Vault)</span>
-              <span className={`font-bold ${isTestnet ? 'text-amber-400' : 'text-emerald-400'}`}>{piReserve.toLocaleString()} {piSymbol}</span>
+              <span className="text-neutral-500 block text-[9px]">
+                {piSymbol} Reserve (L1 Vault)
+              </span>
+              <span
+                className={`font-bold ${
+                  isTestnet ? 'text-amber-400' : 'text-emerald-400'
+                }`}
+              >
+                {piReserve.toLocaleString()} {piSymbol}
+              </span>
             </div>
             <div>
-              <span className="text-neutral-500 block text-[9px]">{mbzrSymbol} Reserve (L2 Supply)</span>
-              <span className="font-bold text-cyan-400">{mbzrReserve.toLocaleString()} {mbzrSymbol}</span>
+              <span className="text-neutral-500 block text-[9px]">
+                {mbzrSymbol} Reserve (L2 Supply)
+              </span>
+              <span className="font-bold text-cyan-400">
+                {mbzrReserve.toLocaleString()} {mbzrSymbol}
+              </span>
             </div>
           </div>
         </div>
-
       </div>
     </div>
   );
