@@ -22,13 +22,16 @@ export default function LivePiCheckout({
     if (typeof window === "undefined") return;
 
     const initSDK = () => {
-      const Pi = (window as any).Pi;
-      if (!Pi) return false;
-      try {
-        const isPiBrowser = /PiBrowser/i.test(navigator.userAgent);
-        Pi.init({ version: "2.0", sandbox: !isPiBrowser });
-      } catch {
-        // Ignore if already initialized on this window instance
+      const w = window as any;
+      if (!w.Pi) return false;
+      if (!w.__PI_INITIALIZED__) {
+        try {
+          const isPiBrowser = /PiBrowser/i.test(navigator.userAgent);
+          w.Pi.init({ version: "2.0", sandbox: !isPiBrowser });
+          w.__PI_INITIALIZED__ = true;
+        } catch {
+          w.__PI_INITIALIZED__ = true;
+        }
       }
       return true;
     };
@@ -51,12 +54,22 @@ export default function LivePiCheckout({
       return;
     }
 
-    const Pi = (window as any).Pi;
+    const w = window as any;
+    const Pi = w.Pi;
+
+    if (!w.__PI_INITIALIZED__) {
+      try {
+        const isPiBrowser = /PiBrowser/i.test(navigator.userAgent);
+        Pi.init({ version: "2.0", sandbox: !isPiBrowser });
+        w.__PI_INITIALIZED__ = true;
+      } catch {
+        w.__PI_INITIALIZED__ = true;
+      }
+    }
 
     try {
       setStatus("AUTHENTICATING");
 
-      // Required callback: clears any stranded payment before starting a new one
       const onIncompletePaymentFound = async (payment: any) => {
         const paymentId = payment?.identifier;
         const txid = payment?.transaction?.txid;
@@ -78,7 +91,20 @@ export default function LivePiCheckout({
         }
       };
 
-      await Pi.authenticate(["username", "payments"], onIncompletePaymentFound);
+      await Promise.race([
+        Pi.authenticate(["payments", "username"], onIncompletePaymentFound),
+        new Promise((_, reject) =>
+          setTimeout(
+            () =>
+              reject(
+                new Error(
+                  "Pi SDK auth timed out (8s). Ensure this URL is saved in develop.pinet.com and reload Pi Browser."
+                )
+              ),
+            8000
+          )
+        ),
+      ]);
 
       setStatus("CREATING_PAYMENT");
 

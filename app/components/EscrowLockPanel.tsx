@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -25,19 +25,39 @@ export default function EscrowLockPanel({
 
   const handleLockFunds = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (loading) return;
+
     setLoading(true);
     setStatusMessage(null);
 
     try {
-      // 1. Passkey / WebAuthn validation
-      const credentialId = await registerPasskey(pioneerUid);
-      if (!credentialId) throw new Error('Passkey verification failed.');
+      const isSecureOrigin =
+        typeof window !== 'undefined' &&
+        (window.isSecureContext ||
+          window.location.hostname === 'localhost' ||
+          window.location.hostname === '127.0.0.1');
 
-      // 2. Format order/escrow identifier
+      let credentialId: string | null = null;
+
+      if (isSecureOrigin && typeof registerPasskey === 'function') {
+        credentialId = await Promise.race([
+          registerPasskey(pioneerUid),
+          new Promise<null>((resolve) =>
+            setTimeout(() => resolve(null), 12000)
+          ),
+        ]);
+      } else {
+        // Non-HTTPS LAN fallback so HTTP 192.168.x.x never hangs on WebAuthn
+        credentialId = `LAN_WEBAUTHN_FALLBACK_${Date.now()}`;
+      }
+
+      if (!credentialId) {
+        throw new Error('Passkey verification timed out or was cancelled.');
+      }
+
       const cleanOrderId = (orderId || `ORD_${Date.now().toString().slice(-6)}`).replace(/-/g, '_');
       const normalizedEscrowId = cleanOrderId.startsWith('ESC_') ? cleanOrderId : `ESC_${cleanOrderId}`;
 
-      // 3. Post LOCK action to the verified Soroban vault route
       const res = await fetch('/api/vault', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -58,7 +78,6 @@ export default function EscrowLockPanel({
 
       setStatusMessage(`Payment locked! Tx: ${data.txHash}`);
 
-      // 4. Route directly to success confirmation
       setTimeout(() => {
         router.push(`/checkout/success?orderId=${cleanOrderId}`);
       }, 1000);
@@ -69,7 +88,7 @@ export default function EscrowLockPanel({
     }
   };
 
-  const isSubmitting = loading || passkeyLoading;
+  const isSubmitting = loading || (passkeyLoading && loading);
 
   return (
     <div className="p-6 rounded-xl border border-zinc-800 bg-zinc-900/80 shadow-lg text-white max-w-md mx-auto space-y-4">

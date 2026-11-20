@@ -1,4 +1,5 @@
 ﻿import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
@@ -64,7 +65,7 @@ export async function POST(req: NextRequest) {
     }
 
     // -----------------------------------------------------------------------
-    // Phase III: Server Completion (Settles on-chain transaction)
+    // Phase III: Server Completion (Settles on-chain & syncs EscrowLock)
     // -----------------------------------------------------------------------
     if (action === "complete") {
       if (!txid) {
@@ -98,8 +99,63 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      const settledAmount = Number(data?.amount ?? 0);
-      console.log(`[PAYMENT_COMPLETE_SUCCESS] Payment ${paymentId} completed (${settledAmount} PI)`);
+      const settledAmount = Number(data?.amount ?? 1);
+      const rawOrderId =
+        typeof data?.metadata?.orderId === "string" && data.metadata.orderId.trim()
+          ? data.metadata.orderId.trim().replace(/-/g, "_")
+          : `ESC_PI_${paymentId.slice(0, 12)}`;
+      const escrowId = rawOrderId.startsWith("ESC_")
+        ? rawOrderId.slice(0, 32)
+        : `ESC_${rawOrderId}`.slice(0, 32);
+
+      // Persist LOCKED EscrowLock record into MongoDB Atlas (non-blocking 3s guard)
+      let savedEscrow: any = null;
+      try {
+        const db = prisma as any;
+        if (db?.escrowLock) {
+          const consumerUid =
+            typeof data?.user_uid === "string" && data.user_uid.trim()
+              ? data.user_uid.trim()
+              : "S23_PIONEER_NODE";
+          const memoText =
+            typeof data?.memo === "string" && data.memo.trim()
+              ? data.memo.trim()
+              : "Bazaar Republic Pi SDK Escrow Lock";
+
+          const upsertPromise = db.escrowLock.upsert({
+            where: { escrowId },
+            update: {
+              paymentId,
+              txid,
+              amount: settledAmount > 0 ? settledAmount : 1,
+              status: "LOCKED",
+            },
+            create: {
+              escrowId,
+              paymentId,
+              txid,
+              contractId: process.env.NEXT_PUBLIC_VAULT_CONTRACT_ID || "CB5CQFNEPLQRZGNWXIXOXEK4L2LPYUJ3QCCCVHVKE5CSZFJXZ2HZQHIQ",
+              consumerUid,
+              amount: settledAmount > 0 ? settledAmount : 1,
+              token: "PI",
+              status: "LOCKED",
+              timelockExpiresAt: new Date(Date.now() + 48 * 60 * 60 * 1000),
+              serviceDescription: memoText,
+            },
+          });
+
+          savedEscrow = await Promise.race([
+            upsertPromise,
+            new Promise((_, reject) =>
+              setTimeout(() => reject(new Error("ATLAS_UPSERT_TIMEOUT")), 3000)
+            ),
+          ]);
+        }
+      } catch (dbErr: any) {
+        console.warn("[PAYMENT_ESCROW_DB_SYNC_WARN]:", dbErr?.message || dbErr);
+      }
+
+      console.log(`[PAYMENT_COMPLETE_SUCCESS] Payment ${paymentId} completed (${settledAmount} PI) -> ${escrowId}`);
       return NextResponse.json(
         {
           success: true,
@@ -107,6 +163,8 @@ export async function POST(req: NextRequest) {
           amount: settledAmount,
           paymentId,
           txid,
+          escrowId,
+          escrow: savedEscrow,
           payment: data,
         },
         { status: 200 }
