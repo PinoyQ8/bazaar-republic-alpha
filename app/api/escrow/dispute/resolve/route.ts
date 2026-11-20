@@ -1,4 +1,4 @@
-﻿import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { Keypair } from "@stellar/stellar-sdk";
 import { prisma } from "@/lib/prisma";
 
@@ -45,6 +45,52 @@ function resolveRuling(
   return votesForMerchant > votesForConsumer ? "FAVOR_MERCHANT" : "FAVOR_CONSUMER";
 }
 
+async function findDisputeDoc(db: any, targetKey: string, isHexBson: boolean) {
+  const filter = isHexBson
+    ? {
+        $or: [
+          { _id: { $oid: targetKey } },
+          { _id: targetKey },
+          { escrowLockId: { $oid: targetKey } },
+          { escrowLockId: targetKey },
+          { escrowId: targetKey },
+        ],
+      }
+    : { escrowId: targetKey };
+
+  for (const col of ["dispute_records", "DisputeRecord"]) {
+    const res: any = await db
+      .$runCommandRaw({ find: col, filter, limit: 1 })
+      .catch(() => null);
+    const doc = res?.cursor?.firstBatch?.[0];
+    if (doc) return { col, doc };
+  }
+  return null;
+}
+
+async function findEscrowDoc(db: any, keys: string[]) {
+  const cleanKeys = keys.map((k) => unwrapId(k)).filter(Boolean);
+  if (cleanKeys.length === 0) return null;
+
+  const orClauses: any[] = [];
+  for (const k of cleanKeys) {
+    orClauses.push({ escrowId: k });
+    if (/^[0-9a-fA-F]{24}$/.test(k)) {
+      orClauses.push({ _id: { $oid: k } });
+      orClauses.push({ _id: k });
+    }
+  }
+
+  for (const col of ["EscrowLock", "escrowvaults"]) {
+    const res: any = await db
+      .$runCommandRaw({ find: col, filter: { $or: orClauses }, limit: 1 })
+      .catch(() => null);
+    const doc = res?.cursor?.firstBatch?.[0];
+    if (doc) return { col, doc };
+  }
+  return null;
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
@@ -61,62 +107,32 @@ export async function POST(req: NextRequest) {
     const db = prisma as any;
     const isHexBson = /^[0-9a-fA-F]{24}$/.test(targetKey);
 
-    // 1. BSON-safe raw lookup in DisputeRecord
-    const disputeFilter = isHexBson
-      ? {
-          $or: [
-            { _id: { $oid: targetKey } },
-            { escrowLockId: { $oid: targetKey } },
-            { escrowLockId: targetKey },
-            { escrowId: targetKey },
-          ],
-        }
-      : { escrowId: targetKey };
+    const foundDispute = await findDisputeDoc(db, targetKey, isHexBson);
+    const rawDispute = foundDispute?.doc || null;
 
-    const rawDispRes: any = await db
-      .$runCommandRaw({ find: "DisputeRecord", filter: disputeFilter, limit: 1 })
-      .catch(() => null);
-    let rawDispute: any = rawDispRes?.cursor?.firstBatch?.[0] || null;
+    const lookupKeys = [
+      rawDispute?.escrowId,
+      rawDispute?.escrowLockId,
+      escrowId,
+      targetKey,
+    ].filter(Boolean);
 
-    // 2. BSON-safe raw lookup in EscrowLock
-    const lockFilter = rawDispute?.escrowId
-      ? { escrowId: rawDispute.escrowId }
-      : isHexBson
-      ? { $or: [{ _id: { $oid: targetKey } }, { escrowId: targetKey }] }
-      : { escrowId: targetKey };
+    const foundEscrow = await findEscrowDoc(db, lookupKeys);
+    const rawEscrow = foundEscrow?.doc || null;
 
-    const rawLockRes: any = await db
-      .$runCommandRaw({ find: "EscrowLock", filter: lockFilter, limit: 1 })
-      .catch(() => null);
-    const rawLock: any = rawLockRes?.cursor?.firstBatch?.[0] || null;
-
-    // Secondary DisputeRecord check using resolved EscrowLock._id / escrowId
-    if (!rawDispute && rawLock) {
-      const lockOid = unwrapId(rawLock._id);
-      const secondaryDispRes: any = await db
-        .$runCommandRaw({
-          find: "DisputeRecord",
-          filter: {
-            $or: [
-              { escrowId: rawLock.escrowId },
-              ...(lockOid ? [{ escrowLockId: { $oid: lockOid } }, { escrowLockId: lockOid }] : []),
-            ],
-          },
-          limit: 1,
-        })
-        .catch(() => null);
-      rawDispute = secondaryDispRes?.cursor?.firstBatch?.[0] || null;
-    }
-
-    if (!rawDispute && !rawLock) {
+    if (!rawDispute && !rawEscrow) {
       return NextResponse.json(
         { success: false, error: `Dispute or escrow record for '${targetKey}' not found.` },
         { status: 404 }
       );
     }
 
-    const resolvedEscrowId = String(rawLock?.escrowId || rawDispute?.escrowId || targetKey);
-    const rawLockOid = unwrapId(rawLock?._id);
+    const disputeObjectId = unwrapId(rawDispute?._id) || `synthetic_disp_${Date.now()}`;
+    const escrowObjectId = unwrapId(rawEscrow?._id) || unwrapId(rawDispute?.escrowLockId) || "";
+    const resolvedEscrowId = String(
+      rawEscrow?.escrowId || rawDispute?.escrowId || escrowId || targetKey
+    );
+
     const votesForConsumer = Number(rawDispute?.votesForConsumer ?? 3);
     const votesForMerchant = Number(rawDispute?.votesForMerchant ?? 1);
     const finalRuling = resolveRuling(ruling, votesForConsumer, votesForMerchant);
@@ -136,41 +152,21 @@ export async function POST(req: NextRequest) {
     const finalEscrowStatus = isFavorConsumer ? "REFUNDED" : "RELEASED";
     const finalDisputeStatus = isFavorConsumer ? "RESOLVED_CONSUMER" : "RESOLVED_MERCHANT";
 
-    const principalEscrowPi = Number(rawLock?.amount ?? 10);
-    const principalMbzr = Number((principalEscrowPi * PI_TO_MBZR).toFixed(4));
-    const totalLoserBondMbzr = Number(
-      rawDispute?.bondAmount ?? Math.max(1000, principalEscrowPi * 100)
-    );
+    const principalEscrowPi = Number(rawEscrow?.amount ?? 50);
+    const principalMbzr = principalEscrowPi * PI_TO_MBZR;
+    const totalLoserBondMbzr = Number(rawDispute?.bondAmount ?? 5000);
     const winnerCompensationMbzr = Number((totalLoserBondMbzr * 0.75).toFixed(4));
     const elderPoolTotalMbzr = Number((totalLoserBondMbzr * 0.25).toFixed(4));
     const participatingMajorityElders = Math.max(1, quorumCount);
     const rewardPerElderMbzr = Number((elderPoolTotalMbzr / participatingMajorityElders).toFixed(4));
 
-    const consumerUid = String(
-      rawLock?.consumerUid || rawDispute?.initiatorUid || "usr_pioneer_consumer_01"
-    );
-
-    // Resolve ServiceProvider ObjectId -> providerUid if applicable
-    let providerUid = unwrapId(rawLock?.providerId) || "usr_provider_01";
-    if (/^[0-9a-fA-F]{24}$/.test(providerUid)) {
-      const provRes: any = await db
-        .$runCommandRaw({
-          find: "ServiceProvider",
-          filter: { _id: { $oid: providerUid } },
-          limit: 1,
-        })
-        .catch(() => null);
-      const provDoc = provRes?.cursor?.firstBatch?.[0];
-      if (provDoc?.providerUid) {
-        providerUid = String(provDoc.providerUid);
-      }
-    }
-
+    const consumerUid =
+      rawEscrow?.consumerUid || rawDispute?.initiatorUid || "usr_pioneer_consumer_01";
+    const providerUid = unwrapId(rawEscrow?.providerId) || "usr_provider_01";
     const winnerUid = isFavorConsumer ? consumerUid : providerUid;
 
-    // 3. Optional on-chain Soroban settlement when vault service & signer are available
     let txHash = `0x_vrf_schelling_${Date.now().toString(16)}`;
-    let settlementMode: "ON_CHAIN_VERIFIED" | "LEDGER_ONLY" = "LEDGER_ONLY";
+    let chainSettlement: "ON_CHAIN_VERIFIED" | "LEDGER_ONLY" = "LEDGER_ONLY";
 
     try {
       const activeSecret =
@@ -184,20 +180,19 @@ export async function POST(req: NextRequest) {
       if (vaultService && typeof vaultService.resolveDispute === "function" && activeSecret) {
         const signer = Keypair.fromSecret(String(activeSecret).trim());
         const resolvedAdmin = adminAddress || signer.publicKey();
-        const resolvedPayoutTo =
-          payoutToAddress ||
-          (isFavorConsumer ? rawLock?.consumerAddress : rawLock?.providerAddress) ||
-          signer.publicKey();
+        const resolvedPayoutTo = payoutToAddress || signer.publicKey();
 
         const chainRes = await vaultService.resolveDispute(
-          resolvedEscrowId,
-          resolvedAdmin,
-          resolvedPayoutTo,
+          {
+            escrowId: resolvedEscrowId,
+            adminAddress: resolvedAdmin,
+            payoutToAddress: resolvedPayoutTo,
+          },
           signer
         );
         if (chainRes?.txHash || chainRes?.hash) {
           txHash = chainRes.txHash || chainRes.hash;
-          settlementMode = "ON_CHAIN_VERIFIED";
+          chainSettlement = "ON_CHAIN_VERIFIED";
         }
       }
     } catch (chainErr: any) {
@@ -205,101 +200,25 @@ export async function POST(req: NextRequest) {
     }
 
     const nowIso = new Date().toISOString();
-    const selectedElders: string[] = Array.isArray(rawDispute?.selectedElders)
-      ? rawDispute.selectedElders
-      : DEFAULT_ELDERS;
 
-    // 4. BSON-safe atomic upsert on DisputeRecord (stores true BSON $date)
-    await db
-      .$runCommandRaw({
-        update: "DisputeRecord",
-        updates: [
-          {
-            q: { escrowId: resolvedEscrowId },
-            u: {
-              $set: {
-                escrowId: resolvedEscrowId,
-                ...(rawLockOid ? { escrowLockId: { $oid: rawLockOid } } : {}),
-                initiatorUid: consumerUid,
-                bondAmount: totalLoserBondMbzr,
-                selectedElders,
-                votesForConsumer,
-                votesForMerchant,
-                status: finalDisputeStatus,
-                reason:
-                  rawDispute?.reason || `Adjudicated by 5-Elder VRF Panel: ${finalRuling}`,
-                updatedAt: { $date: nowIso },
-              },
-              $setOnInsert: {
-                createdAt: { $date: nowIso },
-              },
-            },
-            upsert: true,
-          },
-        ],
-      })
-      .catch((e: any) => console.warn("[DISPUTE_RAW_UPSERT_WARN]:", e?.message || e));
+    // Update dispute status across whichever dispute collection(s) hold it
+    for (const col of ["dispute_records", "DisputeRecord"]) {
+      const filter = /^[0-9a-fA-F]{24}$/.test(disputeObjectId)
+        ? { $or: [{ _id: { $oid: disputeObjectId } }, { escrowId: resolvedEscrowId }] }
+        : { escrowId: resolvedEscrowId };
 
-    const savedDispRes: any = await db
-      .$runCommandRaw({
-        find: "DisputeRecord",
-        filter: { escrowId: resolvedEscrowId },
-        limit: 1,
-      })
-      .catch(() => null);
-    const savedDispute = savedDispRes?.cursor?.firstBatch?.[0];
-    const persistedDisputeId = unwrapId(savedDispute?._id) || unwrapId(rawDispute?._id) || targetKey;
-
-    // 5. BSON-safe update on EscrowLock
-    await db
-      .$runCommandRaw({
-        update: "EscrowLock",
-        updates: [
-          {
-            q: rawLockOid ? { _id: { $oid: rawLockOid } } : { escrowId: resolvedEscrowId },
-            u: {
-              $set: {
-                status: finalEscrowStatus,
-                updatedAt: { $date: nowIso },
-              },
-            },
-            multi: !rawLockOid,
-          },
-        ],
-      })
-      .catch((e: any) => console.warn("[ESCROW_RAW_UPDATE_WARN]:", e?.message || e));
-
-    // 6. Credit 75% bond reward (+ refunded principal in mBZR if consumer wins) & 25% Elder split
-    const totalWinnerCreditMbzr = isFavorConsumer
-      ? Number((principalMbzr + winnerCompensationMbzr).toFixed(4))
-      : winnerCompensationMbzr;
-
-    await db
-      .$runCommandRaw({
-        update: "PioneerNode",
-        updates: [
-          {
-            q: { uid: winnerUid },
-            u: {
-              $inc: { mbzrBalance: totalWinnerCreditMbzr },
-              $set: { updatedAt: { $date: nowIso } },
-            },
-          },
-        ],
-      })
-      .catch(() => null);
-
-    const majorityElders = selectedElders.slice(0, participatingMajorityElders);
-    if (majorityElders.length > 0) {
       await db
         .$runCommandRaw({
-          update: "PioneerNode",
+          update: col,
           updates: [
             {
-              q: { uid: { $in: majorityElders } },
+              q: filter,
               u: {
-                $inc: { mbzrBalance: rewardPerElderMbzr },
-                $set: { updatedAt: { $date: nowIso } },
+                $set: {
+                  status: finalDisputeStatus,
+                  reason: `Adjudicated by 5-Elder VRF Panel: ${finalRuling}`,
+                  updatedAt: { $date: nowIso },
+                },
               },
               multi: true,
             },
@@ -308,13 +227,74 @@ export async function POST(req: NextRequest) {
         .catch(() => null);
     }
 
+    // Update escrow lock status
+    if (foundEscrow?.col) {
+      const lockFilter = /^[0-9a-fA-F]{24}$/.test(escrowObjectId)
+        ? { $or: [{ _id: { $oid: escrowObjectId } }, { escrowId: resolvedEscrowId }] }
+        : { escrowId: resolvedEscrowId };
+
+      await db
+        .$runCommandRaw({
+          update: foundEscrow.col,
+          updates: [
+            {
+              q: lockFilter,
+              u: {
+                $set: {
+                  status: finalEscrowStatus,
+                  updatedAt: { $date: nowIso },
+                },
+              },
+              multi: true,
+            },
+          ],
+        })
+        .catch(() => null);
+    }
+
+    // Credit 75% bond reward to winner and 25% pool equally across majority Elders
+    const selectedElders: string[] = Array.isArray(rawDispute?.selectedElders)
+      ? rawDispute.selectedElders
+      : DEFAULT_ELDERS;
+    const majorityElders = selectedElders.slice(0, participatingMajorityElders);
+
+    for (const col of ["PioneerNode", "pioneernodes"]) {
+      await db
+        .$runCommandRaw({
+          update: col,
+          updates: [
+            {
+              q: { uid: winnerUid },
+              u: { $inc: { mbzrBalance: winnerCompensationMbzr } },
+              multi: true,
+            },
+          ],
+        })
+        .catch(() => null);
+
+      for (const elderUid of majorityElders) {
+        await db
+          .$runCommandRaw({
+            update: col,
+            updates: [
+              {
+                q: { uid: elderUid },
+                u: { $inc: { mbzrBalance: rewardPerElderMbzr } },
+                multi: true,
+              },
+            ],
+          })
+          .catch(() => null);
+      }
+    }
+
     return NextResponse.json(
       {
         success: true,
         txHash,
-        settlementMode,
+        settlementMode: chainSettlement,
         escrowId: resolvedEscrowId,
-        disputeId: persistedDisputeId,
+        disputeId: disputeObjectId,
         ruling: finalRuling,
         winningOutcome: finalDisputeStatus,
         escrowStatus: finalEscrowStatus,
@@ -324,7 +304,7 @@ export async function POST(req: NextRequest) {
           principalMbzr,
           totalLoserBondMbzr,
           winnerCompensationMbzr,
-          totalWinnerCreditMbzr,
+          totalWinnerCreditMbzr: principalMbzr + winnerCompensationMbzr,
           elderPoolTotalMbzr,
           participatingMajorityElders,
           rewardPerElderMbzr,
