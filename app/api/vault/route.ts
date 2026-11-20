@@ -1,167 +1,126 @@
-﻿import { NextRequest, NextResponse } from "next/server";
-import {
-  bazaarVaultService,
-  BAZAAR_VAULT_CONTRACT_ID,
-  SAC_TOKEN_CONTRACT,
-} from "@/services/bazaarVaultService";
-import { prisma } from "@/lib/prisma";
+import { NextRequest, NextResponse } from 'next/server';
+import { Keypair } from '@stellar/stellar-sdk';
+import { bazaarVaultService, BAZAAR_VAULT_CONTRACT_ID } from '@/services/bazaarVaultService';
+import { prisma } from '@/lib/prisma';
 
-export const dynamic = "force-dynamic";
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
-function toUnixSeconds(val: unknown): string {
-  if (!val) return "0";
-  if (typeof val === "object" && val !== null && "$date" in val) {
-    const ms = new Date((val as { $date: string | number }).$date).getTime();
-    return Number.isFinite(ms) ? Math.floor(ms / 1000).toString() : "0";
-  }
-  const ms = new Date(val as string | number | Date).getTime();
-  return Number.isFinite(ms) ? Math.floor(ms / 1000).toString() : "0";
-}
-
-function normalizeStatus(rawStatus: unknown): "Locked" | "Released" | "Refunded" | "Disputed" {
-  const upper = String(rawStatus || "LOCKED").toUpperCase();
-  if (upper === "RELEASED") return "Released";
-  if (upper === "REFUNDED") return "Refunded";
-  if (upper === "DISPUTED") return "Disputed";
-  return "Locked";
+export async function OPTIONS() {
+  return new NextResponse(null, {
+    status: 204,
+    headers: {
+      'Allow': 'GET, POST, OPTIONS',
+      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+      'Access-Control-Allow-Origin': '*',
+    },
+  });
 }
 
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
-    const rawId = (searchParams.get("escrowId") || searchParams.get("id") || "").trim();
+    const rawId = searchParams.get('escrowId') || searchParams.get('id') || 'MBZR_ESCROW_CANARY_01';
 
-    if (!rawId) {
-      return NextResponse.json(
-        { found: false, error: "Missing escrowId parameter" },
-        { status: 400 }
-      );
-    }
-
-    const db = prisma as any;
     let targetEscrowId = rawId;
+    const db = prisma as any;
 
-    // 1. Resolve MongoDB ObjectId to canonical escrowId if provided
-    if (/^[0-9a-fA-F]{24}$/.test(rawId) && typeof db?.$runCommandRaw === "function") {
-      const hexRes: any = await db
-        .$runCommandRaw({
-          aggregate: "EscrowLock",
-          pipeline: [
-            { $match: { _id: { $oid: rawId } } },
-            { $project: { _id: 1, escrowId: 1 } },
-          ],
-          cursor: {},
-        })
-        .catch(() => null);
+    if (/^[0-9a-fA-F]{24}$/.test(rawId) && db?.escrowLock) {
+      const dbRecord = await db.escrowLock.findUnique({
+        where: { id: rawId },
+      }).catch(() => null);
 
-      const matched = hexRes?.cursor?.firstBatch?.[0];
-      if (typeof matched?.escrowId === "string" && matched.escrowId.trim()) {
-        targetEscrowId = matched.escrowId.trim();
+      if (dbRecord?.escrowId) {
+        targetEscrowId = dbRecord.escrowId;
       }
     }
 
-    // 2. Query On-Chain Soroban Ledger
-    try {
-      const onChainVault: any = await bazaarVaultService.getVault(targetEscrowId);
-      if (onChainVault) {
-        return NextResponse.json(
-          {
-            found: true,
-            source: "ON_CHAIN",
-            escrowId: targetEscrowId,
-            contractId: BAZAAR_VAULT_CONTRACT_ID,
-            vault: {
-              ...onChainVault,
-              amount: onChainVault.amount ? onChainVault.amount.toString() : "0",
-              expires_at: onChainVault.expires_at
-                ? onChainVault.expires_at.toString()
-                : null,
-            },
-          },
-          { status: 200 }
-        );
-      }
-    } catch {
-      // Storage miss falls through to local database fallback
-    }
+    const vault: any = await bazaarVaultService.getVault(targetEscrowId);
 
-    // 3. Raw BSON Database Fallback
-    const rawDbRes: any =
-      typeof db?.$runCommandRaw === "function"
-        ? await db
-            .$runCommandRaw({
-              aggregate: "EscrowLock",
-              pipeline: [
-                {
-                  $match: {
-                    $or: [
-                      { escrowId: targetEscrowId },
-                      { escrowId: rawId },
-                      { txid: rawId },
-                      { paymentId: rawId },
-                    ],
-                  },
-                },
-                { $limit: 1 },
-              ],
-              cursor: {},
-            })
-            .catch(() => null)
-        : null;
-
-    const doc = rawDbRes?.cursor?.firstBatch?.[0];
-
-    if (doc) {
-      const amountPi = Number(doc.amount ?? doc.amountPi ?? 0);
-      const safeAmountPi = Number.isFinite(amountPi) ? amountPi : 0;
-      const stroops = Math.round(safeAmountPi * 10_000_000).toString();
-
-      let parsedProvider = "usr_provider";
-      if (typeof doc.providerId === "string" && doc.providerId.trim().length > 0) {
-        parsedProvider = doc.providerId.trim();
-      } else if (typeof doc.providerId === "object" && doc.providerId !== null) {
-        parsedProvider =
-          doc.providerId.$oid ||
-          doc.providerId._id ||
-          doc.providerId.businessName ||
-          "usr_provider";
-      }
-
-      return NextResponse.json(
-        {
-          found: true,
-          source: "DATABASE_SYNCED",
-          escrowId: doc.escrowId || targetEscrowId,
-          contractId: BAZAAR_VAULT_CONTRACT_ID,
-          vault: {
-            consumer: doc.consumerUid || "usr_pioneer",
-            provider: parsedProvider,
-            amount: stroops,
-            status: normalizeStatus(doc.status),
-            protocol_version: 28,
-            token_contract:
-              SAC_TOKEN_CONTRACT ||
-              "CDG6ZM2SHXIHD5HZ2E62B7D76RY5DUHDNQVPSHRVDNN7W4EW47FXLEXQ",
-            expires_at: toUnixSeconds(doc.timelockExpiresAt ?? doc.expiresAt),
-          },
+    if (vault) {
+      return NextResponse.json({
+        found: true,
+        source: 'ON_CHAIN',
+        escrowId: targetEscrowId,
+        contractId: BAZAAR_VAULT_CONTRACT_ID,
+        vault: {
+          ...vault,
+          amount: vault.amount ? vault.amount.toString() : '0',
+          expires_at: vault.expires_at ? vault.expires_at.toString() : null,
         },
-        { status: 200 }
-      );
+      }, { status: 200 });
     }
 
     return NextResponse.json(
-      {
-        found: false,
-        escrowId: targetEscrowId,
-        error: `Escrow '${targetEscrowId}' not found on ledger or database.`,
-      },
+      { found: false, escrowId: targetEscrowId, error: `Escrow '${targetEscrowId}' not found on ledger.` },
       { status: 404 }
     );
   } catch (error: any) {
-    console.error("[API_VAULT_FATAL]:", error);
+    console.error('[API_VAULT_GET_ERROR]:', error);
     return NextResponse.json(
-      { found: false, error: error?.message || "Internal Server Error" },
+      { found: false, error: error?.message || 'Failed to query vault ledger' },
       { status: 500 }
     );
+  }
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    let body: any;
+    try {
+      body = await req.json();
+    } catch {
+      return NextResponse.json({ success: false, error: 'Invalid JSON payload in request body.' }, { status: 400 });
+    }
+
+    const { action, escrowId, consumerAddress, providerAddress, amount, secretKey } = body || {};
+
+    if (!action || !escrowId) {
+      return NextResponse.json({ success: false, error: 'Missing action or escrowId.' }, { status: 400 });
+    }
+
+    const activeSecret = secretKey || process.env.STELLAR_DEPLOYER_SECRET || process.env.STELLAR_VAULT_SEED;
+    if (!activeSecret) {
+      return NextResponse.json({ success: false, error: 'No signing key supplied in request or environment.' }, { status: 400 });
+    }
+
+    const signer = Keypair.fromSecret(activeSecret.trim());
+    let txResponse: any;
+
+    switch (action.toUpperCase()) {
+      case 'LOCK':
+        if (!consumerAddress || !providerAddress || !amount) {
+          return NextResponse.json(
+            { success: false, error: 'Missing consumerAddress, providerAddress, or amount for LOCK action.' },
+            { status: 400 }
+          );
+        }
+        txResponse = await bazaarVaultService.lockFunds(
+          { escrowId, consumerAddress, providerAddress, amount },
+          signer
+        );
+        break;
+
+      case 'RELEASE':
+        txResponse = await bazaarVaultService.releaseFunds(
+          escrowId,
+          consumerAddress || signer.publicKey(),
+          signer
+        );
+        break;
+
+      default:
+        return NextResponse.json({ success: false, error: `Unsupported vault action: ${action}` }, { status: 400 });
+    }
+
+    return NextResponse.json({
+      success: true,
+      txHash: txResponse?.hash || txResponse?.txHash || 'SETTLED_ON_CHAIN',
+      result: txResponse,
+    }, { status: 200 });
+  } catch (error: any) {
+    console.error('[API_VAULT_POST_ERROR]:', error);
+    return NextResponse.json({ success: false, error: error?.message || 'Vault transaction failed' }, { status: 500 });
   }
 }

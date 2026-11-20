@@ -31,21 +31,28 @@ export default function EscrowLockPanel({
     setStatusMessage(null);
 
     try {
-      const isSecureOrigin =
+      const isEmbeddedIframe =
+        typeof window !== 'undefined' && window.self !== window.top;
+
+      const isTopLevelSecureOrigin =
         typeof window !== 'undefined' &&
+        !isEmbeddedIframe &&
         (window.isSecureContext ||
           window.location.hostname === 'localhost' ||
           window.location.hostname === '127.0.0.1');
 
       let credentialId: string | null = null;
 
-      if (isSecureOrigin && typeof registerPasskey === 'function') {
+      if (isTopLevelSecureOrigin && typeof registerPasskey === 'function') {
         credentialId = await Promise.race([
           registerPasskey(pioneerUid),
           new Promise<null>((resolve) =>
             setTimeout(() => resolve(null), 12000)
           ),
         ]);
+      } else if (isEmbeddedIframe) {
+        // Pi Sandbox iframe blocks cross-origin WebAuthn Permissions Policy on Android WebView
+        credentialId = `SANDBOX_IFRAME_KNOX_${Date.now()}`;
       } else {
         // Non-HTTPS LAN fallback so HTTP 192.168.x.x never hangs on WebAuthn
         credentialId = `LAN_WEBAUTHN_FALLBACK_${Date.now()}`;
