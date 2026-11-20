@@ -6,7 +6,6 @@ export function MeshInitializer() {
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    // 1. Intercept and suppress Pi SDK postMessage noise on local origins
     const suppressCrossOriginWarning = (event: ErrorEvent) => {
       if (
         event.message &&
@@ -20,19 +19,19 @@ export function MeshInitializer() {
     };
     window.addEventListener("error", suppressCrossOriginWarning, true);
 
-    // 2. Safely initialize Pi SDK with dynamic sandbox flag
+    const w = window as any;
     const isPiBrowser = /PiBrowser/i.test(navigator.userAgent);
-    const Pi = (window as any).Pi;
 
-    if (Pi && typeof Pi.init === "function") {
+    if (w.Pi && typeof w.Pi.init === "function" && !w.__PI_INITIALIZED__) {
       try {
-        // Must be false inside Pi Browser to hook SDKMessaging natively
-        Pi.init({
+        w.Pi.init({
           version: "2.0",
           sandbox: !isPiBrowser,
         });
+        w.__PI_INITIALIZED__ = true;
         console.log(`[MESH-INITIALIZER] Pi SDK initialized (isPiBrowser: ${isPiBrowser})`);
       } catch (err) {
+        w.__PI_INITIALIZED__ = true;
         console.warn("[MESH-INITIALIZER] Pi.init caught:", err);
       }
     }
