@@ -17,6 +17,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
+  viewportFit: 'cover',
   themeColor: '#020617', // slate-950
 };
 
@@ -38,7 +39,7 @@ export default function RootLayout({
           <ClientHydrationGuard>
             <div className="w-full max-w-[384px] min-h-dvh flex flex-col relative border-x border-slate-900 shadow-2xl bg-slate-950">
               <TestnetNoticeBanner />
-              <main className="flex-1 px-3 pt-3 pb-24 transition-all duration-200">
+              <main className="flex-1 px-3 pt-3 pb-32 transition-all duration-200">
                 {children}
               </main>
               <MeshMobileNav />
