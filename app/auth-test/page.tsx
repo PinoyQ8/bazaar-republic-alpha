@@ -3,55 +3,37 @@
 import { useState } from "react";
 import Script from "next/script";
 
-// TypeScript global declaration for Pi SDK
-declare global {
-  interface Window {
-    Pi: {
-      init: (config: { version: string; sandbox?: boolean }) => void;
-      authenticate: (
-        scopes: string[],
-        onIncompletePaymentFound: (payment: any) => void
-      ) => Promise<{
-        accessToken: string;
-        user: {
-          uid: string;
-          username: string;
-        };
-      }>;
-    };
-  }
-}
-
 export default function AuthTestPage() {
   const [uid, setUid] = useState<string | null>(null);
   const [username, setUsername] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [sdkReady, setSdkReady] = useState(false);
 
+  const onIncompletePaymentFound = (payment: any) => {
+    console.warn("Incomplete payment found during login:", payment);
+  };
+
   const onLogin = async () => {
     try {
-      if (!window.Pi) {
+      const pi = typeof window !== "undefined" ? (window as any).Pi : null;
+      if (!pi) {
         alert("Pi SDK is not loaded yet. Open inside Pi Browser.");
         return;
       }
 
-      // Initialize SDK (set sandbox: false when inside real Pi Browser)
-      window.Pi.init({ version: "2.0", sandbox: false });
+      const isSandbox = process.env.NEXT_PUBLIC_PI_SANDBOX === "true";
+      await pi.init({ version: "2.0", sandbox: isSandbox });
 
       const scopes = ["payments", "username", "wallet_address"];
-      const auth = await window.Pi.authenticate(scopes, onIncompletePaymentFound);
+      const auth = await pi.authenticate(scopes, onIncompletePaymentFound);
 
-      setUid(auth.user.uid);
-      setUsername(auth.user.username);
-      console.log("Authenticated UID:", auth.user.uid);
+      setUid(auth?.user?.uid ?? null);
+      setUsername(auth?.user?.username ?? null);
+      console.log("Authenticated UID:", auth?.user?.uid);
     } catch (error: any) {
       console.error("Authentication failed:", error);
       alert(`Auth failed: ${error?.message || "Check console"}`);
     }
-  };
-
-  const onIncompletePaymentFound = (payment: any) => {
-    console.log("Incomplete payment found during login:", payment);
   };
 
   const handleCopy = async () => {
@@ -61,7 +43,6 @@ export default function AuthTestPage() {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      // Fallback for older webviews
       const textArea = document.createElement("textarea");
       textArea.value = uid;
       document.body.appendChild(textArea);

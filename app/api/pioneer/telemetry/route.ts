@@ -1,23 +1,24 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 
-// 🛡️ THE MESH OVERRIDE: Legacy NoSQL imports completely purged.
-// ❌ PURGED: import { connectToDatabase } from '@/lib/db';
-// ❌ PURGED: import TelemetryRecord from '@/models/TelemetryRecord'; // (or similar legacy models)
+export const dynamic = 'force-dynamic';
 
-export async function POST(req: Request) {
-    console.log("🚀 [MESH-SYNC] Legacy Pioneer-Telemetry route offline for Drizzle migration.");
+export async function POST(req: NextRequest) {
+  try {
+    await req.json().catch(() => null);
 
-    try {
-        // 🛡️ THE MESH OVERRIDE: Legacy NoSQL logic neutralized.
-        // All Mongoose DB mutation commands have been disconnected.
-
-        return NextResponse.json({ 
-            status: "MIGRATING", 
-            message: "Pioneer-telemetry engine transitioning to Neon Postgres." 
-        }, { status: 200 });
-
-    } catch (error: any) {
-        console.error("❌ MESH CRITICAL ERROR:", error.message);
-        return NextResponse.json({ error: "Routing failed during migration." }, { status: 500 });
-    }
+    return NextResponse.json(
+      {
+        success: false,
+        status: 'MIGRATING',
+        message: 'Pioneer telemetry endpoint is currently undergoing storage alignment.',
+      },
+      { status: 503 }
+    );
+  } catch (error: any) {
+    console.error('[TELEMETRY_MIGRATION_ROUTE_ERROR]:', error?.message || error);
+    return NextResponse.json(
+      { success: false, error: 'Failed to handle telemetry request.' },
+      { status: 500 }
+    );
+  }
 }

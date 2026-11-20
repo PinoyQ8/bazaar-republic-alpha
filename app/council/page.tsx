@@ -44,20 +44,28 @@ export default function CouncilDashboard() {
   const [feed, setFeed] = useState<CouncilFeed | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [votingOn, setVotingOn] = useState<string | null>(null);
   const [elderUid, setElderUid] = useState("usr_pioneer_elder_alpha");
 
-  const fetchFeed = useCallback(async () => {
+  const fetchFeed = useCallback(async (isBackgroundRefresh = false) => {
     try {
-      setLoading(true);
+      if (!isBackgroundRefresh) {
+        setLoading(true);
+      }
       setError(null);
-      const res = await fetch("/api/council/decisions");
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-      if (data.success) {
+
+      const res = await fetch("/api/council/decisions", { cache: "no-store" });
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        throw new Error(data?.error || `HTTP ${res.status}`);
+      }
+
+      if (data?.success) {
         setFeed(data);
       } else {
-        setError(data.error || "Failed to load decisions");
+        setError(data?.error || "Failed to load decisions");
       }
     } catch (err: any) {
       console.error("[COUNCIL_FEED_ERR]:", err);
@@ -70,6 +78,9 @@ export default function CouncilDashboard() {
   async function castVote(escrowId: string, vote: "CONSUMER" | "MERCHANT") {
     try {
       setVotingOn(escrowId);
+      setError(null);
+      setNotice(null);
+
       const res = await fetch("/api/council/vote", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -80,21 +91,24 @@ export default function CouncilDashboard() {
           justification: `Voted ${vote} via Council S23 Grid`,
         }),
       });
-      const data = await res.json();
-      if (data.success) {
-        await fetchFeed();
+
+      const data = await res.json().catch(() => ({}));
+
+      if (res.ok && data?.success) {
+        setNotice(`Recorded ${vote} vote for ${escrowId}`);
+        await fetchFeed(true);
       } else {
-        alert(`Vote Rejected: ${data.error}`);
+        setError(`Vote Rejected: ${data?.error || `HTTP ${res.status}`}`);
       }
     } catch (err: any) {
-      alert(`Vote Failed: ${err.message}`);
+      setError(`Vote Failed: ${err?.message || "Network error"}`);
     } finally {
       setVotingOn(null);
     }
   }
 
   useEffect(() => {
-    fetchFeed();
+    fetchFeed(false);
   }, [fetchFeed]);
 
   const pending = feed?.pendingCouncilQuorum ?? [];
@@ -104,30 +118,35 @@ export default function CouncilDashboard() {
   return (
     <div className="w-full min-h-screen bg-slate-950 text-slate-100 p-3 pb-20 font-sans">
       <div className="w-full max-w-[384px] mx-auto space-y-4">
-        
         {/* Header */}
         <div className="border-b border-slate-800 pb-3 space-y-1">
           <div className="flex items-center justify-between">
             <h1 className="text-base font-bold tracking-tight text-white flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
               Council Governance Grid
             </h1>
             <button
-              onClick={() => fetchFeed()}
+              type="button"
+              onClick={() => fetchFeed(false)}
               disabled={loading}
-              className="px-2 py-1 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-[10px] rounded text-slate-300 active:scale-95 transition"
+              className="px-2 py-1 bg-slate-900 hover:bg-slate-800 disabled:opacity-50 border border-slate-700 text-[10px] rounded text-slate-300 active:scale-95 transition"
             >
               {loading ? "..." : "Refresh"}
             </button>
           </div>
-          <p className="text-[11px] text-slate-400">MESH Protocol Dual-Tier Dispute Arbiter</p>
+          <p className="text-[11px] text-slate-400">
+            MESH Protocol Dual-Tier Dispute Arbiter
+          </p>
         </div>
 
         {/* Elder UID Selector */}
         <div className="bg-slate-900/90 border border-slate-800 p-2.5 rounded text-xs space-y-1.5">
-          <label className="text-[10px] text-slate-400 uppercase tracking-wider block">Active Node / Elder UID</label>
+          <label className="text-[10px] text-slate-400 uppercase tracking-wider block">
+            Active Node / Elder UID
+          </label>
           <div className="flex gap-1.5">
             <button
+              type="button"
               onClick={() => setElderUid("usr_pioneer_elder_alpha")}
               className={`flex-1 py-1 text-[11px] font-mono rounded border transition ${
                 elderUid === "usr_pioneer_elder_alpha"
@@ -138,6 +157,7 @@ export default function CouncilDashboard() {
               Elder Alpha
             </button>
             <button
+              type="button"
               onClick={() => setElderUid("usr_pioneer_elder_beta")}
               className={`flex-1 py-1 text-[11px] font-mono rounded border transition ${
                 elderUid === "usr_pioneer_elder_beta"
@@ -150,7 +170,12 @@ export default function CouncilDashboard() {
           </div>
         </div>
 
-        {/* Error Banner */}
+        {/* Status & Error Banners */}
+        {notice && (
+          <div className="bg-emerald-950/70 border border-emerald-800 p-2 rounded text-[11px] text-emerald-300">
+            {notice}
+          </div>
+        )}
         {error && (
           <div className="bg-rose-950/80 border border-rose-800 p-2 rounded text-[11px] text-rose-300">
             {error}
@@ -161,91 +186,120 @@ export default function CouncilDashboard() {
         <div className="grid grid-cols-3 gap-2">
           <div className="bg-slate-900/80 border border-slate-800 p-2 rounded text-center">
             <div className="text-[9px] text-slate-400 uppercase">Tier 1 Auto</div>
-            <div className="text-base font-bold text-cyan-400 mt-0.5">{feed?.counts?.tier1Automated ?? 0}</div>
+            <div className="text-base font-bold text-cyan-400 mt-0.5">
+              {feed?.counts?.tier1Automated ?? 0}
+            </div>
           </div>
           <div className="bg-slate-900/80 border border-slate-800 p-2 rounded text-center">
             <div className="text-[9px] text-slate-400 uppercase">Pending (N=2)</div>
-            <div className="text-base font-bold text-amber-400 mt-0.5">{feed?.counts?.tier2PendingQuorum ?? 0}</div>
+            <div className="text-base font-bold text-amber-400 mt-0.5">
+              {feed?.counts?.tier2PendingQuorum ?? 0}
+            </div>
           </div>
           <div className="bg-slate-900/80 border border-slate-800 p-2 rounded text-center">
             <div className="text-[9px] text-slate-400 uppercase">Settled</div>
-            <div className="text-base font-bold text-emerald-400 mt-0.5">{feed?.counts?.tier2ResolvedQuorum ?? 0}</div>
+            <div className="text-base font-bold text-emerald-400 mt-0.5">
+              {feed?.counts?.tier2ResolvedQuorum ?? 0}
+            </div>
           </div>
         </div>
 
         {/* Section: Pending Quorum Queue */}
         <div className="bg-slate-900/60 border border-slate-800 rounded p-3 space-y-2.5">
           <div className="text-xs font-semibold text-amber-400 flex items-center justify-between">
-            <span>⚠️ TIER 2 ACTIVE QUORUM</span>
-            <span className="text-[10px] text-slate-400 font-normal">{pending.length} in queue</span>
+            <span>TIER 2 ACTIVE QUORUM</span>
+            <span className="text-[10px] text-slate-400 font-normal">
+              {pending.length} in queue
+            </span>
           </div>
 
           {loading && !feed ? (
-            <div className="text-[11px] text-slate-500 text-center py-4">Syncing ledger feed...</div>
+            <div className="text-[11px] text-slate-500 text-center py-4">
+              Syncing ledger feed...
+            </div>
           ) : pending.length === 0 ? (
             <div className="text-[11px] text-slate-500 text-center py-3 border border-dashed border-slate-800/80 rounded">
               Quorum queue clear. No pending votes.
             </div>
           ) : (
             <div className="space-y-2">
-              {pending.map((item) => (
-                <div key={item.id} className="bg-slate-950 border border-slate-800 p-2.5 rounded space-y-2">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <div className="font-mono text-[11px] font-bold text-cyan-300 truncate max-w-[200px]">
-                        {item.escrowId}
+              {pending.map((item) => {
+                const isSubmitting = votingOn === item.escrowId;
+                return (
+                  <div
+                    key={item.id}
+                    className="bg-slate-950 border border-slate-800 p-2.5 rounded space-y-2"
+                  >
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <div className="font-mono text-[11px] font-bold text-cyan-300 truncate max-w-50">
+                          {item.escrowId}
+                        </div>
+                        <div className="text-[10px] text-slate-400">
+                          {item.escrowLock?.amount ?? 0} {item.escrowLock?.token ?? "PI"}
+                        </div>
                       </div>
-                      <div className="text-[10px] text-slate-400">
-                        {item.escrowLock?.amount ?? 0} {item.escrowLock?.token ?? "PI"}
-                      </div>
+                      <span className="text-[9px] px-1.5 py-0.5 bg-amber-950 text-amber-300 border border-amber-800 rounded">
+                        {item.status}
+                      </span>
                     </div>
-                    <span className="text-[9px] px-1.5 py-0.5 bg-amber-950 text-amber-300 border border-amber-800 rounded">
-                      {item.status}
-                    </span>
-                  </div>
 
-                  <div className="text-[11px] text-slate-300 bg-slate-900/50 p-1.5 rounded">
-                    {item.reason}
-                  </div>
+                    <div className="text-[11px] text-slate-300 bg-slate-900/50 p-1.5 rounded">
+                      {item.reason}
+                    </div>
 
-                  <div className="text-[10px] text-slate-500 flex justify-between">
-                    <span>Votes: C:{item.votesForConsumer} / M:{item.votesForMerchant}</span>
-                    <span>{item.selectedElders?.length ?? 0}/2 Quorum</span>
-                  </div>
+                    <div className="text-[10px] text-slate-500 flex justify-between">
+                      <span>
+                        Votes: C:{item.votesForConsumer} / M:{item.votesForMerchant}
+                      </span>
+                      <span>{item.selectedElders?.length ?? 0}/2 Quorum</span>
+                    </div>
 
-                  <div className="grid grid-cols-2 gap-1.5 pt-1">
-                    <button
-                      disabled={votingOn === item.escrowId}
-                      onClick={() => castVote(item.escrowId, "CONSUMER")}
-                      className="py-1.5 bg-rose-950 hover:bg-rose-900 border border-rose-700 text-rose-200 text-[10px] font-semibold rounded active:scale-95 transition"
-                    >
-                      Vote Refund
-                    </button>
-                    <button
-                      disabled={votingOn === item.escrowId}
-                      onClick={() => castVote(item.escrowId, "MERCHANT")}
-                      className="py-1.5 bg-emerald-950 hover:bg-emerald-900 border border-emerald-700 text-emerald-200 text-[10px] font-semibold rounded active:scale-95 transition"
-                    >
-                      Vote Release
-                    </button>
+                    <div className="grid grid-cols-2 gap-1.5 pt-1">
+                      <button
+                        type="button"
+                        disabled={isSubmitting}
+                        onClick={() => castVote(item.escrowId, "CONSUMER")}
+                        className="py-1.5 bg-rose-950 hover:bg-rose-900 disabled:opacity-50 disabled:cursor-not-allowed border border-rose-700 text-rose-200 text-[10px] font-semibold rounded active:scale-95 transition"
+                      >
+                        {isSubmitting ? "Voting..." : "Vote Refund"}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={isSubmitting}
+                        onClick={() => castVote(item.escrowId, "MERCHANT")}
+                        className="py-1.5 bg-emerald-950 hover:bg-emerald-900 disabled:opacity-50 disabled:cursor-not-allowed border border-emerald-700 text-emerald-200 text-[10px] font-semibold rounded active:scale-95 transition"
+                      >
+                        {isSubmitting ? "Voting..." : "Vote Release"}
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
 
         {/* Section: Settled Ledger */}
         <div className="bg-slate-900/60 border border-slate-800 rounded p-3 space-y-2">
-          <div className="text-xs font-semibold text-emerald-400">⚖️ SETTLED DISPUTES</div>
+          <div className="text-xs font-semibold text-emerald-400">
+            SETTLED DISPUTES
+          </div>
           {quorumResolved.length === 0 && autoResolved.length === 0 ? (
-            <div className="text-[11px] text-slate-500 text-center py-2">No settled records.</div>
+            <div className="text-[11px] text-slate-500 text-center py-2">
+              No settled records.
+            </div>
           ) : (
             <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
               {quorumResolved.map((item) => (
-                <div key={item.id} className="bg-slate-950/80 border border-slate-800/80 p-2 rounded text-[11px] space-y-0.5">
+                <div
+                  key={item.id}
+                  className="bg-slate-950/80 border border-slate-800/80 p-2 rounded text-[11px] space-y-0.5"
+                >
                   <div className="flex justify-between font-mono text-[10px]">
-                    <span className="text-cyan-300 truncate max-w-[180px]">{item.escrowId}</span>
+                    <span className="text-cyan-300 truncate max-w-45">
+                      {item.escrowId}
+                    </span>
                     <span className="text-emerald-400">{item.status}</span>
                   </div>
                   <div className="text-[10px] text-slate-500 truncate font-mono">
@@ -254,9 +308,14 @@ export default function CouncilDashboard() {
                 </div>
               ))}
               {autoResolved.map((item) => (
-                <div key={item.id} className="bg-slate-950/80 border border-slate-800/80 p-2 rounded text-[11px] space-y-0.5">
+                <div
+                  key={item.id}
+                  className="bg-slate-950/80 border border-slate-800/80 p-2 rounded text-[11px] space-y-0.5"
+                >
                   <div className="flex justify-between font-mono text-[10px]">
-                    <span className="text-cyan-300 truncate max-w-[180px]">{item.escrowId}</span>
+                    <span className="text-cyan-300 truncate max-w-45">
+                      {item.escrowId}
+                    </span>
                     <span className="text-cyan-400">TIER_1_AUTO</span>
                   </div>
                   <div className="text-[10px] text-slate-500 truncate font-mono">
@@ -267,7 +326,6 @@ export default function CouncilDashboard() {
             </div>
           )}
         </div>
-
       </div>
     </div>
   );

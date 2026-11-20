@@ -6,7 +6,7 @@ export default function MeshLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="w-full min-h-screen bg-neutral-950 text-neutral-100 font-sans">
+    <div className="w-full min-h-full bg-neutral-950 text-neutral-100 font-sans">
       {children}
     </div>
   );

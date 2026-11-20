@@ -5,32 +5,38 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import VaultDashboard from "@/components/VaultDashboard";
 
+const FALLBACK_NODE_ADDRESS =
+  "GDNL2PDN23QNUNWDTPVVYDHSGQTPPALHUIW7GOEGQNSSR4QVW2FDB2RZ";
+
 export default function BazaarEscrowNode() {
   const [consumerAddress, setConsumerAddress] = useState<string | null>(null);
   const [isConnecting, setIsConnecting] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
-  // 🛡️ Auto-detect existing Pioneer session in browser storage
+  // Auto-detect existing Pioneer session in browser storage
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      const stored =
-        localStorage.getItem("mesh_pioneer_uid") ||
-        localStorage.getItem("pi_uid") ||
-        localStorage.getItem("pi_auth_user");
+    if (typeof window === "undefined") return;
 
-      if (stored) {
-        try {
-          const parsed = JSON.parse(stored);
-          setConsumerAddress(parsed.uid || parsed.walletAddress || stored);
-        } catch {
-          setConsumerAddress(stored);
-        }
+    const stored =
+      localStorage.getItem("mesh_pioneer_uid") ||
+      localStorage.getItem("pi_uid") ||
+      localStorage.getItem("pi_auth_user");
+
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored);
+        const resolved = parsed?.uid || parsed?.walletAddress || stored;
+        setConsumerAddress(typeof resolved === "string" ? resolved : stored);
+      } catch {
+        setConsumerAddress(stored);
       }
     }
   }, []);
 
-  // 🛡️ Sovereign Connection: Authenticate Pioneer Node
+  // Authenticate or initialize Pioneer Node identity
   const handleConnect = async () => {
+    if (isConnecting) return;
+
     try {
       setIsConnecting(true);
       setError(null);
@@ -43,8 +49,7 @@ export default function BazaarEscrowNode() {
       }
 
       if (!activeAddress) {
-        // Fallback to active Protocol 28 anchored node identity
-        activeAddress = "GDNL2PDN23QNUNWDTPVVYDHSGQTPPALHUIW7GOEGQNSSR4QVW2FDB2RZ";
+        activeAddress = FALLBACK_NODE_ADDRESS;
         if (typeof window !== "undefined") {
           localStorage.setItem("mesh_pioneer_uid", activeAddress);
         }
@@ -62,6 +67,8 @@ export default function BazaarEscrowNode() {
   const handleDisconnect = () => {
     if (typeof window !== "undefined") {
       localStorage.removeItem("mesh_pioneer_uid");
+      localStorage.removeItem("pi_uid");
+      localStorage.removeItem("pi_auth_user");
     }
     setConsumerAddress(null);
     setError(null);
@@ -81,10 +88,12 @@ export default function BazaarEscrowNode() {
       {!consumerAddress ? (
         <div className="w-full max-w-md p-6 border border-gray-800 rounded-lg text-center bg-gray-900 space-y-4">
           <p className="text-gray-400 text-sm">
-            Initialize the Sovereign MESH Bridge to interact with the Protocol 28 Vault.
+            Initialize the Sovereign MESH Bridge to interact with the Protocol 28
+            Vault.
           </p>
 
           <button
+            type="button"
             onClick={handleConnect}
             disabled={isConnecting}
             className={`w-full font-bold py-3 px-4 rounded transition-colors ${
@@ -93,7 +102,9 @@ export default function BazaarEscrowNode() {
                 : "bg-emerald-600 hover:bg-emerald-500 text-black shadow-lg"
             }`}
           >
-            {isConnecting ? "Synchronizing Pioneer Node..." : "Initialize Pi Node"}
+            {isConnecting
+              ? "Synchronizing Pioneer Node..."
+              : "Initialize Pi Node"}
           </button>
 
           <div className="pt-3 border-t border-gray-800 text-xs font-mono text-gray-400 flex justify-between items-center">
@@ -102,19 +113,23 @@ export default function BazaarEscrowNode() {
               href="/mesh/harness"
               className="text-emerald-400 hover:underline hover:text-emerald-300"
             >
-              Samsung Knox Harness &rarr;
+              Samsung Knox Harness →
             </Link>
           </div>
 
-          {error && <p className="text-red-500 mt-2 text-sm font-mono">⚠️ {error}</p>}
+          {error && (
+            <p className="text-red-500 mt-2 text-sm font-mono">{error}</p>
+          )}
         </div>
       ) : (
         <div className="w-full max-w-2xl space-y-4">
           <div className="p-3 border border-emerald-800 bg-emerald-950/20 rounded flex items-center justify-between">
             <p className="text-emerald-500 font-mono text-sm">
-              Shield Active: {consumerAddress.slice(0, 6)}...{consumerAddress.slice(-4)}
+              Shield Active: {consumerAddress.slice(0, 6)}...
+              {consumerAddress.slice(-4)}
             </p>
             <button
+              type="button"
               onClick={handleDisconnect}
               className="text-xs font-mono text-gray-400 hover:text-red-400 transition-colors"
             >

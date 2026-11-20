@@ -2,15 +2,15 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import { 
-  ShieldCheck, 
-  Lock, 
-  ArrowLeft, 
-  RefreshCw, 
-  Scale, 
-  Plus, 
+import {
+  ShieldCheck,
+  Lock,
+  ArrowLeft,
+  RefreshCw,
+  Scale,
+  Plus,
   Award,
-  AlertCircle
+  AlertCircle,
 } from 'lucide-react';
 import ElderDisputeModal from '@/components/ElderDisputeModal';
 import PioneerAuthGate from '@/app/components/PioneerAuthGate';
@@ -26,7 +26,7 @@ export interface EscrowVaultItem {
   amount: number;
   amountPi?: number;
   token: 'PI';
-  status: 'LOCKED' | 'PENDING_RELEASE' | 'RELEASED' | 'DISPUTED';
+  status: 'LOCKED' | 'PENDING_RELEASE' | 'RELEASED' | 'DISPUTED' | 'REFUNDED';
   timelockRemainingSeconds?: number;
   serviceDescription: string;
   createdAt: string;
@@ -38,10 +38,11 @@ export interface EscrowVaultItem {
 export default function MeshEscrowPage() {
   const { pioneer } = useAuth();
   const [activeTab, setActiveTab] = useState<'vaults' | 'create'>('vaults');
-  
+
   // Modal & Selection State
   const [isDisputeModalOpen, setIsDisputeModalOpen] = useState<boolean>(false);
-  const [selectedDisputeVault, setSelectedDisputeVault] = useState<EscrowVaultItem | null>(null);
+  const [selectedDisputeVault, setSelectedDisputeVault] =
+    useState<EscrowVaultItem | null>(null);
 
   // Live Ledger State
   const [vaults, setVaults] = useState<EscrowVaultItem[]>([]);
@@ -61,10 +62,10 @@ export default function MeshEscrowPage() {
     setLoading(true);
     setFetchError(null);
     try {
-      const res = await fetch('/api/escrow/list');
+      const res = await fetch('/api/escrow/list', { cache: 'no-store' });
       if (!res.ok) throw new Error('Failed to synchronize escrow ledger.');
       const data = await res.json();
-      
+
       if (data.escrows && Array.isArray(data.escrows) && data.escrows.length > 0) {
         setVaults(data.escrows);
       } else {
@@ -73,18 +74,18 @@ export default function MeshEscrowPage() {
             id: 'MBZR_ESCROW_CANARY_01',
             escrowId: 'MBZR_ESCROW_CANARY_01',
             provider: 'GAU5Y5UWUQ5ETIEI5HWVJR7VDMXUETTSKQ4UKOIIGIW6GVIMCR354UJ3',
-            consumer: pioneer?.uid || 'usr_pioneer_1001',
+            consumer: pioneer?.uid || 'pioneer_session',
             amount: 50.0,
             token: 'PI',
             status: 'LOCKED',
             timelockRemainingSeconds: 172800,
             serviceDescription: 'E-Network DePIN Node Provisioning',
             createdAt: new Date().toISOString(),
-          }
+          },
         ]);
       }
     } catch (err: any) {
-      setFetchError(err.message || 'Ledger synchronization failure.');
+      setFetchError(err?.message || 'Ledger synchronization failure.');
     } finally {
       setLoading(false);
     }
@@ -97,8 +98,9 @@ export default function MeshEscrowPage() {
   // 2. Submit Live Lock to Soroban / Prisma Pipeline
   const handleCreateVault = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!providerAddress || !amount || parseFloat(amount) <= 0) {
-      setFormError('Please provide a valid provider handle/address and Pi amount.');
+    const numericAmount = parseFloat(amount);
+    if (!providerAddress.trim() || !Number.isFinite(numericAmount) || numericAmount <= 0) {
+      setFormError('Please provide a valid provider handle/address and PI amount.');
       return;
     }
 
@@ -110,9 +112,9 @@ export default function MeshEscrowPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          consumerUid: pioneer?.uid || 'usr_pioneer_1001',
+          consumerUid: pioneer?.uid || 'pioneer_session',
           providerAddress: providerAddress.trim(),
-          piAmount: parseFloat(amount),
+          piAmount: numericAmount,
           timelockHours: parseInt(timelockHours, 10),
           description: description.trim() || 'E-Network Service Contract',
         }),
@@ -126,7 +128,7 @@ export default function MeshEscrowPage() {
       setActiveTab('vaults');
       await fetchEscrows();
     } catch (err: any) {
-      setFormError(err.message || 'Vault creation aborted.');
+      setFormError(err?.message || 'Vault creation aborted.');
     } finally {
       setIsCreating(false);
     }
@@ -143,27 +145,15 @@ export default function MeshEscrowPage() {
       handleOpenDisputeReview(target);
     }
   };
-  useEffect(() => {
-    const suppressPiPostMessage = (e: ErrorEvent) => {
-      if (e.message && (e.message.includes("postMessage") || e.message.includes("target origin"))) {
-        e.stopImmediatePropagation();
-        e.preventDefault();
-      }
-    };
-    window.addEventListener("error", suppressPiPostMessage, true);
-    return () => window.removeEventListener("error", suppressPiPostMessage, true);
-  }, []);
-
 
   return (
     <PioneerAuthGate>
       <div className="min-h-screen bg-neutral-950 text-neutral-100 p-3 sm:p-6 font-sans pb-28">
         <div className="max-w-[384px] mx-auto space-y-4 font-mono">
-          
           {/* TOP BAR */}
           <div className="flex items-center justify-between pt-2">
-            <Link 
-              href="/mesh" 
+            <Link
+              href="/mesh"
               className="p-2 bg-neutral-900 border border-neutral-800 rounded-xl text-neutral-400 hover:text-white transition flex items-center gap-1.5 text-xs font-mono"
             >
               <ArrowLeft size={16} /> Hub
@@ -175,7 +165,7 @@ export default function MeshEscrowPage() {
             </div>
           </div>
 
-          {/* PI MAINNET COMPLIANCE BANNER */}
+          {/* PI COMPLIANCE BANNER */}
           <div className="bg-purple-950/40 border border-purple-800/80 p-3 rounded-2xl flex items-center justify-between font-mono text-[10px] text-purple-300">
             <span className="flex items-center gap-1.5 font-bold">
               <ShieldCheck size={14} className="text-purple-400" /> Pi Ecosystem Compliant
@@ -185,8 +175,8 @@ export default function MeshEscrowPage() {
             </span>
           </div>
 
-          {/* ⚡ NATIVE PI SDK GATEWAY COMPONENT */}
-          <LivePiCheckout 
+          {/* NATIVE PI SDK GATEWAY COMPONENT */}
+          <LivePiCheckout
             amount={1.0}
             memo="Bazaar Republic Escrow Settlement Test"
             onSuccess={() => fetchEscrows()}
@@ -209,7 +199,10 @@ export default function MeshEscrowPage() {
                 disabled={loading}
                 className="p-1.5 text-neutral-400 hover:text-white bg-neutral-950 border border-neutral-800 rounded-xl cursor-pointer"
               >
-                <RefreshCw size={13} className={loading ? 'animate-spin text-indigo-400' : ''} />
+                <RefreshCw
+                  size={13}
+                  className={loading ? 'animate-spin text-indigo-400' : ''}
+                />
               </button>
             </div>
 
@@ -250,9 +243,9 @@ export default function MeshEscrowPage() {
               )}
 
               {vaults.map((vault) => (
-                <EscrowCard 
-                  key={vault.id} 
-                  initialEscrowId={vault.escrowId || vault.id} 
+                <EscrowCard
+                  key={vault.id}
+                  initialEscrowId={vault.escrowId || vault.id}
                 />
               ))}
             </div>
@@ -260,7 +253,10 @@ export default function MeshEscrowPage() {
 
           {/* TAB 2: LOCK NEW ESCROW FORM */}
           {activeTab === 'create' && (
-            <form onSubmit={handleCreateVault} className="bg-neutral-900 border border-neutral-800 rounded-3xl p-4 shadow-2xl space-y-3.5">
+            <form
+              onSubmit={handleCreateVault}
+              className="bg-neutral-900 border border-neutral-800 rounded-3xl p-4 shadow-2xl space-y-3.5"
+            >
               <div className="flex justify-between items-center">
                 <h2 className="text-xs font-mono font-bold text-neutral-300 uppercase tracking-wider">
                   Create Merchant Escrow Lock
@@ -276,7 +272,9 @@ export default function MeshEscrowPage() {
               )}
 
               <div className="space-y-1">
-                <label className="text-[11px] font-mono text-neutral-400 block">Service Provider Wallet / UID</label>
+                <label className="text-[11px] font-mono text-neutral-400 block">
+                  Service Provider Wallet / UID
+                </label>
                 <input
                   type="text"
                   required
@@ -289,7 +287,9 @@ export default function MeshEscrowPage() {
 
               <div className="grid grid-cols-3 gap-2">
                 <div className="col-span-2 space-y-1">
-                  <label className="text-[11px] font-mono text-neutral-400 block">Escrow Amount (PI)</label>
+                  <label className="text-[11px] font-mono text-neutral-400 block">
+                    Escrow Amount (PI)
+                  </label>
                   <input
                     type="number"
                     step="0.0000001"
@@ -300,7 +300,9 @@ export default function MeshEscrowPage() {
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-[11px] font-mono text-neutral-400 block">Settlement</label>
+                  <label className="text-[11px] font-mono text-neutral-400 block">
+                    Settlement
+                  </label>
                   <div className="w-full bg-purple-950/80 border border-purple-800 rounded-xl p-2.5 text-xs font-mono text-purple-300 font-bold text-center flex items-center justify-center gap-1">
                     <ShieldCheck size={12} className="text-purple-400" /> PI Only
                   </div>
@@ -308,7 +310,9 @@ export default function MeshEscrowPage() {
               </div>
 
               <div className="space-y-1">
-                <label className="text-[11px] font-mono text-neutral-400 block">Auto-Release Timelock</label>
+                <label className="text-[11px] font-mono text-neutral-400 block">
+                  Auto-Release Timelock
+                </label>
                 <div className="grid grid-cols-3 gap-1.5 font-mono text-xs">
                   {['24', '48', '72'].map((hrs) => (
                     <button
@@ -328,7 +332,9 @@ export default function MeshEscrowPage() {
               </div>
 
               <div className="space-y-1">
-                <label className="text-[11px] font-mono text-neutral-400 block">Service Scope Reference</label>
+                <label className="text-[11px] font-mono text-neutral-400 block">
+                  Service Scope Reference
+                </label>
                 <textarea
                   rows={2}
                   placeholder="Describe service deliverables or order scope..."
@@ -369,7 +375,12 @@ export default function MeshEscrowPage() {
               </span>
             </div>
             <p className="text-[11px] text-neutral-400 leading-relaxed">
-              Disputed locks trigger VRF selection of 5 Genesis 100 Elders. Settled via game-theoretic <strong className="text-neutral-200">75% Winner / 25% Non-Biased Elder</strong> bond split.
+              Disputed locks trigger VRF selection of 5 Genesis 100 Elders. Settled
+              via game-theoretic{' '}
+              <strong className="text-neutral-200">
+                75% Winner / 25% Non-Biased Elder
+              </strong>{' '}
+              bond split.
             </p>
             <button
               type="button"
@@ -379,7 +390,6 @@ export default function MeshEscrowPage() {
               <Award size={14} /> Genesis 100 Adjudicator Portal
             </button>
           </div>
-
         </div>
 
         {/* 5-ELDER DISPUTE MODAL */}
@@ -392,11 +402,16 @@ export default function MeshEscrowPage() {
               escrowId: selectedDisputeVault.escrowId || selectedDisputeVault.id,
               consumerUid: selectedDisputeVault.consumer,
               providerName: selectedDisputeVault.provider,
-              escrowAmount: Number(selectedDisputeVault.amount ?? selectedDisputeVault.amountPi ?? 50),
+              escrowAmount: Number(
+                selectedDisputeVault.amount ?? selectedDisputeVault.amountPi ?? 50
+              ),
               bondAmount: selectedDisputeVault.bondAmount || 5000,
               serviceDescription: selectedDisputeVault.serviceDescription,
-              consumerClaim: selectedDisputeVault.consumerClaim || 'SLA verification failed.',
-              zkProofHash: selectedDisputeVault.zkProofHash || '0x7f8a91b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8',
+              consumerClaim:
+                selectedDisputeVault.consumerClaim || 'SLA verification failed.',
+              zkProofHash:
+                selectedDisputeVault.zkProofHash ||
+                '0x7f8a91b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8',
               votesForConsumer: 1,
               votesForMerchant: 1,
               quorumTotal: 5,

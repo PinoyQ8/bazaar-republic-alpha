@@ -1,33 +1,31 @@
 """
 Project Bazaar: Pi Network Backend SDK Verification Utility (Python Edition)
 File Location: /workspace/scratch/pi_payment_verifier.py
-Version: 1.0.0
+Version: 1.0.1
 Description:
-    A robust, type-safe Python implementation mapping the official Pi Network 
-    Server-to-Server (S2S) REST API protocol. Designed to serve as the structural 
-    blueprint for a community-maintained Python SDK.
-
-    Supports:
-      1. User Session Verification (https://api.minepi.com/v2/me)
-      2. User-to-App (U2A) Payment Lifecycle (Get, Approve, Complete)
-      3. Secure Authentication Contexts & Cryptographic Error Handlers
+    A type-safe Python implementation mapping Pi Network Server-to-Server (S2S)
+    REST API endpoints for user verification and U2A payment lifecycle management.
 
 License: MIT / PiOS (Pi Open Source) Community Contribution
 """
 
 import logging
-import json
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
+from urllib.parse import quote
 import requests
 
-# Configure robust structural logger
 logger = logging.getLogger("PiNetworkVerifier")
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 
 
 class PiAPIError(Exception):
-    """Custom exception class wrapping raw HTTP and schema validation faults from Pi API."""
-    def __init__(self, status_code: int, error_message: str, response_body: Optional[str] = None):
+    """Custom exception class wrapping HTTP and schema validation faults from Pi API."""
+
+    def __init__(
+        self,
+        status_code: int,
+        error_message: str,
+        response_body: Optional[str] = None,
+    ):
         super().__init__(f"Pi API Error {status_code}: {error_message}")
         self.status_code = status_code
         self.error_message = error_message
@@ -36,173 +34,204 @@ class PiAPIError(Exception):
 
 class PiNetworkVerifier:
     """
-    Python verification engine modeling the official Pi Core Team Node.js SDK structure.
-    Integrates safe HTTP parsing, header security, and type safety constraints.
+    Python verification engine for Pi Network S2S and user-token endpoints.
     """
-    def __init__(self, api_key: str, base_url: str = "https://api.minepi.com"):
-        """
-        Initializes the verifier with your Developer API Key.
-        
-        :param api_key: Raw API key obtained from the Pi Developer Portal (Authorization: Key <api_key>)
-        :param base_url: The production or sandbox base routing endpoint.
-        """
-        if not api_key:
-            raise ValueError("Developer API Key is mandatory to initialize the Pi Backend Verifier.")
-        
+
+    def __init__(
+        self,
+        api_key: str,
+        base_url: str = "https://api.minepi.com",
+        timeout: float = 10.0,
+    ):
+        if not api_key or not api_key.strip():
+            raise ValueError(
+                "Developer API Key is mandatory to initialize the Pi Backend Verifier."
+            )
+
         self.api_key = api_key.strip()
         self.base_url = base_url.strip().rstrip("/")
-        
-        # Configure persistent session headers for connection pooling
+        self.timeout = timeout
+
         self.session = requests.Session()
-        self.session.headers.update({
-            "Authorization": f"Key {self.api_key}",
-            "Content-Type": "application/json",
-            "User-Agent": "Pi-Python-Community-SDK-Blueprint/1.0.0"
-        })
+        self.session.headers.update(
+            {
+                "Authorization": f"Key {self.api_key}",
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+                "User-Agent": "Pi-Python-Community-SDK-Blueprint/1.0.1",
+            }
+        )
 
     def _parse_response(self, response: requests.Response) -> Dict[str, Any]:
         """
-        Interprets responses defensively. Handles non-JSON payloads gracefully 
-        to prevent 'Unexpected Token' parser crashes on the backend gateway.
+        Interprets responses defensively and raises PiAPIError on non-JSON or error statuses.
         """
         content_type = response.headers.get("Content-Type", "")
-        
-        # Check for HTML gateway errors (like 502/504 Bad Gateway responses)
-        if "application/json" not in content_type:
-            raw_text = response.text or ""
+        raw_text = response.text or ""
+
+        if "application/json" not in content_type.lower():
             snippet = raw_text[:200].replace("\n", " ")
-            logger.error(f"Non-JSON response received. HTTP {response.status_code}: {snippet}")
+            logger.error(
+                "Non-JSON response received. HTTP %s: %s",
+                response.status_code,
+                snippet,
+            )
             raise PiAPIError(
                 status_code=response.status_code,
                 error_message=f"Expected JSON but received Content-Type '{content_type}'",
-                response_body=raw_text
+                response_body=raw_text,
             )
-            
+
         try:
             data = response.json()
         except ValueError as json_err:
-            logger.error(f"Failed to decode JSON from response: {response.text}")
+            logger.error("Failed to decode JSON from response: %s", raw_text[:500])
             raise PiAPIError(
                 status_code=response.status_code,
-                error_message=f"JSON decoding error: {str(json_err)}",
-                response_body=response.text
+                error_message=f"JSON decoding error: {json_err}",
+                response_body=raw_text,
+            )
+
+        if not isinstance(data, dict):
+            raise PiAPIError(
+                status_code=response.status_code,
+                error_message="Expected JSON object from Pi API",
+                response_body=raw_text,
             )
 
         if not response.ok:
-            error_msg = data.get("error", "Unknown API error occurred")
-            logger.warning(f"Pi API returned error status {response.status_code}: {error_msg}")
+            error_msg = (
+                data.get("error")
+                or data.get("message")
+                or "Unknown API error occurred"
+            )
+            logger.warning(
+                "Pi API returned error status %s: %s",
+                response.status_code,
+                error_msg,
+            )
             raise PiAPIError(
                 status_code=response.status_code,
-                error_message=error_msg,
-                response_body=response.text
+                error_message=str(error_msg),
+                response_body=raw_text,
             )
 
         return data
 
     def verify_access_token(self, access_token: str) -> Dict[str, Any]:
         """
-        Authenticates a user's session token sent from the Pi Browser frontend.
-        Resolves the user's secure UID, username, and active roles.
-        
-        Hits: GET /v2/me
-        
-        :param access_token: The client-side accessToken obtained via Pi.authenticate()
-        :return: Dict containing validated Pioneer profile details (uid, username, etc.)
+        Authenticates a user's session token via GET /v2/me.
         """
-        if not access_token:
+        clean_token = access_token.strip() if isinstance(access_token, str) else ""
+        if not clean_token:
             raise ValueError("Access token is required for user verification.")
 
         url = f"{self.base_url}/v2/me"
-        # Override the Authorization header specifically for User-to-Server bearer checks
-        headers = {"Authorization": f"Bearer {access_token}"}
-        
+        headers = {"Authorization": f"Bearer {clean_token}"}
+
         logger.info("Executing user access token handshake (GET /v2/me)...")
         try:
-            response = self.session.get(url, headers=headers, timeout=10)
+            response = self.session.get(url, headers=headers, timeout=self.timeout)
             return self._parse_response(response)
+        except PiAPIError:
+            raise
         except requests.RequestException as req_err:
-            logger.error(f"Network transport failure during token verification: {req_err}")
-            raise PiAPIError(status_code=500, error_message=f"Network transport failure: {str(req_err)}")
+            logger.error("Network transport failure during token verification: %s", req_err)
+            raise PiAPIError(
+                status_code=502,
+                error_message=f"Network transport failure: {req_err}",
+            )
 
     def get_payment(self, payment_id: str) -> Dict[str, Any]:
         """
-        Retrieves the structural record of a specific payment from the Pi backend.
-        Used to assert correct amounts, recipients, and custom memo metadata before approving.
-        
-        Hits: GET /v2/payments/<payment_id>
-        
-        :param payment_id: The unique identifier of the payment
-        :return: Payment details data object
+        Retrieves payment details via GET /v2/payments/<payment_id>.
         """
-        if not payment_id:
+        clean_id = payment_id.strip() if isinstance(payment_id, str) else ""
+        if not clean_id:
             raise ValueError("Payment ID is required to fetch details.")
 
-        url = f"{self.base_url}/v2/payments/{payment_id}"
-        logger.info(f"Fetching payment record metadata for: {payment_id}...")
+        encoded_id = quote(clean_id, safe="")
+        url = f"{self.base_url}/v2/payments/{encoded_id}"
+
+        logger.info("Fetching payment record metadata for: %s...", clean_id)
         try:
-            response = self.session.get(url, timeout=10)
+            response = self.session.get(url, timeout=self.timeout)
             return self._parse_response(response)
+        except PiAPIError:
+            raise
         except requests.RequestException as req_err:
-            logger.error(f"Network transport failure during get_payment: {req_err}")
-            raise PiAPIError(status_code=500, error_message=f"Network transport failure: {str(req_err)}")
+            logger.error("Network transport failure during get_payment: %s", req_err)
+            raise PiAPIError(
+                status_code=502,
+                error_message=f"Network transport failure: {req_err}",
+            )
 
     def approve_payment(self, payment_id: str) -> Dict[str, Any]:
         """
-        Approves a pending payment, authorizing the Pi Network block validators
-        to queue and execute the on-chain ledger settlement.
-        
-        Hits: POST /v2/payments/<payment_id>/approve
-        
-        :param payment_id: The unique identifier of the payment
-        :return: Updated payment object confirming approval status
+        Approves a pending payment via POST /v2/payments/<payment_id>/approve.
         """
-        if not payment_id:
+        clean_id = payment_id.strip() if isinstance(payment_id, str) else ""
+        if not clean_id:
             raise ValueError("Payment ID is required for approval.")
 
-        url = f"{self.base_url}/v2/payments/{payment_id}/approve"
-        logger.info(f"Submitting payment approval command for: {payment_id}...")
+        encoded_id = quote(clean_id, safe="")
+        url = f"{self.base_url}/v2/payments/{encoded_id}/approve"
+
+        logger.info("Submitting payment approval command for: %s...", clean_id)
         try:
-            response = self.session.post(url, timeout=10)
+            response = self.session.post(url, timeout=self.timeout)
             return self._parse_response(response)
+        except PiAPIError:
+            raise
         except requests.RequestException as req_err:
-            logger.error(f"Network transport failure during approve_payment: {req_err}")
-            raise PiAPIError(status_code=500, error_message=f"Network transport failure: {str(req_err)}")
+            logger.error("Network transport failure during approve_payment: %s", req_err)
+            raise PiAPIError(
+                status_code=502,
+                error_message=f"Network transport failure: {req_err}",
+            )
 
     def complete_payment(self, payment_id: str, txid: str) -> Dict[str, Any]:
         """
-        Formally completes and closes a settled payment after verifying that the
-        corresponding Transaction ID has successfully landed on the Pi Blockchain.
-        
-        Hits: POST /v2/payments/<payment_id>/complete
-        
-        :param payment_id: The unique identifier of the payment
-        :param txid: The raw on-chain transaction hash/ID settled on the Pi Ledger
-        :return: Updated payment object confirming absolute finality
+        Completes a settled payment via POST /v2/payments/<payment_id>/complete.
         """
-        if not payment_id or not txid:
-            raise ValueError("Both Payment ID and settled On-Chain Transaction ID (txid) are required.")
+        clean_id = payment_id.strip() if isinstance(payment_id, str) else ""
+        clean_txid = txid.strip() if isinstance(txid, str) else ""
+        if not clean_id or not clean_txid:
+            raise ValueError(
+                "Both Payment ID and settled On-Chain Transaction ID (txid) are required."
+            )
 
-        url = f"{self.base_url}/v2/payments/{payment_id}/complete"
-        payload = {"txid": txid.strip()}
-        
-        logger.info(f"Submitting payment finalization command for: {payment_id} (TXID: {txid})...")
+        encoded_id = quote(clean_id, safe="")
+        url = f"{self.base_url}/v2/payments/{encoded_id}/complete"
+        payload = {"txid": clean_txid}
+
+        logger.info(
+            "Submitting payment finalization command for: %s (TXID: %s)...",
+            clean_id,
+            clean_txid,
+        )
         try:
-            response = self.session.post(url, json=payload, timeout=10)
+            response = self.session.post(url, json=payload, timeout=self.timeout)
             return self._parse_response(response)
+        except PiAPIError:
+            raise
         except requests.RequestException as req_err:
-            logger.error(f"Network transport failure during complete_payment: {req_err}")
-            raise PiAPIError(status_code=500, error_message=f"Network transport failure: {str(req_err)}")
+            logger.error("Network transport failure during complete_payment: %s", req_err)
+            raise PiAPIError(
+                status_code=502,
+                error_message=f"Network transport failure: {req_err}",
+            )
 
 
-# =====================================================================
-# 🧪 MOCK TEST RUNTIME EXAMPLE
-# =====================================================================
 if __name__ == "__main__":
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    )
     print("==========================================================")
-    print("🚀 PI NETWORK PYTHON COMMUNITY VERIFIER: BOOTING SANDBOX 🚀")
+    print("PI NETWORK PYTHON COMMUNITY VERIFIER: BOOTING SANDBOX")
     print("==========================================================")
-    
-    # Instantiate with a dummy API key to demonstrate defensive structural verification
+
     verifier = PiNetworkVerifier(api_key="mock_developer_api_key_for_sandbox_testing")
     print(f"--> Instantiated Verifier Target: {verifier.base_url}")
     print("--> Connection headers initialized securely.")

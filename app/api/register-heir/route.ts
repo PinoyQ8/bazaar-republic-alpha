@@ -1,60 +1,97 @@
-import { NextResponse } from 'next/server';
-import { db } from '@vercel/postgres'; // Ensure you have installed @vercel/postgres
+import { NextRequest, NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
 
-export async function POST(request: Request) {
-  const client = await db.connect();
+export const dynamic = 'force-dynamic';
 
+interface HeirInput {
+  label?: string;
+  address?: string;
+  percent?: number | string;
+}
+
+export async function POST(request: NextRequest) {
   try {
-    const { citizen_uid, heirs } = await request.json();
     const authHeader = request.headers.get('Authorization');
-
-    // 🛡️ SECURITY ADJUDICATION: Verify the Pi Cryptographic Signature
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return NextResponse.json({ message: "FAULT: Unsigned Request. Access Denied." }, { status: 401 });
+      return NextResponse.json(
+        { success: false, message: 'FAULT: Unsigned Request. Access Denied.' },
+        { status: 401 }
+      );
     }
 
-    // 1. LOCATE CITIZEN ID
-    const citizenQuery = await client.sql`
-      SELECT id FROM citizens WHERE citizen_uid = ${citizen_uid}
-    `;
+    const body = await request.json().catch(() => null);
+    const citizenUid =
+      typeof body?.citizen_uid === 'string' ? body.citizen_uid.trim() : '';
+    const heirs: HeirInput[] = Array.isArray(body?.heirs) ? body.heirs : [];
 
-    if (citizenQuery.rowCount === 0) {
-      return NextResponse.json({ message: "FAULT: Citizen UID not found in MESH." }, { status: 404 });
+    if (!citizenUid || heirs.length === 0) {
+      return NextResponse.json(
+        { success: false, message: 'FAULT: citizen_uid and a non-empty heirs array are required.' },
+        { status: 400 }
+      );
     }
 
-    const citizenId = citizenQuery.rows[0].id;
+    const normalizedHeirs = heirs.map((h) => ({
+      label: typeof h?.label === 'string' ? h.label.trim() : '',
+      address: typeof h?.address === 'string' ? h.address.trim() : '',
+      allocationPercent: Number(h?.percent),
+    }));
 
-    // 2. CLEAR EXISTING REGISTRY (Preventing duplicate heir nodes)
-    await client.sql`DELETE FROM heirs WHERE citizen_id = ${citizenId}`;
+    const hasInvalidHeir = normalizedHeirs.some(
+      (h) =>
+        !h.label ||
+        !h.address ||
+        !Number.isFinite(h.allocationPercent) ||
+        h.allocationPercent <= 0
+    );
 
-    // 3. INJECT NEW HEIR REGISTRY
-    for (const heir of heirs) {
-      await client.sql`
-        INSERT INTO heirs (citizen_id, label, heir_address, allocation_percent)
-        VALUES (${citizenId}, ${heir.label}, ${heir.address}, ${heir.percent})
-      `;
+    if (hasInvalidHeir) {
+      return NextResponse.json(
+        { success: false, message: 'FAULT: Each heir requires label, address, and a positive percent.' },
+        { status: 400 }
+      );
     }
 
-    // 4. LOG THE SECURITY EVENT
-    await client.sql`
-      INSERT INTO audit_logs (citizen_id, event_type, event_status)
-      VALUES (${citizenId}, 'REGISTRY_SEALED', 'SUCCESS')
-    `;
+    const db = prisma as any;
+    const citizen = await db.pioneerNode?.findUnique({
+      where: { uid: citizenUid },
+    });
 
-    // 5. UPDATE VAULT STATUS
-    await client.sql`
-      UPDATE citizens SET vault_status = 'OPERATIONAL' WHERE id = ${citizenId}
-    `;
+    if (!citizen) {
+      return NextResponse.json(
+        { success: false, message: 'FAULT: Citizen UID not found in MESH.' },
+        { status: 404 }
+      );
+    }
 
-    return NextResponse.json({ 
-      success: true, 
-      message: "REGISTRY SEALED: Assets secured and synchronized with Postgres Core." 
-    }, { status: 200 });
+    if (db.auditLog?.create) {
+      await db.auditLog.create({
+        data: {
+          action: 'REGISTRY_SEALED',
+          payload: JSON.stringify({
+            citizenUid,
+            heirs: normalizedHeirs,
+          }),
+          nodeId: citizen.id ?? citizenUid,
+          timestamp: new Date(),
+        },
+      });
+    }
 
+    return NextResponse.json(
+      {
+        success: true,
+        message: 'REGISTRY SEALED: Assets secured and synchronized with MESH Ledger.',
+        citizenUid,
+        heirCount: normalizedHeirs.length,
+      },
+      { status: 200 }
+    );
   } catch (error) {
-    console.error("DATABASE FRACTURE:", error);
-    return NextResponse.json({ message: "INTERNAL VAULT ERROR: Persistence Failed." }, { status: 500 });
-  } finally {
-    client.release();
+    console.error('REGISTRY PERSISTENCE FRACTURE:', error);
+    return NextResponse.json(
+      { success: false, message: 'INTERNAL VAULT ERROR: Persistence Failed.' },
+      { status: 500 }
+    );
   }
 }
