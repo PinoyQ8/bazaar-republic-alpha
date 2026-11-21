@@ -9,6 +9,7 @@ datasource db {
 }
 
 enum Tier {
+  OBSERVER
   GENESIS
   CITIZEN
   PIONEER
@@ -17,6 +18,19 @@ enum Tier {
   MESH_GUARDIAN
   BAZAAR_FOUNDER
   STANDARD
+}
+
+enum GovernanceChamber {
+  FOUNDER
+  GENESIS
+  MERCHANT
+  SERVICE_PROVIDER
+  CITIZEN
+}
+
+enum ProposalScope {
+  CHAMBER_LOCAL
+  CROSS_CHAMBER_CONSTITUTIONAL
 }
 
 enum NodeStatus {
@@ -29,8 +43,12 @@ enum NodeStatus {
 }
 
 enum ProposalStatus {
+  PENDING
+  ELDER_REVIEW
   ACTIVE
   PASSED
+  HOLD_AND_MODIFY
+  EXECUTED
   REJECTED
   EXPIRED
 }
@@ -144,15 +162,16 @@ model ShieldEvent {
 }
 
 model PioneerNode {
-  id            String     @id @default(auto()) @map("_id") @db.ObjectId
-  uid           String     @unique
-  username      String?    @unique
-  walletAddress String?    @unique
-  tier          Tier       @default(CITIZEN)
-  status        NodeStatus @default(SYNCING)
-  isFrozen      Boolean    @default(false)
-  freezeReason  String?
-  trustScore    Float      @default(100.0)
+  id              String            @id @default(auto()) @map("_id") @db.ObjectId
+  uid             String            @unique
+  username        String?           @unique
+  walletAddress   String?           // Null-safe: prevents E11000 collisions on unlinked nodes
+  tier            Tier              @default(CITIZEN)
+  assignedChamber GovernanceChamber @default(CITIZEN)
+  status          NodeStatus        @default(SYNCING)
+  isFrozen        Boolean           @default(false)
+  freezeReason    String?
+  trustScore      Float             @default(100.0)
 
   regionCode    String? @default("US")
   countryCode   String? @default("US")
@@ -197,11 +216,14 @@ model PioneerNode {
   stakeWeight       Float     @default(0)
 
   // Contributor Security Graph & Governance Fields
-  completedAlphaSessions Int                  @default(0)
-  isContributorUnlocked  Boolean              @default(false)
-  isElderEligible        Boolean              @default(false)
-  securityCircleOutbound SecurityCircleEdge[] @relation("TrusterRelation")
-  securityCircleInbound  SecurityCircleEdge[] @relation("TrustedRelation")
+  completedAlphaSessions           Int                  @default(0)
+  isContributorUnlocked            Boolean              @default(false)
+  isElderEligible                  Boolean              @default(false)
+  lastProposalSubmittedAt          DateTime?
+  lastProposalOutcome              String               @default("NONE") // NONE | RATIFIED | DEFEATED | ELDER_CLEARED | ELDER_REJECTED | HARD_BLOCKED
+  consecutiveConstitutionalStrikes Int                  @default(0)
+  securityCircleOutbound           SecurityCircleEdge[] @relation("TrusterRelation")
+  securityCircleInbound            SecurityCircleEdge[] @relation("TrustedRelation")
 
   lastActivityTimestamp DateTime @default(now())
   lastHeartbeat         DateTime @default(now())
@@ -211,8 +233,10 @@ model PioneerNode {
   paymentsMade Payment[]           @relation("PaymentsMade")
   passkeys     PasskeyCredential[]
 
+  @@index([walletAddress])
   @@index([status, trustScore])
   @@index([quarantineStatus])
+  @@index([assignedChamber, tier])
   @@index([isElderEligible, isContributorUnlocked])
 }
 
@@ -354,19 +378,50 @@ model MeshLedger {
   @@index([txType])
 }
 
+// =============================================================
+// CONSTITUTIONAL DAO & AUTONOMOUS ADJUDICATION ENGINE
+// =============================================================
+
 model InternalProposal {
-  id           String         @id @default(auto()) @map("_id") @db.ObjectId
-  title        String
-  description  String
-  status       ProposalStatus @default(ACTIVE)
-  authorUid    String?
-  votesFor     Int            @default(0)
-  votesAgainst Int            @default(0)
-  createdAt    DateTime       @default(now())
-  updatedAt    DateTime       @updatedAt
-  expiresAt    DateTime?
+  id              String            @id @default(auto()) @map("_id") @db.ObjectId
+  title           String
+  description     String
+  status          ProposalStatus    @default(PENDING)
+  authorUid       String?
+  assignedChamber GovernanceChamber @default(CITIZEN)
+  scope           ProposalScope     @default(CHAMBER_LOCAL)
+
+  // Governed Parameter Payload
+  targetParameter String?
+  proposedValue   Float?
+
+  // Chamber Ballot Tallies
+  votesFor     Int @default(0)
+  votesAgainst Int @default(0)
+
+  // Tri-State MESH Adjudicator & 5-Elder Borderline Clarification
+  adjudicatorSealHash  String?
+  elderPanelUids       String[]
+  elderVotesFor        Int       @default(0)
+  elderVotesAgainst    Int       @default(0)
+  elderReviewExpiresAt DateTime?
+
+  // Post-Passage Vision Audit, 72h Hold & Modify, Autonomous Execution
+  visionAlignmentPct Int?
+  executionSealHash  String?
+  holdReason         String?
+  holdExpiresAt      DateTime?
+  executedAt         DateTime?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  expiresAt DateTime?
 
   votes VoteRecordModel[]
+
+  @@index([status, assignedChamber])
+  @@index([targetParameter, status])
+  @@index([holdExpiresAt])
 }
 
 model VoteRecordModel {
@@ -378,7 +433,18 @@ model VoteRecordModel {
   createdAt  DateTime         @default(now())
   proposal   InternalProposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
 
+  @@index([proposalId, voterId])
   @@map("vote_records")
+}
+
+model ProtocolConfig {
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  key            String   @unique
+  value          Float
+  lastProposalId String?
+  sealHash       String?
+  updatedAt      DateTime @updatedAt
+  createdAt      DateTime @default(now())
 }
 
 model Payment {
