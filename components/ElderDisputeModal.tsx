@@ -1,17 +1,17 @@
+// Location: components/ElderDisputeModal.tsx
 'use client';
 
 import React, { useState } from 'react';
-import { 
-  ShieldCheck, 
-  Scale, 
-  FileCheck2, 
-  AlertOctagon, 
-  Lock, 
-  RefreshCw, 
-  CheckCircle2, 
-  X, 
-  Coins, 
-  User, 
+import {
+  ShieldCheck,
+  Scale,
+  FileCheck2,
+  AlertOctagon,
+  Lock,
+  RefreshCw,
+  CheckCircle2,
+  X,
+  User,
   ExternalLink,
   Award
 } from 'lucide-react';
@@ -46,11 +46,9 @@ export default function ElderDisputeModal({
   const [selectedDecision, setSelectedDecision] = useState<'CONSUMER' | 'MERCHANT' | null>(null);
   const [isSigning, setIsSigning] = useState<boolean>(false);
   const [voteSubmitted, setVoteSubmitted] = useState<boolean>(false);
-  const [signedTxHash, setSignedTxHash] = useState<string>('');
 
   if (!isOpen) return null;
 
-  // Safe Fallback Normalization
   const safeEscrowId = disputeData?.escrowId || disputeData?.id || 'ESC_DISP_901';
   const safeConsumer = disputeData?.consumerUid || 'usr_pioneer_consumer_01';
   const safeProvider = disputeData?.providerName || 'GAU5Y5UWUQ5ETIEI5HWVJR7VDMXUETTSKQ4UKOIIGIW6GVIMCR354UJ3';
@@ -62,30 +60,43 @@ export default function ElderDisputeModal({
   const safeZkHash = disputeData?.zkProofHash || '0x7f8a91b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8';
   const safeVotesConsumer = Number(disputeData?.votesForConsumer ?? 1) || 0;
   const safeVotesMerchant = Number(disputeData?.votesForMerchant ?? 1) || 0;
-  const safeQuorumTotal = Number(disputeData?.quorumTotal ?? 5) || 5;
+  const safeQuorumTotal = Number(disputeData?.quorumTotal ?? 5) > 0
+    ? Number(disputeData?.quorumTotal)
+    : 5;
 
-  // 75% / 25% Bond Calculations
+  // Dynamic majority count across 3-2, 4-1, and 5-0 splits
+  const projectedMajorityCount =
+    selectedDecision === 'CONSUMER'
+      ? Math.max(3, safeVotesConsumer + 1)
+      : selectedDecision === 'MERCHANT'
+      ? Math.max(3, safeVotesMerchant + 1)
+      : Math.max(3, Math.max(safeVotesConsumer, safeVotesMerchant));
+
   const elderPool25Pct = safeBondAmount * 0.25;
-  const estYieldPerElder = elderPool25Pct / 3;
+  const estYieldPerElder = elderPool25Pct / Math.max(1, projectedMajorityCount);
 
   const handleExecuteVote = async () => {
     if (!selectedDecision) return;
     setIsSigning(true);
 
     try {
+      const elderUid =
+        typeof window !== 'undefined'
+          ? window.localStorage.getItem('mesh_pioneer_uid') || 'usr_elder_1'
+          : 'usr_elder_1';
+
       const res = await fetch('/api/escrow/dispute/resolve', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           disputeId: safeEscrowId,
+          elderUid,
           ruling: selectedDecision === 'CONSUMER' ? 'FAVOR_CONSUMER' : 'FAVOR_MERCHANT'
         })
       });
 
       if (!res.ok) throw new Error('Dispute settlement failed.');
 
-      const data = await res.json();
-      setSignedTxHash(data?.txHash || `0x${Array.from({ length: 16 }, () => Math.floor(Math.random() * 16).toString(16)).join('')}`);
       setVoteSubmitted(true);
       if (onVoteSuccess) onVoteSuccess();
     } catch (err) {
@@ -98,7 +109,7 @@ export default function ElderDisputeModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-neutral-950/80 backdrop-blur-md">
       <div className="bg-neutral-900 border border-neutral-800 rounded-3xl w-full max-w-md p-4 sm:p-5 space-y-4 shadow-2xl relative max-h-[90vh] overflow-y-auto font-mono">
-        
+
         {/* HEADER */}
         <div className="flex justify-between items-start pt-1">
           <div>
@@ -110,6 +121,7 @@ export default function ElderDisputeModal({
             </h2>
           </div>
           <button
+            type="button"
             onClick={onClose}
             className="p-1.5 bg-neutral-950 border border-neutral-800 rounded-xl text-neutral-400 hover:text-white transition cursor-pointer"
           >
@@ -121,15 +133,15 @@ export default function ElderDisputeModal({
         <div className="bg-neutral-950 border border-neutral-800/80 p-3 rounded-2xl grid grid-cols-3 gap-2 text-[10px]">
           <div>
             <span className="text-neutral-500 text-[9px] block">Escrow Amount</span>
-            <span className="font-bold text-amber-400 text-xs">{(safeEscrowAmount || 0).toLocaleString()} PI</span>
+            <span className="font-bold text-amber-400 text-xs">{safeEscrowAmount.toLocaleString()} PI</span>
           </div>
           <div>
             <span className="text-neutral-500 text-[9px] block">Security Bond</span>
-            <span className="font-bold text-cyan-400 text-xs">{(safeBondAmount || 0).toLocaleString()} mBZR</span>
+            <span className="font-bold text-cyan-400 text-xs">{safeBondAmount.toLocaleString()} mBZR</span>
           </div>
           <div>
-            <span className="text-neutral-500 text-[9px] block">Est. Elder Yield</span>
-            <span className="font-bold text-emerald-400 text-xs">+{(estYieldPerElder || 0).toFixed(0)} mBZR</span>
+            <span className="text-neutral-500 text-[9px] block">Est. Elder Yield ({projectedMajorityCount} Maj)</span>
+            <span className="font-bold text-emerald-400 text-xs">+{estYieldPerElder.toFixed(0)} mBZR</span>
           </div>
         </div>
 
@@ -148,7 +160,7 @@ export default function ElderDisputeModal({
             <span className="text-[9px] text-rose-400 font-bold flex items-center gap-1 uppercase">
               <AlertOctagon size={11} /> Consumer Claim
             </span>
-            <p className="text-neutral-300 text-xs italic">&quot;{safeClaim}&quot;</p>
+            <p className="text-neutral-300 text-xs italic">"{safeClaim}"</p>
           </div>
 
           <div className="bg-cyan-950/20 border border-cyan-900/40 p-2.5 rounded-xl space-y-1">
@@ -171,11 +183,17 @@ export default function ElderDisputeModal({
         <div className="bg-neutral-950 border border-neutral-800 p-2.5 rounded-xl space-y-1.5 text-[10px]">
           <div className="flex justify-between text-neutral-400">
             <span>Elder Council Quorum</span>
-            <span className="text-cyan-400 font-bold">{(safeVotesConsumer + safeVotesMerchant)} / {safeQuorumTotal} Cast</span>
+            <span className="text-cyan-400 font-bold">{safeVotesConsumer + safeVotesMerchant} / {safeQuorumTotal} Cast</span>
           </div>
           <div className="w-full bg-neutral-800 h-1.5 rounded-full overflow-hidden flex">
-            <div className="bg-rose-500 h-full" style={{ width: `${(safeVotesConsumer / safeQuorumTotal) * 100}%` }} />
-            <div className="bg-emerald-500 h-full" style={{ width: `${(safeVotesMerchant / safeQuorumTotal) * 100}%` }} />
+            <div
+              className="bg-rose-500 h-full"
+              style={{ width: `${Math.min(100, (safeVotesConsumer / safeQuorumTotal) * 100)}%` }}
+            />
+            <div
+              className="bg-emerald-500 h-full"
+              style={{ width: `${Math.min(100, (safeVotesMerchant / safeQuorumTotal) * 100)}%` }}
+            />
           </div>
         </div>
 
