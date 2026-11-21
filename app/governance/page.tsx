@@ -73,7 +73,23 @@ async function fetchGovernanceState(): Promise<{
 
 export default async function GovernanceMasterPage(props: GovernancePageProps) {
   if (props.params) await props.params;
-  if (props.searchParams) await props.searchParams;
+  const resolvedSearch = props.searchParams ? await props.searchParams : {};
+
+  const queryUid =
+    typeof resolvedSearch.uid === "string" ? resolvedSearch.uid.trim() : "";
+
+  let initialUid = queryUid;
+  let initialIsFounder = queryUid.toLowerCase().includes("founder");
+
+  if (queryUid) {
+    const pioneer = await (prisma as any).pioneerNode
+      ?.findUnique?.({ where: { uid: queryUid } })
+      .catch(() => null);
+    if (pioneer) {
+      initialIsFounder =
+        initialIsFounder || String(pioneer.tier) === "BAZAAR_FOUNDER";
+    }
+  }
 
   const { proposals, activePioneers } = await fetchGovernanceState();
 
@@ -122,7 +138,11 @@ export default async function GovernanceMasterPage(props: GovernancePageProps) {
       </section>
 
       {/* Interactive Proposal Queue with ELDER_REVIEW & HOLD_AND_MODIFY Actions */}
-      <GovernanceProposalFeed initialProposals={proposals} />
+      <GovernanceProposalFeed
+        initialProposals={proposals}
+        currentUid={initialUid}
+        isFounder={initialIsFounder}
+      />
 
       {/* Footer */}
       <footer className="mt-auto text-center text-[9px] text-slate-600 font-mono tracking-widest pt-4">

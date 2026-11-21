@@ -1,7 +1,7 @@
 // Location: components/governance/GovernanceProposalFeed.tsx
 "use client";
 
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import ProposalGovernanceCard, {
   GovernanceProposalRecord,
   GovernanceProposalStatus,
@@ -21,6 +21,49 @@ interface GovernanceProposalFeedProps {
   isFounder?: boolean;
 }
 
+interface ResolvedSession {
+  uid: string;
+  isFounder: boolean;
+  label: string;
+}
+
+function readLocalPioneerSession(): ResolvedSession {
+  if (typeof window === "undefined") {
+    return { uid: "", isFounder: false, label: "Observer" };
+  }
+
+  for (const key of ["pioneer_user", "pi_auth_user"]) {
+    try {
+      const raw = window.localStorage.getItem(key);
+      if (!raw) continue;
+      const parsed = JSON.parse(raw);
+      const uid = String(parsed?.uid || parsed?.username || "").trim();
+      const tier = String(parsed?.tier || "").toUpperCase();
+      const roles: string[] = Array.isArray(parsed?.roles)
+        ? parsed.roles.map((r: unknown) => String(r).toUpperCase())
+        : [];
+
+      const isFounder =
+        tier === "BAZAAR_FOUNDER" ||
+        roles.includes("BAZAAR_FOUNDER") ||
+        roles.includes("FOUNDER") ||
+        uid.toLowerCase().includes("founder");
+
+      if (uid) {
+        return {
+          uid,
+          isFounder,
+          label: isFounder ? `Founder (${uid})` : uid,
+        };
+      }
+    } catch {
+      // Ignore malformed storage entries and check next key
+    }
+  }
+
+  return { uid: "", isFounder: false, label: "Observer" };
+}
+
 export default function GovernanceProposalFeed({
   initialProposals,
   currentUid = "",
@@ -32,6 +75,23 @@ export default function GovernanceProposalFeed({
     "ALL" | GovernanceProposalStatus
   >("ALL");
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [session, setSession] = useState<ResolvedSession>({
+    uid: currentUid,
+    isFounder,
+    label: currentUid || "Observer",
+  });
+
+  useEffect(() => {
+    if (currentUid) {
+      setSession({
+        uid: currentUid,
+        isFounder,
+        label: isFounder ? `Founder (${currentUid})` : currentUid,
+      });
+      return;
+    }
+    setSession(readLocalPioneerSession());
+  }, [currentUid, isFounder]);
 
   const refreshProposals = useCallback(async () => {
     setIsRefreshing(true);
@@ -58,6 +118,22 @@ export default function GovernanceProposalFeed({
 
   return (
     <section className="flex flex-col gap-2.5">
+      {/* Active Signer Status Pill */}
+      <div className="flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-slate-900/80 border border-slate-800 text-[10px]">
+        <span className="text-slate-400 uppercase">Signer Identity</span>
+        <span
+          className={`font-bold truncate 50 ${
+            session.isFounder
+              ? "text-amber-300"
+              : session.uid
+              ? "text-cyan-300"
+              : "text-slate-500"
+          }`}
+        >
+          {session.label}
+        </span>
+      </div>
+
       <div className="flex justify-between items-center">
         <h2 className="text-xs font-bold text-slate-300 uppercase tracking-wider">
           Proposals Queue
@@ -97,8 +173,8 @@ export default function GovernanceProposalFeed({
             <ProposalGovernanceCard
               key={proposal.id}
               proposal={proposal}
-              currentUid={currentUid}
-              isFounder={isFounder}
+              currentUid={session.uid}
+              isFounder={session.isFounder}
               onRefresh={refreshProposals}
             />
           ))}
