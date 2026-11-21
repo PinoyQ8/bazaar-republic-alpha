@@ -92,19 +92,19 @@ export default function LivePiCheckout({
       };
 
       await Promise.race([
-        Pi.authenticate(["payments", "username"], onIncompletePaymentFound),
-        new Promise((_, reject) =>
-          setTimeout(
-            () =>
-              reject(
-                new Error(
-                  "Pi SDK auth timed out (8s). Ensure this URL is saved in develop.pinet.com and reload Pi Browser."
-                )
-              ),
-            8000
+  Pi.authenticate(["payments", "username", "wallet_address"], onIncompletePaymentFound),
+  new Promise((_, reject) =>
+    setTimeout(
+      () =>
+        reject(
+          new Error(
+            "Pi SDK auth timed out (8s). Ensure this URL is saved in develop.pinet.com and reload Pi Browser."
           )
         ),
-      ]);
+      8000
+    )
+  ),
+]);
 
       setStatus("CREATING_PAYMENT");
 
