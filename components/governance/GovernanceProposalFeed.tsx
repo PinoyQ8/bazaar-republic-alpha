@@ -78,7 +78,11 @@ export default function GovernanceProposalFeed({
   const [session, setSession] = useState<ResolvedSession>({
     uid: currentUid,
     isFounder,
-    label: currentUid || "Observer",
+    label: currentUid
+      ? isFounder
+        ? `Founder (${currentUid})`
+        : currentUid
+      : "Observer",
   });
 
   useEffect(() => {
@@ -122,7 +126,7 @@ export default function GovernanceProposalFeed({
       <div className="flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-slate-900/80 border border-slate-800 text-[10px]">
         <span className="text-slate-400 uppercase">Signer Identity</span>
         <span
-          className={`font-bold truncate 50 ${
+          className={`font-bold truncate max-w-50 ${
             session.isFounder
               ? "text-amber-300"
               : session.uid

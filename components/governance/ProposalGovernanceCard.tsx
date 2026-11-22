@@ -122,10 +122,11 @@ export default function ProposalGovernanceCard({
         message: data.status || data.finalStatus || "Action sealed on ledger.",
       });
       await onRefresh();
-    } catch (err: any) {
+    } catch (err: unknown) {
       setFeedback({
         type: "err",
-        message: err?.message || "Governance action failed.",
+        message:
+          err instanceof Error ? err.message : "Governance action failed.",
       });
     } finally {
       setBusyAction(null);
@@ -138,7 +139,8 @@ export default function ProposalGovernanceCard({
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <div className="text-[10px] text-slate-400">
-            {proposal.assignedChamber} • {proposal.scope === "CHAMBER_LOCAL" ? "Local" : "4/5 Global"}
+            {proposal.assignedChamber} •{" "}
+            {proposal.scope === "CHAMBER_LOCAL" ? "Local" : "4/5 Global"}
           </div>
           <h3 className="text-sm font-sans font-bold text-slate-100 truncate">
             {proposal.title}
@@ -160,7 +162,9 @@ export default function ProposalGovernanceCard({
             <span className="text-cyan-300 font-bold break-all">
               {proposal.targetParameter
                 ? `${proposal.targetParameter}${
-                    proposal.proposedValue !== null ? ` (${proposal.proposedValue})` : ""
+                    proposal.proposedValue !== null
+                      ? ` (${proposal.proposedValue})`
+                      : ""
                   }`
                 : "POLICY_TEXT"}
             </span>
@@ -202,15 +206,22 @@ export default function ProposalGovernanceCard({
               <Gavel className="w-3 h-3" /> 5-Elder VRF Clarification
             </span>
             <span className="text-slate-300">
-              Clear: <strong className="text-emerald-400">{proposal.elderVotesFor}</strong> / Reject:{" "}
-              <strong className="text-rose-400">{proposal.elderVotesAgainst}</strong>
+              Clear:{" "}
+              <strong className="text-emerald-400">
+                {proposal.elderVotesFor}
+              </strong>{" "}
+              / Reject:{" "}
+              <strong className="text-rose-400">
+                {proposal.elderVotesAgainst}
+              </strong>
             </span>
           </div>
 
           {proposal.elderReviewExpiresAt && (
             <div className="text-[10px] text-slate-400 flex items-center gap-1">
               <Clock className="w-3 h-3 text-amber-400" />
-              Window closes: {new Date(proposal.elderReviewExpiresAt).toLocaleString()}
+              Window closes:{" "}
+              {new Date(proposal.elderReviewExpiresAt).toLocaleString()}
             </div>
           )}
 
@@ -256,7 +267,9 @@ export default function ProposalGovernanceCard({
                   }
                   className="py-1.5 bg-rose-900 hover:bg-rose-800 text-rose-100 border border-rose-700 font-bold rounded text-[10px] uppercase disabled:opacity-50"
                 >
-                  {busyAction === "elder-reject" ? "Sealing..." : "Rule Violation"}
+                  {busyAction === "elder-reject"
+                    ? "Sealing..."
+                    : "Rule Violation"}
                 </button>
               </div>
             </div>
@@ -278,7 +291,7 @@ export default function ProposalGovernanceCard({
             </span>
             <span className="text-orange-200">
               {proposal.holdExpiresAt
-                ? `Due ${new Date(proposal.holdExpiresAt).toLocaleDateString()}`
+                ? `Due ${new Date(proposal.holdExpiresAt).toLocaleString()}`
                 : "72h Window"}
             </span>
           </div>
@@ -311,7 +324,11 @@ export default function ProposalGovernanceCard({
                       {
                         chamber1Mode: "FOUNDER_ACTIVE",
                         signers: [
-                          { uid: currentUid, role: "BAZAAR_FOUNDER", weightPct: 100 },
+                          {
+                            uid: currentUid,
+                            role: "BAZAAR_FOUNDER",
+                            weightPct: 100,
+                          },
                         ],
                         action: "APPROVE_OVERRIDE",
                         publicRationale: rationale,
@@ -331,7 +348,11 @@ export default function ProposalGovernanceCard({
                       {
                         chamber1Mode: "FOUNDER_ACTIVE",
                         signers: [
-                          { uid: currentUid, role: "BAZAAR_FOUNDER", weightPct: 100 },
+                          {
+                            uid: currentUid,
+                            role: "BAZAAR_FOUNDER",
+                            weightPct: 100,
+                          },
                         ],
                         action: "MODIFY_AND_RESUBMIT",
                         publicRationale: rationale,
@@ -355,7 +376,11 @@ export default function ProposalGovernanceCard({
                       {
                         chamber1Mode: "FOUNDER_ACTIVE",
                         signers: [
-                          { uid: currentUid, role: "BAZAAR_FOUNDER", weightPct: 100 },
+                          {
+                            uid: currentUid,
+                            role: "BAZAAR_FOUNDER",
+                            weightPct: 100,
+                          },
                         ],
                         action: "SOFT_VETO",
                         publicRationale: rationale,
@@ -381,9 +406,13 @@ export default function ProposalGovernanceCard({
         <button
           disabled={busyAction !== null}
           onClick={() =>
-            runAction("execute", `/api/governance/proposals/${proposal.id}/execute`, {
-              forceCloseForTest: true,
-            })
+            runAction(
+              "execute",
+              `/api/governance/proposals/${proposal.id}/execute`,
+              {
+                forceCloseForTest: true,
+              }
+            )
           }
           className="w-full py-1.5 bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-cyan-800/60 rounded text-[10px] font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 transition disabled:opacity-50"
         >
