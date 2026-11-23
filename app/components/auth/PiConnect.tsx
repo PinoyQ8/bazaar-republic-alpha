@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect } from "react";
 
@@ -49,6 +49,7 @@ export default function PiConnect() {
             body: JSON.stringify({
               paymentId: payment.identifier,
               txid: payment.transaction.txid,
+              uid: payment?.user_uid,
             }),
           }).catch((err) => console.error("[MESH-AUTH] Payment recovery failed:", err));
         }

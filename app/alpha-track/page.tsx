@@ -1,15 +1,15 @@
-// Location: app/alpha-track/page.tsx
+﻿// Location: app/alpha-track/page.tsx
 'use client';
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/app/context/AuthContext';
 import { ArrowLeft, Cpu, Zap, ShieldAlert, Loader2, Network, CheckCircle2, Activity, Clock, RotateCcw } from 'lucide-react';
-import { useMeshCurrency } from "@/app/hooks/useMeshCurrency"; // 🛡️ INJECTED CURRENCY HOOK
+import { useMeshCurrency } from "@/app/hooks/useMeshCurrency"; // ðŸ›¡ï¸ INJECTED CURRENCY HOOK
 
-// 🛡️ ECONOMIC CONSTANTS (Pure Algorithmic Peg)
+// ðŸ›¡ï¸ ECONOMIC CONSTANTS (Pure Algorithmic Peg)
 const PI_TO_MBZR_RATIO = 1000;
-const GENESIS_STAKE_AMOUNT = 100;
+const GENESIS_STAKE_AMOUNT = 1;
 
 interface MilestoneTier {
   tier: number;
@@ -27,15 +27,15 @@ const MILESTONE_TIERS: MilestoneTier[] = [
 export default function AlphaTrackModule() {
   const { pioneer, executeStakePayment } = useAuth();
   
-  // 🛡️ INITIALIZE DYNAMIC CURRENCY
+  // ðŸ›¡ï¸ INITIALIZE DYNAMIC CURRENCY
   const { text: piText, symbol: piSymbol } = useMeshCurrency();
 
-  // 🛡️ PHASE 1 STATE: Soroban Staking
+  // ðŸ›¡ï¸ PHASE 1 STATE: Soroban Staking
   const [isStaking, setIsStaking] = useState(false);
   const [txLog, setTxLog] = useState<string[]>([]);
   const [stakeError, setStakeError] = useState<string | null>(null);
 
-  // 🛡️ PHASE 2 STATE: Economic Engine (Mint/Redeem)
+  // ðŸ›¡ï¸ PHASE 2 STATE: Economic Engine (Mint/Redeem)
   const [totalMinted, setTotalMinted] = useState<number>(9190);
   const [stakedReserve, setStakedReserve] = useState<number>(8010);
   const [circulatingPool, setCirculatingPool] = useState<number>(1180);
@@ -57,7 +57,7 @@ export default function AlphaTrackModule() {
 
   const addLog = (message: string) => setTxLog((prev) => [...prev, `> ${message}`]);
 
-  // 🛡️ TIMELAPSE ACCELERATION CONTROLS
+  // ðŸ›¡ï¸ TIMELAPSE ACCELERATION CONTROLS
   const advanceTime = (monthsDelta: number) => {
     setMonthsElapsed((prev) => Math.max(0, prev + monthsDelta));
   };
@@ -67,7 +67,7 @@ export default function AlphaTrackModule() {
   };
 
   // ==========================================================================
-  // 🛡️ SECTOR 1 ACTIONS
+  // ðŸ›¡ï¸ SECTOR 1 ACTIONS
   // ==========================================================================
 
   const handleGenesisStake = async () => {
@@ -153,7 +153,7 @@ export default function AlphaTrackModule() {
   };
 
   // ==========================================================================
-  // 🛡️ VIEWPORT RENDER
+  // ðŸ›¡ï¸ VIEWPORT RENDER
   // ==========================================================================
 
   if (!pioneer.isHydrated || pioneer.status === 'SYNCING') {
@@ -183,7 +183,7 @@ export default function AlphaTrackModule() {
           </p>
         </div>
         
-        {/* 🛡️ INJECTED NAVIGATION MATRIX */}
+        {/* ðŸ›¡ï¸ INJECTED NAVIGATION MATRIX */}
         <div className="flex items-center gap-2 shrink-0">
           <Link href="/dashboard" className="px-2.5 py-1.5 bg-cyan-950/40 hover:bg-cyan-900 border border-cyan-800/50 text-cyan-400 text-[10px] font-bold uppercase rounded tracking-wider transition-colors shadow-[0_0_10px_rgba(6,182,212,0.1)]">
             DASHBOARD
@@ -317,7 +317,7 @@ export default function AlphaTrackModule() {
             </form>
           </div>
 
-          {/* 🛡️ TIMELAPSE SIMULATION CONSOLE */}
+          {/* ðŸ›¡ï¸ TIMELAPSE SIMULATION CONSOLE */}
           <div className="bg-zinc-900 border border-zinc-800 p-4 rounded-lg space-y-3">
             <div className="flex justify-between items-center border-b border-zinc-800 pb-2">
               <h4 className="text-[10px] text-cyan-400 uppercase tracking-widest flex items-center gap-1.5 font-bold">

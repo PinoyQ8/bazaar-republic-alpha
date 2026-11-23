@@ -1,6 +1,6 @@
 "use server";
 
-import { prisma } from "@/lib/prisma"; // 🛡️ Pulls the Schema v2.7.2 bzr-db singleton
+import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 
 export interface SignatureResponse {
@@ -12,8 +12,23 @@ export interface SignatureResponse {
   timestamp: number;
 }
 
+function revalidateAcademyPaths() {
+  revalidatePath("/academy");
+  revalidatePath("/academy/module-01");
+  revalidatePath("/academy/module-02");
+  revalidatePath("/dashboard");
+}
+
+function isNodeSanctioned(node: any): boolean {
+  return Boolean(
+    node?.isFrozen ||
+      node?.status === "FROZEN" ||
+      node?.quarantineStatus === "QUARANTINED"
+  );
+}
+
 // ----------------------------------------------------------------------
-// 1. 🛡️ THE CLAIM LOOP: Module Completion, Yield & TS Injection
+// 1. THE CLAIM LOOP: Module Completion, Yield & TS Injection
 // ----------------------------------------------------------------------
 export async function commitModuleSignature(
   pioneerId: string,
@@ -21,20 +36,18 @@ export async function commitModuleSignature(
 ): Promise<SignatureResponse> {
   const serverTimestamp = Date.now();
   const MODULE_YIELD = 15.0;
-  const TS_REWARD = 10; 
+  const TS_REWARD = 10;
 
   try {
-    // 1. 🛑 ZERO-TRUST PERIMETER
     if (!pioneerId || !moduleId) {
-      console.error(`[MESH-SCAN] 🚨 FATAL: Missing node or module ID.`);
-      return { 
-        success: false, 
-        message: "ADJUDICATOR: PAYLOAD FRACTURED.", 
-        timestamp: serverTimestamp 
+      console.error("[MESH-SCAN] FATAL: Missing node or module ID.");
+      return {
+        success: false,
+        message: "ADJUDICATOR: PAYLOAD FRACTURED.",
+        timestamp: serverTimestamp,
       };
     }
 
-    // 2. 🏛️ THE QUORUM GATE 
     const quorumCount = await prisma.pioneerNode.count({
       where: {
         status: "ACTIVE",
@@ -43,7 +56,6 @@ export async function commitModuleSignature(
     });
 
     const isDevBypass = process.env.NODE_ENV === "development";
-
     if (quorumCount < 10 && !isDevBypass) {
       return {
         success: false,
@@ -52,12 +64,37 @@ export async function commitModuleSignature(
       };
     }
 
-    // 3. 🛑 DOUBLE-CLAIM GUARD (Bypassing TS Cache with 'as any')
-    const existingRecord = await (prisma as any).academyLog.findFirst({
+    // Resolve PioneerNode by uid or username so both UIDs and handles like "PinoyQ8" work
+    const node = await prisma.pioneerNode.findFirst({
       where: {
-        pioneerUid: pioneerId,
-        moduleLocked: moduleId,
-        action: "MODULE_COMPLETED",
+        OR: [{ uid: pioneerId }, { username: pioneerId }],
+      },
+    });
+
+    if (!node) {
+      return {
+        success: false,
+        message: `PIONEER_NODE_NOT_FOUND: No node matching "${pioneerId}".`,
+        timestamp: serverTimestamp,
+      };
+    }
+
+    if (isNodeSanctioned(node)) {
+      return {
+        success: false,
+        message: `GOVERNANCE_LOCK: Node ${node.uid} is frozen or quarantined.`,
+        timestamp: serverTimestamp,
+      };
+    }
+
+    const canonicalUid = node.uid;
+    const db = prisma as any;
+
+    const existingRecord = await db.academyLog.findFirst({
+      where: {
+        pioneerUid: canonicalUid,
+        moduleKey: moduleId,
+        status: "COMPLETED",
       },
     });
 
@@ -69,33 +106,35 @@ export async function commitModuleSignature(
       };
     }
 
-    // 4. 🔗 ATOMIC MESH COMMIT (Logging & Yield Injection)
-    const signatureHash = `MESH-SECURE-SIG-${pioneerId.substring(0, 4).toUpperCase()}-${serverTimestamp}`;
+    const signatureHash = `MESH-SECURE-SIG-${canonicalUid
+      .substring(0, 4)
+      .toUpperCase()}-${serverTimestamp}`;
 
-    const [logRecord, updatedNode] = await prisma.$transaction([
-      // A. Write the completion to the Academy Log (Bypassing TS Cache)
-      (prisma as any).academyLog.create({
+    const [, updatedNode] = await prisma.$transaction([
+      db.academyLog.create({
         data: {
-          pioneerUid: pioneerId,
-          moduleLocked: moduleId,
-          action: "MODULE_COMPLETED",
-        }
+          pioneerUid: canonicalUid,
+          moduleKey: moduleId,
+          status: "COMPLETED",
+        },
       }),
-      // B. Inject TrustScore & Yield
       prisma.pioneerNode.update({
-        where: { uid: pioneerId },
+        where: { id: node.id },
         data: {
           trustScore: { increment: TS_REWARD },
           mbzrBalance: { increment: MODULE_YIELD },
           lastActivityTimestamp: new Date(),
-        }
-      })
+        },
+      }),
     ]);
 
-    console.log(`[MESH-ACADEMY] ✅ Module ${moduleId} cryptographically signed for Pioneer ${pioneerId}.`);
+    console.log(
+      `[MESH-ACADEMY] Module ${moduleId} signed for ${
+        node.username || canonicalUid
+      } (${signatureHash}).`
+    );
 
-    // 5. ♻️ REFRESH CLIENT CACHE
-    revalidatePath('/academy');
+    revalidateAcademyPaths();
 
     return {
       success: true,
@@ -105,77 +144,104 @@ export async function commitModuleSignature(
       newTrustScore: updatedNode.trustScore,
       timestamp: serverTimestamp,
     };
-
   } catch (error: any) {
     console.error("[FATAL] Academy Signature Commit Fault:", error);
     return {
       success: false,
-      message: error.message || "INTERNAL_ADJUDICATOR_FAULT",
+      message: error?.message || "INTERNAL_ADJUDICATOR_FAULT",
       timestamp: serverTimestamp,
     };
   }
 }
 
 // ----------------------------------------------------------------------
-// 2. 🛡️ FETCH PIONEER ACADEMY STATUS
+// 2. FETCH PIONEER ACADEMY STATUS
 // ----------------------------------------------------------------------
-export async function getPioneerAcademyStatus(username: string) {
+export async function getPioneerAcademyStatus(identifier: string) {
   try {
+    if (!identifier) {
+      return { success: false, message: "Missing node identifier." };
+    }
+
     const node = await prisma.pioneerNode.findFirst({
-      where: { username: username }
+      where: {
+        OR: [{ uid: identifier }, { username: identifier }],
+      },
     });
-    
+
     if (!node) {
       return { success: false, message: "Node not found." };
     }
 
     return {
       success: true,
+      uid: node.uid,
       trustScore: node.trustScore,
       status: node.status,
       stakedAmount: node.stakedPi,
     };
   } catch (error: any) {
     console.error("[MESH-FRACTURE] Status Fetch Error:", error);
-    return { success: false, message: error.message };
+    return { success: false, message: error?.message || "Failed to fetch status." };
   }
 }
 
 // ----------------------------------------------------------------------
-// 3. 🛡️ THE PAYMENT LOOP: Academy Tier Upgrade
+// 3. THE PAYMENT LOOP: Academy Tier Upgrade
 // ----------------------------------------------------------------------
-// Location: app/actions/academyActions.ts
-
 export async function unlockPremiumTier(pioneerId: string) {
   const TIER_COST = 50.0;
 
   try {
-    const node = await prisma.pioneerNode.findUnique({ where: { uid: pioneerId } });
-    
-    if (!node || node.stakedPi < TIER_COST) {
+    if (!pioneerId) {
+      return { success: false, message: "MISSING_PIONEER_ID" };
+    }
+
+    const node = await prisma.pioneerNode.findFirst({
+      where: {
+        OR: [{ uid: pioneerId }, { username: pioneerId }],
+      },
+    });
+
+    if (!node) {
+      return { success: false, message: "PIONEER_NODE_NOT_FOUND" };
+    }
+
+    if (isNodeSanctioned(node)) {
+      return {
+        success: false,
+        message: `GOVERNANCE_LOCK: Node ${node.uid} is frozen or quarantined.`,
+      };
+    }
+
+    if ((node.stakedPi ?? 0) < TIER_COST) {
       return { success: false, message: "INSUFFICIENT_STAKE_FOR_UPGRADE" };
     }
 
     await prisma.pioneerNode.update({
-      where: { uid: pioneerId },
+      where: { id: node.id },
       data: {
         stakedPi: { decrement: TIER_COST },
-        tier: "ACADEMY_CORE",
+        tier: "ACADEMY_CORE" as any,
+        lastActivityTimestamp: new Date(),
       },
     });
 
-    console.log(`[MESH-BRIDGE] ✅ Node ${pioneerId} upgraded to ACADEMY_CORE. -${TIER_COST} Pi deducted.`);
-    revalidatePath("/academy");
+    console.log(
+      `[MESH-BRIDGE] Node ${node.uid} upgraded to ACADEMY_CORE. -${TIER_COST} Pi deducted.`
+    );
+
+    revalidateAcademyPaths();
 
     return {
       success: true,
       message: "UPGRADE_SUCCESS: Academy Core Curriculum Unlocked",
     };
   } catch (error: any) {
-    console.error("[MESH-SCAN] Payment Fracture:", error.message || error);
+    console.error("[MESH-SCAN] Payment Fracture:", error?.message || error);
     return {
       success: false,
-      message: `TRANSACTION_FAILED: ${error.message || "Unknown error"}`,
+      message: `TRANSACTION_FAILED: ${error?.message || "Unknown error"}`,
     };
   }
 }

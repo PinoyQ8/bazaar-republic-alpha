@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useState, useEffect, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
@@ -24,7 +24,7 @@ function DeployFormContent() {
   const [estimatedHours, setEstimatedHours] = useState("12");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // 🛡️ Auto-authenticate if no local session exists
+  // ðŸ›¡ï¸ Auto-authenticate if no local session exists
   useEffect(() => {
     const cachedUser = localStorage.getItem("pi_auth_user");
     if (!cachedUser && typeof window !== "undefined" && window.Pi) {
@@ -106,13 +106,21 @@ function DeployFormContent() {
               body: JSON.stringify({ paymentId }),
             });
             if (!res.ok) throw new Error("Approval Gate Rejected");
-            console.log("✅ [MESH-SCAN] Server Approval Gate Passed.");
+            console.log("âœ… [MESH-SCAN] Server Approval Gate Passed.");
           } catch (error) {
-            console.error("❌ [MESH-SCAN] API Approval Fault:", error);
+            console.error("âŒ [MESH-SCAN] API Approval Fault:", error);
             setIsSubmitting(false);
           }
         },
         onReadyForServerCompletion: async (paymentId: string, txid: string) => {
+          const resolvedUid = (() => {
+            try {
+              const rawAuth = typeof window !== "undefined" ? localStorage.getItem("pi_auth_user") : null;
+              return rawAuth ? JSON.parse(rawAuth)?.uid : undefined;
+            } catch {
+              return undefined;
+            }
+          })();
           console.log("[MESH-SCAN] Blockchain Confirmed! Forwarding TXID to Server Gate:", txid);
           try {
             const res = await fetch("/api/pi/complete", {
@@ -121,34 +129,34 @@ function DeployFormContent() {
                 "Content-Type": "application/json",
                 "Authorization": `Bearer ${accessToken}` 
               },
-              body: JSON.stringify({ paymentId, txid }),
+              body: JSON.stringify({ paymentId, txid, uid: resolvedUid }),
             });
             if (!res.ok) throw new Error("Completion Gate Rejected");
             
-            console.log("✅ [MESH-SCAN] Contract Sealed on MESH.");
-            alert(`✅ [MESH-SCAN] Escrow Locked! TXID: ${txid}`);
+            console.log("âœ… [MESH-SCAN] Contract Sealed on MESH.");
+            alert(`âœ… [MESH-SCAN] Escrow Locked! TXID: ${txid}`);
             setIsSubmitting(false);
             
             // Redirect Pioneer back to the Node profile upon success
             router.push(`/e-network/provider/${providerId}`);
           } catch (error) {
-            console.error("❌ [MESH-SCAN] API Completion Fault:", error);
+            console.error("âŒ [MESH-SCAN] API Completion Fault:", error);
             setIsSubmitting(false);
           }
         },
         onCancel: (paymentId: string) => {
-          console.warn("⚠️ [MESH-SCAN] Handshake Aborted by Pioneer. Payment ID:", paymentId);
+          console.warn("âš ï¸ [MESH-SCAN] Handshake Aborted by Pioneer. Payment ID:", paymentId);
           setIsSubmitting(false);
         },
         onError: (error: Error, payment: any) => {
-          console.error("❌ [MESH-SCAN] Pi Wallet Broadcast Error:", error);
+          console.error("âŒ [MESH-SCAN] Pi Wallet Broadcast Error:", error);
           setIsSubmitting(false);
         },
       });
 
     } catch (error) {
       console.error("[MESH-SCAN] System Fault:", error);
-      alert("❌ [MESH-SCAN] SDK Fault: Pi Wallet could not be invoked.");
+      alert("âŒ [MESH-SCAN] SDK Fault: Pi Wallet could not be invoked.");
       setIsSubmitting(false);
     }
   };

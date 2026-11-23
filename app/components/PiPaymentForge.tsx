@@ -1,16 +1,34 @@
-﻿// Location: app/components/PiPaymentForge.tsx
-'use client';
+﻿"use client";
 
-import React, { useState } from 'react';
-import { useAuth } from '@/context/AuthContext';
-import { safePiAuthenticate } from '@/app/utils/safePi';
-import { Loader2, Coins, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import React, { useState } from "react";
+import { useAuth } from "@/context/AuthContext";
+import { safePiAuthenticate } from "@/app/utils/safePi";
+import { Loader2, Coins, AlertTriangle, CheckCircle2 } from "lucide-react";
 
 interface PiPaymentForgeProps {
   amount: number;
   memo: string;
   metadata?: Record<string, any>;
   onSuccess?: (txid: string) => void;
+}
+
+function extractErrorMessage(data: any, status: number, fallback: string): string {
+  if (typeof data?.error === "string" && data.error.trim()) {
+    return data.error;
+  }
+  if (typeof data?.details?.error_message === "string" && data.details.error_message.trim()) {
+    return data.details.error_message;
+  }
+  if (typeof data?.details?.error === "string" && data.details.error.trim()) {
+    return data.details.error;
+  }
+  if (typeof data?.details === "string" && data.details.trim()) {
+    return data.details;
+  }
+  if (data?.details && typeof data.details === "object") {
+    return JSON.stringify(data.details);
+  }
+  return `${fallback} (HTTP ${status})`;
 }
 
 export default function PiPaymentForge({
@@ -27,101 +45,126 @@ export default function PiPaymentForge({
   const handleStake = async () => {
     setErrorMsg(null);
 
-    if (typeof window === 'undefined' || !(window as any).Pi) {
-      setErrorMsg('Pi SDK gateway unavailable. Open in Pi Browser.');
+    if (typeof window === "undefined" || !(window as any).Pi) {
+      setErrorMsg("Pi SDK gateway unavailable. Open in Pi Browser.");
       return;
     }
 
     setProcessing(true);
-    setStatusMsg('1/4: Initializing MESH Sandbox & Scopes...');
+    setStatusMsg("1/4: Initializing MESH & Scopes...");
 
     const Pi = (window as any).Pi;
 
     try {
-      // 1. Mandatory Pi.init call on current window context
+      const isPiBrowser =
+        typeof navigator !== "undefined" && /PiBrowser/i.test(navigator.userAgent);
+      try {
+        Pi.init({ version: "2.0", sandbox: !isPiBrowser });
+      } catch {
+        // Ignore if already initialized
+      }
 
-      // 2. Re-assert authentication with 'payments' scope
-      const auth = await safePiAuthenticate(['username', 'payments']);
+      const auth = await safePiAuthenticate(["username", "payments"]);
       const currentUid = auth?.user?.uid || pioneer?.uid;
 
       if (!currentUid) {
-        throw new Error('Node Identity Unverified.');
+        throw new Error("Node Identity Unverified.");
       }
 
-      setStatusMsg('2/4: Invoking Native Payment Modal...');
+      setStatusMsg("2/4: Invoking Native Payment Modal...");
 
       const paymentData = {
         amount: Number(amount),
         memo: String(memo),
-        metadata: { 
-          network: 'MESH_TESTNET',
+        metadata: {
+          network: "MESH_TESTNET",
           pioneer_uid: currentUid,
-          ...metadata
+          ...metadata,
         },
       };
 
       const paymentCallbacks = {
         onReadyForServerApproval: async (paymentId: string) => {
           setStatusMsg(`3/4: Authorizing Payment (${paymentId.slice(0, 8)}...)...`);
-          console.log('[PAYMENT_FLOW] onReadyForServerApproval:', paymentId);
+          console.log("[PAYMENT_FLOW] onReadyForServerApproval:", paymentId);
 
           try {
-            const res = await fetch('/api/payments', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ action: 'approve', paymentId }),
+            const res = await fetch("/api/payments", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ action: "approve", paymentId }),
             });
-            
-            const data = await res.json().catch(() => ({}));
+
+            const rawText = await res.text();
+            let data: Record<string, any> = {};
+            try {
+              data = rawText ? JSON.parse(rawText) : {};
+            } catch {
+              data = { rawText };
+            }
 
             if (!res.ok) {
-              const reason = data.details || data.error || `HTTP ${res.status}`;
-              console.error('[PAYMENT_FAULT] Approval rejected:', reason);
+              const reason = extractErrorMessage(data, res.status, "Approval rejected");
+              console.error("[PAYMENT_FAULT] Approval rejected:", {
+                status: res.status,
+                reason,
+                data,
+              });
               setErrorMsg(`Approval Fault: ${reason}`);
               setProcessing(false);
               return;
             }
 
-            setStatusMsg('Awaiting Pioneer Signature in Pi Modal...');
+            setStatusMsg("Awaiting Pioneer Signature in Pi Modal...");
           } catch (err: any) {
-            console.error('[PAYMENT_FAULT] Approval network error:', err);
-            setErrorMsg(`Approval Network Fault: ${err.message}`);
+            console.error("[PAYMENT_FAULT] Approval network error:", err);
+            setErrorMsg(`Approval Network Fault: ${err?.message || "Unknown error"}`);
             setProcessing(false);
           }
         },
 
         onReadyForServerCompletion: async (paymentId: string, txid: string) => {
-          setStatusMsg('4/4: Signature captured! Finalizing ledger stake...');
-          console.log('[PAYMENT_FLOW] onReadyForServerCompletion:', { paymentId, txid });
+          setStatusMsg("4/4: Signature captured! Finalizing ledger stake...");
+          console.log("[PAYMENT_FLOW] onReadyForServerCompletion:", { paymentId, txid });
 
           try {
-            const res = await fetch('/api/payments', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ 
-                action: 'complete', 
-                paymentId, 
+            const res = await fetch("/api/payments", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                action: "complete",
+                paymentId,
                 txid,
                 uid: currentUid,
-                username: auth?.user?.username || pioneer?.username
+                username: auth?.user?.username || pioneer?.username,
               }),
             });
-            
-            const data = await res.json().catch(() => ({}));
+
+            const rawText = await res.text();
+            let data: Record<string, any> = {};
+            try {
+              data = rawText ? JSON.parse(rawText) : {};
+            } catch {
+              data = { rawText };
+            }
 
             if (!res.ok) {
-              const reason = data.details || data.error || `HTTP ${res.status}`;
-              console.error('[PAYMENT_FAULT] Completion rejected:', reason);
+              const reason = extractErrorMessage(data, res.status, "Completion rejected");
+              console.error("[PAYMENT_FAULT] Completion rejected:", {
+                status: res.status,
+                reason,
+                data,
+              });
               setErrorMsg(`Completion Fault: ${reason}`);
               setProcessing(false);
               return;
             }
 
-            setStatusMsg('Verified: Stake Locked on MESH Ledger!');
+            setStatusMsg("Verified: Stake Locked on MESH Ledger!");
             if (onSuccess) onSuccess(txid);
           } catch (err: any) {
-            console.error('[PAYMENT_FAULT] Completion network error:', err);
-            setErrorMsg(`Completion Fault: ${err.message}`);
+            console.error("[PAYMENT_FAULT] Completion network error:", err);
+            setErrorMsg(`Completion Fault: ${err?.message || "Unknown error"}`);
           } finally {
             setProcessing(false);
           }
@@ -129,25 +172,24 @@ export default function PiPaymentForge({
 
         onCancel: (paymentId: string) => {
           console.warn(`[PAYMENT_LOG] Cancelled by Pioneer: ${paymentId}`);
-          setErrorMsg('Payment cancelled by user.');
+          setErrorMsg("Payment cancelled by user.");
           setStatusMsg(null);
           setProcessing(false);
         },
 
         onError: (error: Error, payment?: any) => {
-          console.error(`[PAYMENT_CRITICAL] SDK Runtime Fault:`, error, payment);
-          setErrorMsg(error?.message || 'Transaction execution failed in sandbox.');
+          console.error("[PAYMENT_CRITICAL] SDK Runtime Fault:", error, payment);
+          setErrorMsg(error?.message || "Transaction execution failed in sandbox.");
           setStatusMsg(null);
           setProcessing(false);
         },
       };
 
-      console.log('[PAYMENT_INIT] Invoking Pi.createPayment:', paymentData);
+      console.log("[PAYMENT_INIT] Invoking Pi.createPayment:", paymentData);
       Pi.createPayment(paymentData, paymentCallbacks);
-
     } catch (err: any) {
-      console.error('[PAYMENT_FAULT] Execution crash:', err);
-      setErrorMsg(`SDK Bridge Crash: ${err?.message || 'Check Pi Browser environment.'}`);
+      console.error("[PAYMENT_FAULT] Execution crash:", err);
+      setErrorMsg(`SDK Bridge Crash: ${err?.message || "Check Pi Browser environment."}`);
       setProcessing(false);
     }
   };
@@ -166,20 +208,26 @@ export default function PiPaymentForge({
         ) : (
           <Coins className="w-4 h-4 text-slate-950" />
         )}
-        <span>{processing ? 'Connecting Native Modal...' : `Execute ${amount} Test-Pi Stake`}</span>
+        <span>
+          {processing ? "Connecting Native Modal..." : `Execute ${amount} Test-Pi Stake`}
+        </span>
       </button>
 
       {(statusMsg || errorMsg) && (
-        <div className={`p-3 rounded-lg border text-[10px] tracking-wide flex flex-col gap-1 ${
-          errorMsg ? 'bg-rose-950/40 border-rose-900/60' : 'bg-slate-950 border-slate-800/80'
-        }`}>
+        <div
+          className={`p-3 rounded-lg border text-[10px] tracking-wide flex flex-col gap-1 ${
+            errorMsg
+              ? "bg-rose-950/40 border-rose-900/60"
+              : "bg-slate-950 border-slate-800/80"
+          }`}
+        >
           {statusMsg && !errorMsg && (
             <p className="text-emerald-400 font-bold uppercase flex items-center gap-1.5">
               <CheckCircle2 className="w-3.5 h-3.5 shrink-0 text-emerald-400" />
               <span>{statusMsg}</span>
             </p>
           )}
-          
+
           {errorMsg && (
             <p className="text-rose-400 flex items-start gap-1.5 leading-relaxed">
               <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
@@ -191,5 +239,3 @@ export default function PiPaymentForge({
     </div>
   );
 }
-
-

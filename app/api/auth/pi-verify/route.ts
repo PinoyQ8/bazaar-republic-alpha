@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
+export const dynamic = 'force-dynamic';
+
 interface PiUserResponse {
   uid: string;
   username: string;
@@ -9,7 +11,7 @@ interface PiUserResponse {
 
 export async function POST(req: Request) {
   // 1. Connection Protocol Verification
-  const dbUrl = process.env.MONGODB_URI || process.env.DATABASE_URL || '';
+  const dbUrl = (process.env.MONGODB_URI || process.env.DATABASE_URL || '').trim();
   const prefix = dbUrl.substring(0, 15);
 
   if (!dbUrl.startsWith('mongodb://') && !dbUrl.startsWith('mongodb+srv://')) {
@@ -24,10 +26,14 @@ export async function POST(req: Request) {
   }
 
   try {
-    // 2. Extract Token from Body or Header
+    // 2. Extract Token from Body or Authorization Header
     const body = await req.json().catch(() => ({}));
     const authHeader = req.headers.get('authorization');
-    const accessToken = body?.accessToken || authHeader?.replace('Bearer ', '')?.trim();
+    const bearerToken = authHeader?.replace(/^Bearer\s+/i, '').trim();
+    const accessToken =
+      typeof body?.accessToken === 'string' && body.accessToken.trim()
+        ? body.accessToken.trim()
+        : bearerToken;
 
     if (!accessToken) {
       return NextResponse.json(
@@ -36,10 +42,8 @@ export async function POST(req: Request) {
       );
     }
 
-    // 3. Server-to-Server Pi Platform Verification (Testnet2 / Mainnet Horizon)
-    let verifiedUid = body?.uid;
-    let verifiedUsername = body?.username;
-
+    // 3. Server-to-Server Pi Platform Verification
+    let piUserData: PiUserResponse;
     try {
       const piPlatformRes = await fetch('https://api.minepi.com/v2/me', {
         method: 'GET',
@@ -47,57 +51,79 @@ export async function POST(req: Request) {
           Authorization: `Bearer ${accessToken}`,
         },
         cache: 'no-store',
+        signal: AbortSignal.timeout(8000),
       });
 
-      if (piPlatformRes.ok) {
-        const piUserData: PiUserResponse = await piPlatformRes.json();
-        verifiedUid = piUserData.uid;
-        verifiedUsername = piUserData.username;
-        console.log(`[PI_TESTNET2_VERIFIED] UID: ${verifiedUid} | User: ${verifiedUsername}`);
-      } else {
-        const errorText = await piPlatformRes.text();
-        console.warn(`[PI_API_VALIDATION_WARNING] Status: ${piPlatformRes.status} - Payload: ${errorText}`);
-        
-        // Fallback for isolated sandbox simulation if uid is provided
-        if (!verifiedUid) {
-          return NextResponse.json(
-            { success: false, error: 'PI_TOKEN_VERIFICATION_FAILED', details: errorText },
-            { status: 401 }
-          );
-        }
-      }
-    } catch (fetchError: any) {
-      console.error('[PI_PLATFORM_FETCH_ERROR]', fetchError.message);
-      if (!verifiedUid) {
+      if (!piPlatformRes.ok) {
+        const errorText = await piPlatformRes.text().catch(() => '');
+        console.warn(
+          `[PI_API_VALIDATION_WARNING] Status: ${piPlatformRes.status} - Payload: ${errorText}`
+        );
         return NextResponse.json(
-          { success: false, error: 'PI_PLATFORM_UNREACHABLE' },
-          { status: 503 }
+          {
+            success: false,
+            error: 'PI_TOKEN_VERIFICATION_FAILED',
+            details: errorText,
+          },
+          { status: 401 }
         );
       }
+
+      piUserData = (await piPlatformRes.json()) as PiUserResponse;
+    } catch (fetchError: any) {
+      console.error('[PI_PLATFORM_FETCH_ERROR]', fetchError?.message || fetchError);
+      return NextResponse.json(
+        { success: false, error: 'PI_PLATFORM_UNREACHABLE' },
+        { status: 503 }
+      );
     }
 
-    // 4. Atomic Pioneer Node Upsert in MongoDB Atlas
+    const verifiedUid = piUserData?.uid?.trim();
+    const verifiedUsername = piUserData?.username?.trim();
+
+    if (!verifiedUid || !verifiedUsername) {
+      return NextResponse.json(
+        { success: false, error: 'INVALID_PI_USER_PAYLOAD' },
+        { status: 502 }
+      );
+    }
+
+    console.log(`[PI_TESTNET2_VERIFIED] UID: ${verifiedUid} | User: ${verifiedUsername}`);
+
+    // 4. Atomic Pioneer Node Upsert in MongoDB
     const pioneerRecord = await prisma.pioneerNode.upsert({
       where: { uid: verifiedUid },
       update: {
-        username: verifiedUsername || 'REAL_PIONEER',
+        username: verifiedUsername,
         status: 'ACTIVE',
+        lastActivityTimestamp: new Date(),
       },
       create: {
         uid: verifiedUid,
-        username: verifiedUsername || 'REAL_PIONEER',
+        username: verifiedUsername,
         tier: 'CITIZEN',
         status: 'ACTIVE',
         uptimeShield: 92,
+        lastActivityTimestamp: new Date(),
       },
     });
 
-    return NextResponse.json({
-      success: true,
-      message: '[STATUS 200] Identity Forged',
-      container: 'p27.1 testnet2',
-      pioneer: pioneerRecord,
-    });
+    if ((pioneerRecord as any).isFrozen) {
+      return NextResponse.json(
+        { success: false, error: 'NODE_SANCTIONED_FROZEN' },
+        { status: 403 }
+      );
+    }
+
+    return NextResponse.json(
+      {
+        success: true,
+        message: '[STATUS 200] Identity Forged',
+        container: 'p27.1 testnet2',
+        pioneer: pioneerRecord,
+      },
+      { status: 200 }
+    );
   } catch (error: any) {
     console.error('[API_AUTH_VERIFY_ERROR]', error);
     return NextResponse.json(

@@ -1,5 +1,4 @@
-// Location: app/academy/module-01/page.tsx
-'use client';
+﻿'use client';
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -7,16 +6,10 @@ import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import PioneerAuthGate from '@/app/components/PioneerAuthGate';
 import PiPaymentForge from '@/app/components/PiPaymentForge';
-import { 
-  Shield, 
-  ArrowLeft, 
-  CheckCircle2, 
-  Lock, 
-  Unlock, 
-  Coins, 
-  Terminal, 
-  Award,
-  Sparkles
+import {
+  Shield,
+  CheckCircle2,
+  Sparkles,
 } from 'lucide-react';
 
 export default function Module01Page() {
@@ -29,10 +22,14 @@ export default function Module01Page() {
     setStakeTxid(txid);
     setIsStaked(true);
 
+    if (!pioneer?.uid) {
+      return;
+    }
+
     // Update Pioneer session state to reflect NOVICE node tier upgrade
     login({
       uid: pioneer.uid,
-      username: pioneer.username,
+      username: pioneer.username || 'Pioneer',
       status: 'ACTIVE',
       tier: 'NOVICE',
     });
@@ -41,18 +38,17 @@ export default function Module01Page() {
   return (
     <PioneerAuthGate>
       <main className="w-full max-w-[384px] mx-auto min-h-screen bg-slate-950 text-slate-100 p-4 font-mono flex flex-col justify-between py-6">
-        
         {/* TOP BAR */}
         <div className="space-y-4">
           <div className="flex items-center justify-between border-b border-slate-800 pb-3">
             <Link
               href="/academy"
-              className="text-xs text-slate-400 hover:text-cyan-400 flex items-center gap-1 transition-colors"
+              className="text-xs text-slate-400 hover:text-cyan-400 transition-colors"
             >
-              <ArrowLeft className="w-3.5 h-3.5" /> Academy Hub
+              ← Academy Hub
             </Link>
             <span className="text-[10px] px-2 py-0.5 rounded bg-cyan-950/60 border border-cyan-500/30 text-cyan-400 font-bold">
-              PHASE 01 • MESH-101
+              PHASE 01 · MESH-101
             </span>
           </div>
 
@@ -85,16 +81,16 @@ export default function Module01Page() {
           {/* STAKE INTERACTION BLOCK */}
           <div className="p-4 bg-slate-900/50 border border-slate-800 rounded-xl space-y-3">
             <div className="flex items-center justify-between border-b border-slate-800/80 pb-2">
-              <span className="text-xs font-bold uppercase text-amber-400 flex items-center gap-1.5">
-                <Coins className="w-3.5 h-3.5" /> Node Activation Stake
+              <span className="text-xs font-bold uppercase text-amber-400">
+                Node Activation Stake
               </span>
               {isStaked ? (
-                <span className="text-[9px] px-1.5 py-0.5 bg-emerald-950 border border-emerald-500/40 text-emerald-400 rounded font-bold flex items-center gap-1">
-                  <Unlock className="w-3 h-3" /> VERIFIED
+                <span className="text-[9px] px-1.5 py-0.5 bg-emerald-950 border border-emerald-500/40 text-emerald-400 rounded font-bold">
+                  VERIFIED
                 </span>
               ) : (
-                <span className="text-[9px] px-1.5 py-0.5 bg-rose-950/60 border border-rose-800/40 text-rose-400 rounded font-bold flex items-center gap-1">
-                  <Lock className="w-3 h-3" /> REQUIRED
+                <span className="text-[9px] px-1.5 py-0.5 bg-rose-950/60 border border-rose-800/40 text-rose-400 rounded font-bold">
+                  REQUIRED
                 </span>
               )}
             </div>
@@ -134,7 +130,6 @@ export default function Module01Page() {
             <span>{isStaked ? 'Complete Module & Return' : 'Awaiting Stake Verification'}</span>
           </button>
         </div>
-
       </main>
     </PioneerAuthGate>
   );
