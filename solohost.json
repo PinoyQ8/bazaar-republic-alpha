@@ -1,10 +1,10 @@
-{
+﻿{
   "name": "bazaar-republic-alpha",
   "displayName": "Bazaar Republic Alpha",
   "version": "0.1.1",
-  "description": "The alpha genesis release of Bazaar Republic—a decentralized autonomous organization (DAO) and secure E-Network marketplace built natively on the Pi Network infrastructure. Powered by the MESH Protocol for decentralized coordination and secure local node validation.",
+  "description": "The alpha genesis release of Bazaar Republic — a decentralized autonomous organization (DAO) and secure E-Network marketplace built natively on the Pi Network infrastructure. Powered by the MESH Protocol for decentralized coordination and secure local node validation.",
   "author": "Bazaar Tech (PinoyQ8)",
-  "repository": "[https://github.com/PinoyQ8/bazaar-republic-alpha](https://github.com/PinoyQ8/bazaar-republic-alpha)",
+  "repository": "https://github.com/PinoyQ8/bazaar-republic-alpha",
   "category": "Utility",
   "runtime": {
     "type": "docker",
@@ -20,8 +20,8 @@
   "environment": {
     "NODE_ENV": "production",
     "NEXT_PUBLIC_PI_SANDBOX": "true",
-    "DATABASE_URL": "mongodb://host.docker.internal:27017/bazaar_republic?directConnection=true",
-    "MONGODB_URI": "mongodb://host.docker.internal:27017/bazaar_republic?directConnection=true",
+    "DATABASE_URL": "mongodb://db:27017/bazaar_republic?replicaSet=rs0&readConcernLevel=majority&w=majority",
+    "MONGODB_URI": "mongodb://db:27017/bazaar_republic?replicaSet=rs0&readConcernLevel=majority&w=majority",
     "REQUIRED_VARS": [
       "MONGODB_URI"
     ]

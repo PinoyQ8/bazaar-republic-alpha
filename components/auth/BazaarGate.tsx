@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
@@ -42,6 +42,7 @@ export default function BazaarGate() {
             body: JSON.stringify({
               paymentId: payment.identifier,
               txid: payment.transaction.txid,
+              uid: payment?.user_uid,
             }),
           }).catch((err) => console.error("[BAZAAR-GATE] Recovery failed:", err));
         }
@@ -85,12 +86,12 @@ export default function BazaarGate() {
       {/* SECURITY MANIFEST */}
       <div className="mb-6 border-b border-emerald-900 pb-4">
         <h3 className="text-amber-500 font-bold uppercase tracking-widest text-[10px]">
-          🛡️ BAZAAR MESH SECURITY NOTICE
+          ðŸ›¡ï¸ BAZAAR MESH SECURITY NOTICE
         </h3>
         <ul className="mt-3 text-[9px] text-emerald-600 space-y-1">
-          <li>1. 🌐 VERIFY URL: mesh-academy-alpha.vercel.app</li>
-          <li>2. 🔑 KEY SOVEREIGNTY: We never request passphrases.</li>
-          <li>3. 🛑 PROTOCOL ISOLATION: Avoid rogue nodes.</li>
+          <li>1. ðŸŒ VERIFY URL: mesh-academy-alpha.vercel.app</li>
+          <li>2. ðŸ”‘ KEY SOVEREIGNTY: We never request passphrases.</li>
+          <li>3. ðŸ›‘ PROTOCOL ISOLATION: Avoid rogue nodes.</li>
         </ul>
         <div className="mt-4 flex items-center space-x-2 text-[10px] text-white">
           <input

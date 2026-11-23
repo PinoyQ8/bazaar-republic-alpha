@@ -1,4 +1,4 @@
-// Route: /app/components/auth/pioneer-auth.tsx
+﻿// Route: /app/components/auth/pioneer-auth.tsx
 // Logic: E-Network Entry Gate & SDK Handshake (MESH Hardened)
 
 "use client";
@@ -30,7 +30,7 @@ export default function PioneerAuth() {
         try {
           pi.init({ version: "2.0", sandbox: !isPiBrowser });
           (window as any).__PI_INITIALIZED__ = true;
-          console.log(`[MESH-BRIDGE] 🟢 Pi SDK Initialized cleanly. Sandbox Mode: ${!isPiBrowser}`);
+          console.log(`[MESH-BRIDGE] ðŸŸ¢ Pi SDK Initialized cleanly. Sandbox Mode: ${!isPiBrowser}`);
           return true;
         } catch (err) {
           (window as any).__PI_INITIALIZED__ = true;
@@ -48,7 +48,7 @@ export default function PioneerAuth() {
       if (initializePiSDK() || checkCount > 20) {
         clearInterval(syncInterval);
         if (checkCount > 20) {
-          console.warn("[MESH-BRIDGE] ⚠️ Pi SDK load timed out.");
+          console.warn("[MESH-BRIDGE] âš ï¸ Pi SDK load timed out.");
         }
       }
     }, 250);
@@ -57,7 +57,7 @@ export default function PioneerAuth() {
   }, []);
 
   const onIncompletePaymentFound = async (payment: any) => {
-    console.warn("[MESH-BRIDGE] ⚠️ Orphaned payment detected:", payment?.identifier);
+    console.warn("[MESH-BRIDGE] âš ï¸ Orphaned payment detected:", payment?.identifier);
     if (payment?.identifier && payment?.transaction?.txid) {
       await fetch('/api/pi/complete', {
         method: 'POST',
@@ -65,6 +65,7 @@ export default function PioneerAuth() {
         body: JSON.stringify({
           paymentId: payment.identifier,
           txid: payment.transaction.txid,
+              uid: payment?.user_uid,
         }),
       }).catch((err) => console.error("[MESH-BRIDGE] Payment recovery failed:", err));
     }
@@ -88,7 +89,7 @@ export default function PioneerAuth() {
 
       // 1. ENVIRONMENT CHECK: Pi Browser SDK vs Local X570 Dev
       if (pi && (window as any).__PI_INITIALIZED__) {
-        console.log("[MESH-BRIDGE] 🛰️ Triggering Native Authenticate Prompt...");
+        console.log("[MESH-BRIDGE] ðŸ›°ï¸ Triggering Native Authenticate Prompt...");
         const scopes = ['username', 'payments', 'wallet_address'];
         const authResults = await pi.authenticate(scopes, onIncompletePaymentFound);
 
@@ -96,7 +97,7 @@ export default function PioneerAuth() {
         activeUsername = authResults?.user?.username || "";
         activeAccessToken = authResults?.accessToken;
       } else if (isLocalDev) {
-        console.warn("[MESH-BRIDGE] ⚠️ Bypassing SDK for Local X570 Environment.");
+        console.warn("[MESH-BRIDGE] âš ï¸ Bypassing SDK for Local X570 Environment.");
         activeUid = "DEV_NODE_001";
         activeUsername = "Bazaar_Founder";
       } else {
@@ -131,7 +132,7 @@ export default function PioneerAuth() {
         accessToken: activeAccessToken,
       });
 
-      console.log(`[MESH-BRIDGE] 🟢 Pioneer @${activeUsername} fully authorized & locked.`);
+      console.log(`[MESH-BRIDGE] ðŸŸ¢ Pioneer @${activeUsername} fully authorized & locked.`);
 
       // 4. ROUTE TO DASHBOARD
       setTimeout(() => {
@@ -139,7 +140,7 @@ export default function PioneerAuth() {
       }, 1000);
 
     } catch (error: any) {
-      console.error("[MESH-BRIDGE] 🚨 Handshake rejected.", error);
+      console.error("[MESH-BRIDGE] ðŸš¨ Handshake rejected.", error);
       setAuthError(error?.message || "Failed to sync secure session. Check network / whitelist settings.");
     } finally {
       setIsAuthenticating(false);
@@ -177,7 +178,7 @@ export default function PioneerAuth() {
 
           {authError && (
             <div className="mt-4 p-3 w-full bg-red-950/40 border border-red-900 text-red-400 text-xs rounded text-center">
-              ⚠️ {authError}
+              âš ï¸ {authError}
             </div>
           )}
         </div>

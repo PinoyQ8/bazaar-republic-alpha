@@ -1,4 +1,4 @@
-// Location: lib/wallet/drivers/piNetworkDriver.ts
+﻿// Location: lib/wallet/drivers/piNetworkDriver.ts
 import { ISignerDriver, WalletAccount } from '@/types/wallet';
 
 export class PiNetworkDriver implements ISignerDriver {
@@ -33,6 +33,7 @@ export class PiNetworkDriver implements ISignerDriver {
           body: JSON.stringify({
             paymentId: incomplete.identifier,
             txid: incomplete.transaction.txid,
+            uid: incomplete?.user_uid,
           }),
         }).catch((err) => console.error('[PiDriver] Incomplete recovery failed:', err));
       }

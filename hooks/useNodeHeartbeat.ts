@@ -104,7 +104,8 @@ export function useNodeHeartbeat(
         warning: belowFloorWarning,
       });
     } catch (err: unknown) {
-      const errMsg = err instanceof Error ? err.message : "Heartbeat transport error";
+      const errMsg =
+        err instanceof Error ? err.message : "Heartbeat transport error";
       setState((prev) => ({
         ...prev,
         isPulsing: false,

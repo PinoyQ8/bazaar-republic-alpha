@@ -1,29 +1,30 @@
-// Location: app/api/mint/route.ts
+﻿// Location: app/api/mint/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma"; // 🛡️ Schema v2.7.2 singleton
+import { randomUUID } from "crypto";
+import { prisma } from "@/lib/prisma";
 
-/**
- * 🛡️ MESH LAYER-2 DEMAND-GATED MINTING ENGINE
- * Route: POST /api/mint
- * Enforces the 1,000 Pi individual lifetime cap and logs to MeshLedger atomically.
- */
+const PI_TO_MBZR_RATIO = 1000;
+const LIFETIME_CAP = 1000;
+
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
-    const { uid, pioneerUid, amount, piAmount } = body;
+    const body = await req.json().catch(() => ({}));
+    const { uid, pioneerUid, senderWallet, amount, piAmount, lockedPiAmount, l1TxSignature } =
+      body || {};
 
-    const targetUid = uid || pioneerUid;
-    const numericAmount = parseFloat(amount || piAmount);
+    const targetUid = String(uid || pioneerUid || senderWallet || "").trim();
+    const numericAmount = Number(amount ?? piAmount ?? lockedPiAmount);
 
-    // 1. Inbound validation
-    if (!targetUid || isNaN(numericAmount) || numericAmount <= 0) {
+    if (!targetUid || Number.isNaN(numericAmount) || numericAmount <= 0) {
       return NextResponse.json(
-        { success: false, error: "MALFORMED_PAYLOAD: Valid pioneer UID and positive amount required." },
+        {
+          success: false,
+          error: "MALFORMED_PAYLOAD: Valid pioneer UID and positive amount required.",
+        },
         { status: 400 }
       );
     }
 
-    // 2. Fetch Pioneer Node state & verify eligibility
     const node = await prisma.pioneerNode.findUnique({
       where: { uid: targetUid },
     });
@@ -37,13 +38,14 @@ export async function POST(req: NextRequest) {
 
     if (node.isFrozen || node.status === "FROZEN" || node.quarantineStatus === "QUARANTINED") {
       return NextResponse.json(
-        { success: false, error: "SECURITY_HALT: Node is quarantined or frozen. Remedial action required." },
+        {
+          success: false,
+          error: "SECURITY_HALT: Node is quarantined or frozen. Remedial action required.",
+        },
         { status: 403 }
       );
     }
 
-    // 3. Enforce the 1,000 Pi Lifetime Cap
-    const LIFETIME_CAP = 1000;
     const currentMintedTotal = node.mintedPiTotal || 0;
 
     if (currentMintedTotal + numericAmount > LIFETIME_CAP) {
@@ -58,13 +60,18 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 4. Calculate 1:1 mBZR token output & unique transaction hash
-    const mbzrOutput = numericAmount;
-    const txHash = `mint_${targetUid}_${Date.now()}`;
+    const mbzrOutput = numericAmount * PI_TO_MBZR_RATIO;
+    const nowMs = Date.now();
+    const uniqueSuffix = `${nowMs}_${randomUUID().slice(0, 8)}`;
+    const txHash = `mint_${targetUid}_${uniqueSuffix}`;
 
-    // 5. Execute Atomic State Transition
+    const providedSig =
+      typeof l1TxSignature === "string" && l1TxSignature.trim().length > 0
+        ? l1TxSignature.trim()
+        : `l1_mint_${targetUid}`;
+    const uniqueTxSignature = `${providedSig}_${uniqueSuffix}`;
+
     const result = await prisma.$transaction(async (tx: any) => {
-      // A. Update Pioneer Node balances
       const updatedNode = await tx.pioneerNode.update({
         where: { uid: targetUid },
         data: {
@@ -74,15 +81,18 @@ export async function POST(req: NextRequest) {
         },
       });
 
-      // B. Create immutable entry in MeshLedger (Schema v2.7.2 aligned)
       const ledgerEntry = await tx.meshLedger.create({
         data: {
           txHash,
+          txSignature: uniqueTxSignature,
           fromUid: "MINT_TREASURY_VAULT",
           toUid: targetUid,
           amount: numericAmount,
-          type: "MINT_ASSET",
+          piAmount: numericAmount,
+          mbzrAmount: mbzrOutput,
+          txType: "GENESIS_MINT",
           description: `Demand-gated mint: ${numericAmount} Pi -> ${mbzrOutput} mBZR`,
+          status: "CONFIRMED",
           timestamp: new Date(),
         },
       });
@@ -94,8 +104,10 @@ export async function POST(req: NextRequest) {
       success: true,
       message: "mBZR successfully minted to pioneer node balance.",
       txHash,
+      txSignature: uniqueTxSignature,
       telemetry: {
         pioneerUid: targetUid,
+        mintedPi: numericAmount,
         newlyMintedMbzr: mbzrOutput,
         newMintedTotal: result.updatedNode.mintedPiTotal,
         newMbzrBalance: result.updatedNode.mbzrBalance,

@@ -51,7 +51,11 @@ export default function DashboardPage() {
     return () => clearInterval(interval);
   }, [fetchHealth]);
 
-  const effectiveShield = heartbeat.uptimeShield;
+  const effectiveShield =
+    typeof heartbeat.uptimeShield === "number" &&
+    Number.isFinite(heartbeat.uptimeShield)
+      ? heartbeat.uptimeShield
+      : 92.4;
   const shieldHealthy = effectiveShield >= 92.0;
 
   return (
@@ -76,7 +80,10 @@ export default function DashboardPage() {
           }}
           className="text-[10px] text-cyan-400 hover:text-cyan-300 flex items-center gap-1 cursor-pointer"
         >
-          <RefreshCw size={11} className={heartbeat.isPulsing ? "animate-spin" : ""} />
+          <RefreshCw
+            size={11}
+            className={heartbeat.isPulsing ? "animate-spin" : ""}
+          />
           Node-001
         </button>
       </header>

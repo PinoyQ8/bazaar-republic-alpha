@@ -4,7 +4,8 @@ import React, { useState, useEffect } from "react";
 import { Loader2, Coins, CheckCircle2, AlertTriangle, RotateCcw } from "lucide-react";
 
 interface LivePiCheckoutProps {
-  amount?: number;
+  
+  uid?: string;amount?: number;
   memo?: string;
   onSuccess?: (paymentId?: string, txid?: string) => void | Promise<void>;
 }
@@ -12,7 +13,8 @@ interface LivePiCheckoutProps {
 export default function LivePiCheckout({
   amount = 1.0,
   memo = "Bazaar Republic Escrow Settlement Test",
-  onSuccess,
+  
+  uid,onSuccess,
 }: LivePiCheckoutProps) {
   const [status, setStatus] = useState<string>("READY");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -45,6 +47,11 @@ export default function LivePiCheckout({
   }, []);
 
   const handleCheckout = async () => {
+    // Hard guard: prevent re-firing once succeeded or while in-flight
+    if (status === "SUCCESS" || (status !== "READY" && status !== "ERROR")) {
+      return;
+    }
+
     setErrorMsg(null);
     setStatus("INITIALIZING");
 
@@ -78,10 +85,10 @@ export default function LivePiCheckout({
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), 5000);
         try {
-          await fetch("/api/payments", {
+          await fetch("/api/pi/complete", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ action: "complete", paymentId, txid }),
+            body: JSON.stringify({ paymentId, txid, uid }),
             signal: controller.signal,
           });
         } catch (err) {
@@ -92,13 +99,13 @@ export default function LivePiCheckout({
       };
 
       await Promise.race([
-        Pi.authenticate(["payments", "username"], onIncompletePaymentFound),
+        Pi.authenticate(["username", "payments", "wallet_address"], onIncompletePaymentFound),
         new Promise((_, reject) =>
           setTimeout(
             () =>
               reject(
                 new Error(
-                  "Pi SDK auth timed out (8s). Ensure this URL is saved in develop.pinet.com and reload Pi Browser."
+                  "Pi SDK auth timed out (8s). Verify this URL is saved in develop.pinet.com and reload Pi Browser."
                 )
               ),
             8000
@@ -122,10 +129,10 @@ export default function LivePiCheckout({
           onReadyForServerApproval: async (paymentId: string) => {
             setStatus("SERVER_APPROVING");
             try {
-              const res = await fetch("/api/payments", {
+              const res = await fetch("/api/pi/approve", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ action: "approve", paymentId }),
+                body: JSON.stringify({ paymentId }),
               });
               const data = await res.json().catch(() => ({}));
               if (!res.ok) {
@@ -141,10 +148,10 @@ export default function LivePiCheckout({
           onReadyForServerCompletion: async (paymentId: string, txid: string) => {
             setStatus("FINALIZING_LEDGER");
             try {
-              const res = await fetch("/api/payments", {
+              const res = await fetch("/api/pi/complete", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ action: "complete", paymentId, txid }),
+                body: JSON.stringify({ paymentId, txid, uid }),
               });
               const data = await res.json().catch(() => ({}));
               if (!res.ok) {
@@ -175,29 +182,40 @@ export default function LivePiCheckout({
     }
   };
 
-  const isPending = status !== "READY" && status !== "ERROR" && status !== "SUCCESS";
+  const handleReset = () => {
+    setTxDetails(null);
+    setErrorMsg(null);
+    setStatus("READY");
+  };
+
+  const isCompleted = status === "SUCCESS";
+  const isPending = status !== "READY" && status !== "ERROR" && !isCompleted;
 
   return (
-    <div className="w-full max-w-sm mx-auto p-4 bg-slate-900 border border-slate-800 rounded-xl space-y-4 font-mono text-xs">
+    <div className="w-full max-w-[384px] mx-auto p-4 bg-slate-900 border border-slate-800 rounded-xl space-y-3 font-mono text-xs">
       <button
         type="button"
         onClick={handleCheckout}
-        disabled={isPending}
-        className="w-full py-3.5 bg-amber-500 hover:bg-amber-400 disabled:bg-slate-800 disabled:text-slate-400 text-slate-950 font-bold text-xs uppercase tracking-wider rounded-lg transition-all shadow-lg flex items-center justify-center gap-2 cursor-pointer"
+        disabled={isPending || isCompleted}
+        className={`w-full py-3.5 font-bold text-xs uppercase tracking-wider rounded-lg transition-all shadow-lg flex items-center justify-center gap-2 ${
+          isCompleted
+            ? "bg-emerald-500 text-slate-950 cursor-default"
+            : "bg-amber-500 hover:bg-amber-400 disabled:bg-slate-800 disabled:text-slate-400 text-slate-950 cursor-pointer"
+        }`}
       >
         {status === "READY" ? (
           <>
             <Coins className="w-4 h-4" />
-            <span>⚡ Lock {amount} Test-Pi via SDK</span>
+            <span>âš¡ Lock {amount} Test-Pi via SDK</span>
           </>
         ) : status === "ERROR" ? (
           <>
             <RotateCcw className="w-4 h-4" />
             <span>Retry {amount} Test-Pi Lock</span>
           </>
-        ) : status === "SUCCESS" ? (
+        ) : isCompleted ? (
           <>
-            <CheckCircle2 className="w-4 h-4 text-emerald-950" />
+            <CheckCircle2 className="w-4 h-4 text-slate-950" />
             <span>Payment Succeeded</span>
           </>
         ) : (
@@ -216,9 +234,19 @@ export default function LivePiCheckout({
       )}
 
       {txDetails && (
-        <div className="p-3 bg-emerald-950/30 border border-emerald-900/50 rounded text-emerald-400 space-y-1 text-[10px]">
+        <div className="p-3 bg-emerald-950/30 border border-emerald-900/50 rounded text-emerald-400 space-y-1.5 text-[10px]">
           <p className="font-bold">TX HASH: {txDetails.txid?.slice(0, 16)}...</p>
           <p className="text-slate-400">ID: {txDetails.paymentId?.slice(0, 16)}...</p>
+          {isCompleted && (
+            <button
+              type="button"
+              onClick={handleReset}
+              className="mt-1 inline-flex items-center gap-1 text-[10px] text-cyan-400 hover:text-cyan-300 underline cursor-pointer"
+            >
+              <RotateCcw className="w-3 h-3" />
+              <span>Start New Payment</span>
+            </button>
+          )}
         </div>
       )}
     </div>
