@@ -35,11 +35,16 @@ export async function POST(request: Request) {
     const sectorLogName = targetSector || "UNKNOWN_SECTOR";
 
     // 1. IDENTITY VERIFICATION (Proxy Gate)
-    const internalClientToken =
-      process.env.NEXT_PUBLIC_MESH_APP_CLIENT_TOKEN ||
-      "UNCONFIGURED_SECURE_VAULT_TOKEN_FALLBACK_STRING";
-    const expectedAuth = `Bearer ${internalClientToken}`;
+    const internalClientToken = process.env.NEXT_PUBLIC_MESH_APP_CLIENT_TOKEN?.trim();
+    if (!internalClientToken) {
+      console.error("[MESH FRACTURE] NEXT_PUBLIC_MESH_APP_CLIENT_TOKEN is missing.");
+      return NextResponse.json(
+        { error: "Internal Core Configuration Error: Missing proxy token." },
+        { status: 500 }
+      );
+    }
 
+    const expectedAuth = `Bearer ${internalClientToken}`;
     if (
       !authHeader ||
       (authHeader !== internalClientToken && authHeader !== expectedAuth)
@@ -84,6 +89,8 @@ export async function POST(request: Request) {
     const action = typeof body?.action === "string" ? body.action.trim() : "";
     const pioneerId =
       typeof body?.pioneerId === "string" ? body.pioneerId.trim() : "";
+    const callerUid =
+      typeof body?.uid === "string" ? body.uid.trim() : "";
 
     let paymentId = unwrapId(body?.paymentId);
     let txid = unwrapId(body?.txid);
@@ -135,9 +142,12 @@ export async function POST(request: Request) {
     }
 
     // -------------------------------------------------------------------------
-    // SECTOR PIPELINE A: TREASURY (Approval Handshake)
+    // PIPELINE A: APPROVAL (Explicit approve step, or treasury without 'complete')
     // -------------------------------------------------------------------------
-    if (targetSector === "treasury" || step === "approve") {
+    if (
+      step === "approve" ||
+      (targetSector === "treasury" && step !== "complete" && step !== "vault")
+    ) {
       if (paymentId.startsWith("MOCK_")) {
         return NextResponse.json({
           status: "MESH_SYNC_OK",
@@ -163,7 +173,7 @@ export async function POST(request: Request) {
         const errText = await piResponse.text().catch(() => "");
         console.error("[TREASURY FRACTURE] Pi approval rejected:", piResponse.status, errText);
         return NextResponse.json(
-          { error: "Pi Network node rejected approval handshake." },
+          { error: "Pi Network node rejected approval handshake.", details: errText },
           { status: 502 }
         );
       }
@@ -177,9 +187,9 @@ export async function POST(request: Request) {
     }
 
     // -------------------------------------------------------------------------
-    // SECTOR PIPELINE B: VAULT (Completion & Stake Locking)
+    // PIPELINE B: COMPLETION & STAKE LOCKING
     // -------------------------------------------------------------------------
-    if (targetSector === "vault" || step === "complete") {
+    if (step === "complete" || targetSector === "vault") {
       if (!txid) {
         return NextResponse.json(
           { error: "Missing transaction cryptographic block ID (txid)." },
@@ -193,6 +203,7 @@ export async function POST(request: Request) {
           sector: "vault",
           nodeId: "5f9b3b9b9b9b9b9b9b9b9b9b",
           currentStake: 10.0,
+          txid,
           timestamp: new Date().toISOString(),
         });
       }
@@ -211,8 +222,10 @@ export async function POST(request: Request) {
       );
 
       if (!piResponse.ok) {
+        const errText = await piResponse.text().catch(() => "");
+        console.error("[VAULT FRACTURE] Pi completion rejected:", piResponse.status, errText);
         return NextResponse.json(
-          { error: "Pi Blockchain failed to commit completion frame." },
+          { error: "Pi Blockchain failed to commit completion frame.", details: errText },
           { status: 502 }
         );
       }
@@ -233,6 +246,17 @@ export async function POST(request: Request) {
       }
 
       const verifiedPaymentData = await metaResponse.json().catch(() => null);
+      if (
+        callerUid &&
+        verifiedPaymentData?.user_uid &&
+        verifiedPaymentData.user_uid !== callerUid
+      ) {
+        return NextResponse.json(
+          { error: "UID mismatch against Pi Platform payment record." },
+          { status: 403 }
+        );
+      }
+
       const targetNodeId =
         typeof verifiedPaymentData?.metadata?.nodeId === "string"
           ? verifiedPaymentData.metadata.nodeId.trim()
@@ -261,6 +285,7 @@ export async function POST(request: Request) {
         sector: "vault",
         nodeId: baseUpdate.id,
         currentStake: baseUpdate.stakedPi,
+        txid,
         timestamp: new Date().toISOString(),
       });
     }
