@@ -33,26 +33,29 @@ async function persistSettlement({
   const numericAmount = Number(amount);
   const formattedAmount = Number.isFinite(numericAmount) ? numericAmount.toFixed(7) : '0.0000000';
 
-  if (db?.ledgerLog?.create) {
+  if (db?.meshLedger?.create) {
     try {
-      const existing = await db.ledgerLog.findFirst?.({
-        where: { OR: [{ txHash: txid }, { paymentId }] },
+      const existing = await db.meshLedger.findFirst?.({
+        where: { OR: [{ txHash: txid }, { txSignature: paymentId }] },
       }).catch(() => null);
 
       if (!existing) {
-        await db.ledgerLog.create({
+        await db.meshLedger.create({
           data: {
-            uid,
-            amount: formattedAmount,
-            asset: 'PI',
+            txSignature: paymentId,
             txHash: txid,
-            paymentId,
+            txType: 'SERVICE_SETTLEMENT',
+            fromUid: 'APP_TREASURY',
+            toUid: uid,
+            piAmount: Number(formattedAmount),
+            amount: Number(formattedAmount),
             status: 'COMPLETED',
+            description: `A2U payout completed (vault=${vaultId || 'N/A'}, escrow=${escrowId || 'N/A'})`,
           },
         });
       }
     } catch (err: any) {
-      console.warn('[A2U_LEDGER_LOG_WARN]:', err?.message || err);
+      console.error('[A2U_MESH_LEDGER_ERROR]:', err?.message || err);
     }
   }
 
@@ -61,23 +64,22 @@ async function persistSettlement({
       await db.auditLog.create({
         data: {
           action: 'A2U_PAYOUT_COMPLETED',
-          entityId: escrowId || vaultId || paymentId,
-          metadata: JSON.stringify({
+          nodeId: uid,
+          payload: JSON.stringify({
+            entityId: escrowId || vaultId || paymentId,
             uid,
-            vaultId,
+            vaultId: vaultId || null,
             escrowId: escrowId || null,
             paymentId,
             txid,
             amount: formattedAmount,
             asset: 'PI',
-            developerCompleted: Boolean(piPayment?.status?.developer_completed),
-            transactionVerified: Boolean(piPayment?.status?.transaction_verified),
           }),
           timestamp: new Date(),
         },
       });
     } catch (err: any) {
-      console.warn('[A2U_AUDIT_LOG_WARN]:', err?.message || err);
+      console.error('[A2U_AUDIT_LOG_ERROR]:', err?.message || err);
     }
   }
 
@@ -87,12 +89,13 @@ async function persistSettlement({
         where: { escrowId },
         data: {
           status: 'RELEASED',
+          paymentId,
           txid,
           updatedAt: new Date(),
         },
       });
     } catch (err: any) {
-      console.warn('[A2U_ESCROW_SYNC_WARN]:', err?.message || err);
+      console.error('[A2U_ESCROW_UPDATE_ERROR]:', err?.message || err);
     }
   }
 }

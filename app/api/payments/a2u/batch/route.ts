@@ -226,26 +226,30 @@ export async function POST(req: NextRequest) {
         const formattedAmount = amount.toFixed(7);
 
         // 3. Persist verified COMPLETED state only after completeRes.ok === true
-        if (db?.ledgerLog?.create) {
+        if (db?.meshLedger?.create) {
           try {
-            const existing = await db.ledgerLog.findFirst?.({
-              where: { OR: [{ txHash: verifiedTxid }, { paymentId }] },
+            const existing = await db.meshLedger.findFirst?.({
+              where: { OR: [{ txHash: verifiedTxid }, { txSignature: paymentId }] },
             }).catch(() => null);
 
             if (!existing) {
-              await db.ledgerLog.create({
+              await db.meshLedger.create({
                 data: {
-                  uid,
-                  amount: formattedAmount,
-                  asset: 'PI',
+                  walletId: walletAddress || null,
+                  txSignature: paymentId,
                   txHash: verifiedTxid,
-                  paymentId,
+                  txType: 'SERVICE_SETTLEMENT',
+                  fromUid: 'APP_TREASURY',
+                  toUid: uid,
+                  piAmount: Number(formattedAmount),
+                  amount: Number(formattedAmount),
                   status: 'COMPLETED',
+                  description: `A2U batch payout (${resolvedBatchId})`,
                 },
               });
             }
           } catch (dbErr: any) {
-            console.warn(`[A2U_BATCH_LEDGER_WARN] UID=${uid}:`, dbErr?.message || dbErr);
+            console.error('[A2U_BATCH_MESH_LEDGER_ERROR]:', dbErr?.message || dbErr);
           }
         }
 
@@ -254,8 +258,9 @@ export async function POST(req: NextRequest) {
             await db.auditLog.create({
               data: {
                 action: 'A2U_BATCH_PAYOUT_COMPLETED',
-                entityId: item?.escrowId || resolvedBatchId,
-                metadata: JSON.stringify({
+                nodeId: uid,
+                payload: JSON.stringify({
+                  entityId: item?.escrowId || resolvedBatchId,
                   batchId: resolvedBatchId,
                   uid,
                   walletAddress: walletAddress || null,
@@ -268,7 +273,7 @@ export async function POST(req: NextRequest) {
               },
             });
           } catch (dbErr: any) {
-            console.warn(`[A2U_BATCH_AUDIT_WARN] UID=${uid}:`, dbErr?.message || dbErr);
+            console.error('[A2U_BATCH_AUDIT_LOG_ERROR]:', dbErr?.message || dbErr);
           }
         }
 
@@ -278,12 +283,13 @@ export async function POST(req: NextRequest) {
               where: { escrowId: String(item.escrowId).trim() },
               data: {
                 status: 'RELEASED',
+                paymentId,
                 txid: verifiedTxid,
                 updatedAt: new Date(),
               },
             });
           } catch (dbErr: any) {
-            console.warn(`[A2U_BATCH_ESCROW_WARN] escrowId=${item.escrowId}:`, dbErr?.message || dbErr);
+            console.error('[A2U_BATCH_ESCROW_UPDATE_ERROR]:', dbErr?.message || dbErr);
           }
         }
 
