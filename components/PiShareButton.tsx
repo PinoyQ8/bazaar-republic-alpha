@@ -1,3 +1,5 @@
+﻿'use client';
+
 import React, { useState } from "react";
 
 interface PiShareButtonProps {
@@ -106,14 +108,14 @@ export const PiShareButton: React.FC<PiShareButtonProps> = ({
       {/* Live State Telemetry Markers */}
       {status === "success" && (
         <div className="mt-3 flex items-center space-x-1.5 text-green-400 text-xs animate-fade-in">
-          <span>✓</span>
+          <span>âœ“</span>
           <span>Share sheet triggered successfully!</span>
         </div>
       )}
 
       {status === "error" && (
         <div className="mt-3 text-red-400 text-xs text-center leading-relaxed animate-fade-in max-w-70">
-          <span className="font-semibold block mb-0.5">⚠️ Bridge Failed</span>
+          <span className="font-semibold block mb-0.5">âš ï¸ Bridge Failed</span>
           <span>{errorMessage}</span>
         </div>
       )}

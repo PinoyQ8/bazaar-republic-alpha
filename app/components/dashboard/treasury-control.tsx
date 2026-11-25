@@ -1,3 +1,5 @@
+﻿'use client';
+
 // Route: /components/dashboard/treasury-control.tsx
 // Logic: mBZR Treasury Allocation Terminal (MESH Hardened)
 
@@ -97,7 +99,7 @@ export default function TreasuryControl() {
             value={adminKey}
             onChange={(e) => setAdminKey(e.target.value)}
             className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-emerald-400 focus:border-emerald-500 focus:outline-none transition-colors font-sans tracking-widest"
-            placeholder="••••••••••••"
+            placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
           />
         </div>
 

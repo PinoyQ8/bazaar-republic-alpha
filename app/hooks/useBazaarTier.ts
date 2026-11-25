@@ -1,3 +1,5 @@
+﻿'use client';
+
 import { useState, useEffect } from 'react';
 
 // Contract ID pulled from your environment variable

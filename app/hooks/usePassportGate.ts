@@ -1,14 +1,30 @@
-// Location: app/hooks/usePassportGate.ts
+'use client';
+
 import { useState, useCallback } from 'react';
 import { useAuth } from '@/context/AuthContext';
 
-export type PassportTier = 'UNREGISTERED' | 'CADET' | 'PROVIDER' | 'CUSTODIAN' | 'ELDER' | 'FOUNDER';
+export type PassportTier =
+  | 'UNREGISTERED'
+  | 'CADET'
+  | 'PROVIDER'
+  | 'CUSTODIAN'
+  | 'ELDER'
+  | 'FOUNDER';
 
-interface PassportState {
+export interface PassportState {
   isAuthorized: boolean;
   tier: PassportTier;
   issuedAt: number | null;
 }
+
+const VALID_TIERS: PassportTier[] = [
+  'UNREGISTERED',
+  'CADET',
+  'PROVIDER',
+  'CUSTODIAN',
+  'ELDER',
+  'FOUNDER',
+];
 
 export function usePassportGate() {
   const { pioneer } = useAuth();
@@ -22,43 +38,59 @@ export function usePassportGate() {
 
   const verifyOnChainPassport = useCallback(async (walletAddress: string) => {
     if (!walletAddress) return;
-    
+
     setIsQuerying(true);
     setGateError(null);
 
     try {
-      // Route the query through your Soroban Relayer Service
-      const response = await fetch(`/api/mesh/passport-verify?wallet=${walletAddress}`, {
-        method: 'GET',
-        headers: { 'Content-Type': 'application/json' },
-      });
+      const response = await fetch(
+        `/api/mesh/passport-verify?wallet=${encodeURIComponent(walletAddress)}`,
+        {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' },
+        }
+      );
 
       if (!response.ok) {
-        throw new Error('Failed to query Soroban vault state');
+        throw new Error(`Failed to query Soroban vault state (${response.status})`);
       }
 
       const data = await response.json();
-      
-      setPassport({
-        isAuthorized: data.isIssued && !data.isRevoked,
-        tier: data.tierLevel || 'UNREGISTERED',
-        issuedAt: data.timestamp || null,
-      });
+      const rawTier = typeof data?.tier === 'string' ? data.tier.toUpperCase() : '';
+      const resolvedTier: PassportTier = VALID_TIERS.includes(rawTier as PassportTier)
+        ? (rawTier as PassportTier)
+        : 'UNREGISTERED';
 
-    } catch (error: any) {
-      console.error('[PASSPORT-GATE] On-Chain Verification Fault:', error);
-      setGateError(error.message);
-      setPassport({ isAuthorized: false, tier: 'UNREGISTERED', issuedAt: null });
+      const nextState: PassportState = {
+        isAuthorized: Boolean(data?.isAuthorized ?? resolvedTier !== 'UNREGISTERED'),
+        tier: resolvedTier,
+        issuedAt: typeof data?.issuedAt === 'number' ? data.issuedAt : null,
+      };
+
+      setPassport(nextState);
+      return nextState;
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : 'Unexpected passport verification error';
+      setGateError(message);
+      setPassport({
+        isAuthorized: false,
+        tier: 'UNREGISTERED',
+        issuedAt: null,
+      });
+      return null;
     } finally {
       setIsQuerying(false);
     }
   }, []);
 
   return {
+    pioneer,
     passport,
     isQuerying,
     gateError,
     verifyOnChainPassport,
-    activeWallet: pioneer.uid,
   };
 }
+
+export default usePassportGate;

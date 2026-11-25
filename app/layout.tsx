@@ -1,7 +1,7 @@
 ﻿import './globals.css';
 import type { Metadata, Viewport } from 'next';
-import Script from 'next/script';
 import { AuthProvider } from '@/context/AuthContext';
+import { PiSdkScript } from '@/app/components/PiSdkScript';
 import { TestnetNoticeBanner } from '@/components/TestnetNoticeBanner';
 import MeshMobileNav from '@/components/MeshMobileNav';
 import ClientHydrationGuard from '@/components/ClientHydrationGuard';
@@ -29,13 +29,8 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark" data-scroll-behavior="smooth">
       <body className="bg-slate-950 text-slate-100 font-sans antialiased min-h-dvh flex flex-col items-center justify-start overflow-x-hidden">
-        {/* Pi SDK root injection */}
-        <Script
-          src="https://sdk.minepi.com/pi-sdk.js"
-          strategy="beforeInteractive"
-        />
-
         <AuthProvider>
+          <PiSdkScript />
           <ClientHydrationGuard>
             <div className="w-full max-w-[384px] min-h-dvh flex flex-col relative border-x border-slate-900 shadow-2xl bg-slate-950">
               <TestnetNoticeBanner />

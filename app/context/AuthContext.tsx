@@ -146,11 +146,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const executeStakePayment = async (amount: number): Promise<void> => {
     try {
-      const targetContractId = (
-        process.env.NEXT_PUBLIC_STAKE_CONTRACT_ID ||
-        process.env.NEXT_PUBLIC_BAZAAR_VAULT_CONTRACT_ID ||
-        "CBM5SVJHLHNAEUR4GA3IV5KZFPCCMGTZGMAJUNURUQIEFPTKZLKXQ3RY"
-      ).trim();
+       const targetContractId = (
+  process.env.NEXT_PUBLIC_STAKE_CONTRACT_ID ||
+  process.env.NEXT_PUBLIC_BAZAAR_VAULT_CONTRACT_ID ||
+  "CAQMHSA6M2LSDJIHDLPCFJMXC2DQNTNZHV6QMWD3IR6FW3FLR4J7EGEV"
+).trim();
 
       const targetMethod = (
         process.env.NEXT_PUBLIC_STAKE_METHOD || "lock_funds"
