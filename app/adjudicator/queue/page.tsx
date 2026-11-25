@@ -1,3 +1,5 @@
+﻿'use client';
+
 // PROJECT BAZAAR DAO - PROTOCOL 26.1
 // PAGE: ADJUDICATOR DISPUTE ARBITRATION QUEUE
 
@@ -49,7 +51,7 @@ export default function AdjudicatorQueuePage() {
         
         {/* Header & Status */}
         <div className="flex justify-between items-center pb-2 border-b border-zinc-800">
-          <span className="text-[10px] tracking-wider uppercase text-amber-400 font-bold">⚖️ Arbitration Queue</span>
+          <span className="text-[10px] tracking-wider uppercase text-amber-400 font-bold">âš–ï¸ Arbitration Queue</span>
           <span className="px-2 py-0.5 text-[10px] bg-zinc-900 border border-zinc-700 rounded">
             {disputes.filter(d => d.status === 'PENDING').length} Active
           </span>

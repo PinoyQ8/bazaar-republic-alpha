@@ -1,7 +1,9 @@
+﻿'use client';
+
 import React, { useState, useEffect, useCallback } from 'react';
 
 /**
- * PROJECT BAZAAR — ELDER COUNCIL EMERGENCY AID VOTING PORTAL
+ * PROJECT BAZAAR â€” ELDER COUNCIL EMERGENCY AID VOTING PORTAL
  * -----------------------------------------------------------------------------
  * Version: 1.0.1 (Schema v2.7.2, Future Fund Protection Standard & 1:1000 Peg)
  * 
@@ -131,7 +133,7 @@ export const ElderVotingPortal: React.FC<ElderVotingPortalProps> = ({
         })
       );
 
-      alert("🛡️ Cryptographic passkey signature recorded! Node state securely synchronized.");
+      alert("ðŸ›¡ï¸ Cryptographic passkey signature recorded! Node state securely synchronized.");
     } catch (err: any) {
       alert(err.message || "Signature registration failed.");
     } finally {
@@ -161,7 +163,7 @@ export const ElderVotingPortal: React.FC<ElderVotingPortalProps> = ({
   if (userPassportTier > 1) {
     return (
       <div className="p-8 bg-slate-900 border border-red-500/30 rounded-xl text-center max-w-2xl mx-auto my-12">
-        <h2 className="text-2xl font-bold text-red-500 mb-4">⛔ Access Denied</h2>
+        <h2 className="text-2xl font-bold text-red-500 mb-4">â›” Access Denied</h2>
         <p className="text-slate-300">
           Your active Sovereign Passport does not possess Level-1 (ELDER) or Level-0 (FOUNDER) clearance. 
           The Emergency Mutual Aid Voting Portal is strictly reserved for the elected 5-Elder Council to protect treasury allocations.
@@ -177,7 +179,7 @@ export const ElderVotingPortal: React.FC<ElderVotingPortalProps> = ({
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center border-b border-slate-800 pb-6 mb-8 gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-indigo-400 flex items-center gap-2">
-            🏛️ Elder Council Emergency Aid Portal
+            ðŸ›ï¸ Elder Council Emergency Aid Portal
           </h1>
           <p className="text-slate-400 mt-1">
             Review, authorize, and sign emergency social and medical relief grants under Schema v2.7.2.
@@ -193,7 +195,7 @@ export const ElderVotingPortal: React.FC<ElderVotingPortalProps> = ({
         <div className="bg-slate-900 border border-slate-800 p-5 rounded-xl">
           <div className="text-sm text-slate-400">Total Social Pool Reserves</div>
           <div className="text-2xl font-bold text-slate-100 mt-1">{formatMBzr(poolStats.totalReservesMBzr)}</div>
-          <div className="text-xs text-amber-400/80 font-mono mt-1">≈ {formatPiEquiv(poolStats.totalReservesMBzr)} (1:1000 Peg)</div>
+          <div className="text-xs text-amber-400/80 font-mono mt-1">â‰ˆ {formatPiEquiv(poolStats.totalReservesMBzr)} (1:1000 Peg)</div>
           <div className="w-full bg-slate-800 h-2 rounded-full mt-3 overflow-hidden">
             <div className="bg-emerald-500 h-full" style={{ width: '100%' }}></div>
           </div>
@@ -201,10 +203,10 @@ export const ElderVotingPortal: React.FC<ElderVotingPortalProps> = ({
 
         <div className="bg-slate-900 border border-red-900/30 p-5 rounded-xl relative overflow-hidden">
           <div className="text-sm text-red-400 flex items-center gap-1.5 font-semibold">
-            🛡️ Future Fund Survival Floor
+            ðŸ›¡ï¸ Future Fund Survival Floor
           </div>
           <div className="text-2xl font-bold text-red-400 mt-1">{formatMBzr(poolStats.futureFundFloorMBzr)}</div>
-          <div className="text-xs text-amber-400/80 font-mono mt-1">≈ {formatPiEquiv(poolStats.futureFundFloorMBzr)} (1:1000 Peg)</div>
+          <div className="text-xs text-amber-400/80 font-mono mt-1">â‰ˆ {formatPiEquiv(poolStats.futureFundFloorMBzr)} (1:1000 Peg)</div>
           <div className="text-xs text-red-500/80 mt-2">
             Strictly untouchable during black swan events to guarantee network survival.
           </div>
@@ -213,7 +215,7 @@ export const ElderVotingPortal: React.FC<ElderVotingPortalProps> = ({
         <div className="bg-slate-900 border border-indigo-950 p-5 rounded-xl">
           <div className="text-sm text-indigo-300">Liquid Disbursable Fund</div>
           <div className="text-2xl font-bold text-indigo-300 mt-1">{formatMBzr(poolStats.availableLiquidMBzr)}</div>
-          <div className="text-xs text-amber-400/80 font-mono mt-1">≈ {formatPiEquiv(poolStats.availableLiquidMBzr)} (1:1000 Peg)</div>
+          <div className="text-xs text-amber-400/80 font-mono mt-1">â‰ˆ {formatPiEquiv(poolStats.availableLiquidMBzr)} (1:1000 Peg)</div>
           <div className="w-full bg-slate-800 h-2 rounded-full mt-3 overflow-hidden">
             <div className="bg-indigo-500 h-full" style={{ width: '70%' }}></div>
           </div>
@@ -223,7 +225,7 @@ export const ElderVotingPortal: React.FC<ElderVotingPortalProps> = ({
       {/* EMERGENCY REQUESTS BOARD */}
       <div>
         <h2 className="text-xl font-bold text-slate-200 mb-4 flex items-center gap-2">
-          📥 Active Emergency Aid Queue
+          ðŸ“¥ Active Emergency Aid Queue
         </h2>
 
         {loading ? (
@@ -250,7 +252,7 @@ export const ElderVotingPortal: React.FC<ElderVotingPortalProps> = ({
                   {/* TOP WARNING BANNER FOR BLACK SWANS - Fixed JSX Escape bug here */}
                   {willBreachFloor && (
                     <div className="bg-red-950/80 border-b border-red-800/40 px-5 py-3 text-red-400 text-sm font-semibold flex items-center gap-2 animate-pulse">
-                      🚨 BLACK SWAN DETECTED: This payout breaches the Future Fund's survival baseline floor of {formatMBzr(poolStats.futureFundFloorMBzr)}! Approval is locked.
+                      ðŸš¨ BLACK SWAN DETECTED: This payout breaches the Future Fund's survival baseline floor of {formatMBzr(poolStats.futureFundFloorMBzr)}! Approval is locked.
                     </div>
                   )}
 
@@ -281,7 +283,7 @@ export const ElderVotingPortal: React.FC<ElderVotingPortalProps> = ({
                           {formatMBzr(req.requestedAmountMBzr)}
                         </div>
                         <div className="text-xs text-amber-400/80 font-mono mt-1">
-                          ≈ {formatPiEquiv(req.requestedAmountMBzr)}
+                          â‰ˆ {formatPiEquiv(req.requestedAmountMBzr)}
                         </div>
                       </div>
                     </div>
@@ -363,7 +365,7 @@ export const ElderVotingPortal: React.FC<ElderVotingPortalProps> = ({
                           {willBreachFloor 
                             ? 'Floor Blocked' 
                             : isEldersSigned 
-                              ? 'Signed ✓' 
+                              ? 'Signed âœ“' 
                               : signingRequest === req.id 
                                 ? 'Signing via Passkey...' 
                                 : 'Sign & Authorize'}

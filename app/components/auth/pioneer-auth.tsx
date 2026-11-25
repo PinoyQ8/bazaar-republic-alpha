@@ -1,4 +1,6 @@
-﻿// Route: /app/components/auth/pioneer-auth.tsx
+﻿'use client';
+
+// Route: /app/components/auth/pioneer-auth.tsx
 // Logic: E-Network Entry Gate & SDK Handshake (MESH Hardened)
 
 "use client";

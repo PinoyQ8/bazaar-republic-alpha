@@ -1,3 +1,5 @@
+﻿'use client';
+
 // PROJECT BAZAAR DAO - PROTOCOL 26.1
 // PAGE: ADJUDICATOR TIMELOCK REVIEW DASHBOARD
 
@@ -38,7 +40,7 @@ export default function AdjudicatorPage() {
         
         {/* Header Alert Badge */}
         <div className="flex justify-between items-center pb-2 border-b border-zinc-800">
-          <span className="text-[10px] tracking-wider uppercase text-red-400 font-bold">⚠️ Anomaly Detected</span>
+          <span className="text-[10px] tracking-wider uppercase text-red-400 font-bold">âš ï¸ Anomaly Detected</span>
           <span className="px-2 py-0.5 text-[10px] bg-red-950 border border-red-800 text-red-400 rounded">
             Timelock Active
           </span>

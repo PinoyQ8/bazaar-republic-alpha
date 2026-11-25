@@ -1,3 +1,5 @@
+﻿'use client';
+
 // PROJECT BAZAAR DAO - PROTOCOL 26.1
 // PAGE: CONSUMER ESCROW DASHBOARD
 
@@ -69,7 +71,7 @@ export default function ConsumerPage() {
         {step === 2 && (
           <div className="space-y-4 text-center py-6">
             <div className="inline-block p-3 bg-zinc-900 border border-zinc-700 rounded-full mb-2">
-              🔒
+              ðŸ”’
             </div>
             <h2 className="text-sm font-bold uppercase">Funds Secured</h2>
             <p className="text-xs opacity-60 px-4">

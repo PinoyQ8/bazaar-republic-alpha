@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import {
   ShieldCheck,
@@ -11,6 +11,7 @@ import {
   Plus,
   Award,
   AlertCircle,
+  Search,
 } from 'lucide-react';
 import ElderDisputeModal from '@/components/ElderDisputeModal';
 import PioneerAuthGate from '@/app/components/PioneerAuthGate';
@@ -35,9 +36,15 @@ export interface EscrowVaultItem {
   zkProofHash?: string;
 }
 
+type StatusFilter = 'ALL' | 'LOCKED' | 'DISPUTED' | 'RELEASED' | 'REFUNDED';
+
 export default function MeshEscrowPage() {
   const { pioneer } = useAuth();
   const [activeTab, setActiveTab] = useState<'vaults' | 'create'>('vaults');
+
+  // Filter State
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('LOCKED');
+  const [searchQuery, setSearchQuery] = useState<string>('');
 
   // Modal & Selection State
   const [isDisputeModalOpen, setIsDisputeModalOpen] = useState<boolean>(false);
@@ -134,13 +141,41 @@ export default function MeshEscrowPage() {
     }
   };
 
+  const filteredVaults = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    return vaults.filter((vault) => {
+      const normalizedStatus = String(vault.status || '').toUpperCase();
+      if (statusFilter !== 'ALL' && normalizedStatus !== statusFilter) {
+        return false;
+      }
+      if (q) {
+        const matchText = [
+          vault.id,
+          vault.escrowId,
+          vault.consumer,
+          vault.provider,
+          vault.serviceDescription,
+        ]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase();
+        if (!matchText.includes(q)) return false;
+      }
+      return true;
+    });
+  }, [vaults, statusFilter, searchQuery]);
+
   const handleOpenDisputeReview = (vault: EscrowVaultItem) => {
     setSelectedDisputeVault(vault);
     setIsDisputeModalOpen(true);
   };
 
   const handleLaunchAdjudicationPortal = () => {
-    const target = vaults.find((v) => v.status === 'DISPUTED') || vaults[0];
+    const target =
+      filteredVaults.find((v) => v.status === 'DISPUTED') ||
+      vaults.find((v) => v.status === 'DISPUTED') ||
+      filteredVaults[0] ||
+      vaults[0];
     if (target) {
       handleOpenDisputeReview(target);
     }
@@ -216,7 +251,7 @@ export default function MeshEscrowPage() {
                     : 'text-neutral-400 hover:text-white'
                 }`}
               >
-                <Lock size={14} /> Active Vaults ({vaults.length})
+                <Lock size={14} /> Active Vaults ({filteredVaults.length} / {vaults.length})
               </button>
               <button
                 type="button"
@@ -234,7 +269,43 @@ export default function MeshEscrowPage() {
 
           {/* TAB 1: MODULAR ESCROW CARDS */}
           {activeTab === 'vaults' && (
-            <div className="space-y-4">
+            <div className="space-y-3">
+              {/* VAULT FILTER BAR */}
+              <div className="bg-neutral-900/90 border border-neutral-800 rounded-2xl p-3 space-y-2 text-[10px]">
+                <div className="flex flex-wrap gap-1">
+                  {(['LOCKED', 'ALL', 'DISPUTED', 'RELEASED', 'REFUNDED'] as const).map(
+                    (st) => (
+                      <button
+                        key={st}
+                        type="button"
+                        onClick={() => setStatusFilter(st)}
+                        className={`px-2 py-1 rounded-lg border transition cursor-pointer ${
+                          statusFilter === st
+                            ? 'bg-indigo-950 border-indigo-600 text-indigo-300 font-bold'
+                            : 'bg-neutral-950 border-neutral-800 text-neutral-400 hover:text-white'
+                        }`}
+                      >
+                        {st}
+                      </button>
+                    )
+                  )}
+                </div>
+
+                <div className="relative">
+                  <Search
+                    size={12}
+                    className="absolute left-2.5 top-1/2 -translate-y-1/2 text-neutral-500"
+                  />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Filter by ID (e.g. VAULT_CD6_01) or address..."
+                    className="w-full bg-neutral-950 border border-neutral-800 rounded-xl pl-7 pr-2.5 py-1.5 text-[11px] text-neutral-200 placeholder-neutral-600 focus:outline-none focus:border-indigo-600"
+                  />
+                </div>
+              </div>
+
               {fetchError && (
                 <div className="p-3 bg-rose-950/40 border border-rose-800/60 rounded-2xl text-[11px] text-rose-300 flex items-center gap-2">
                   <AlertCircle size={14} className="shrink-0" />
@@ -242,12 +313,30 @@ export default function MeshEscrowPage() {
                 </div>
               )}
 
-              {vaults.map((vault) => (
-                <EscrowCard
-                  key={vault.id}
-                  initialEscrowId={vault.escrowId || vault.id}
-                />
-              ))}
+              {filteredVaults.length === 0 ? (
+                <div className="p-4 bg-neutral-900/60 border border-neutral-800 rounded-2xl text-[11px] text-neutral-400 text-center space-y-2">
+                  <p>
+                    No vaults match <strong className="text-neutral-200">{statusFilter}</strong>
+                    {searchQuery.trim() ? ` for "${searchQuery.trim()}"` : ''}.
+                  </p>
+                  {statusFilter !== 'ALL' && (
+                    <button
+                      type="button"
+                      onClick={() => setStatusFilter('ALL')}
+                      className="px-2.5 py-1 rounded-lg bg-neutral-950 border border-neutral-800 text-indigo-300 hover:border-indigo-700 cursor-pointer"
+                    >
+                      Show All ({vaults.length})
+                    </button>
+                  )}
+                </div>
+              ) : (
+                filteredVaults.map((vault) => (
+                  <EscrowCard
+                    key={vault.id || vault.escrowId}
+                    initialEscrowId={vault.escrowId || vault.id}
+                  />
+                ))
+              )}
             </div>
           )}
 

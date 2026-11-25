@@ -1,3 +1,5 @@
+﻿'use client';
+
 // proposal-history.tsx (Refactored for MESH Logic)
 import { useEffect, useState } from 'react';
 

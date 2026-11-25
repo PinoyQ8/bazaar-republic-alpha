@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 export const dynamic = "force-dynamic";
 
 const PI_TO_MBZR = 1000;
+const QUORUM_THRESHOLD = 3;
 const DEFAULT_ELDERS = [
   "usr_elder_1",
   "usr_elder_2",
@@ -142,8 +143,16 @@ async function resolveMajorityElders(
   resolvedEscrowId: string,
   eligiblePanel: string[],
   isFavorConsumer: boolean,
+  recordedVotersForRuling: string[],
   fallbackMajorityTally: number
 ): Promise<{ majorityElders: string[]; majorityCount: number }> {
+  if (recordedVotersForRuling.length > 0) {
+    return {
+      majorityElders: recordedVotersForRuling,
+      majorityCount: recordedVotersForRuling.length,
+    };
+  }
+
   const expectedDecisions = isFavorConsumer
     ? ["YES", "FAVOR_CONSUMER", "REFUND_CONSUMER", "CONSUMER"]
     : ["NO", "FAVOR_MERCHANT", "RELEASE_MERCHANT", "MERCHANT"];
@@ -205,9 +214,17 @@ async function resolveMajorityElders(
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
-    const { disputeId, escrowId, ruling, adminAddress, payoutToAddress, secretKey } =
-      body || {};
+    const {
+      disputeId,
+      escrowId,
+      elderUid,
+      ruling,
+      adminAddress,
+      payoutToAddress,
+      secretKey,
+    } = body || {};
     const targetKey = String(disputeId || escrowId || "").trim();
+    const voterUid = String(elderUid || "").trim() || "usr_elder_1";
 
     if (!targetKey) {
       return NextResponse.json(
@@ -271,21 +288,102 @@ export async function POST(req: NextRequest) {
         : DEFAULT_ELDERS;
     const eligibleElders = await filterEligibleVrfElders(db, rawPanel, conflictedUids);
 
-    const votesForConsumer = Number(rawDispute?.votesForConsumer ?? 3);
-    const votesForMerchant = Number(rawDispute?.votesForMerchant ?? 1);
+    let votesForConsumer = Number(rawDispute?.votesForConsumer ?? 0) || 0;
+    let votesForMerchant = Number(rawDispute?.votesForMerchant ?? 0) || 0;
     const finalRuling = resolveRuling(ruling, votesForConsumer, votesForMerchant);
     const isFavorConsumer = finalRuling === "FAVOR_CONSUMER";
 
+    const existingVotes: Array<{ elderUid: string; ruling: string; votedAt: string }> =
+      Array.isArray(rawDispute?.elderVotes) ? rawDispute.elderVotes : [];
+
+    const alreadyVoted = existingVotes.some(
+      (v) => String(v?.elderUid || "").trim() === voterUid
+    );
+
+    if (!alreadyVoted) {
+      if (isFavorConsumer) {
+        votesForConsumer += 1;
+      } else {
+        votesForMerchant += 1;
+      }
+      existingVotes.push({
+        elderUid: voterUid,
+        ruling: finalRuling,
+        votedAt: new Date().toISOString(),
+      });
+
+      if (foundDispute?.col) {
+        const disputeFilter = /^[0-9a-fA-F]{24}$/.test(disputeObjectId)
+          ? {
+              $or: [
+                { _id: { $oid: disputeObjectId } },
+                { escrowId: resolvedEscrowId },
+              ],
+            }
+          : { escrowId: resolvedEscrowId };
+
+        await db
+          .$runCommandRaw({
+            update: foundDispute.col,
+            updates: [
+              {
+                q: disputeFilter,
+                u: {
+                  $set: {
+                    votesForConsumer,
+                    votesForMerchant,
+                    elderVotes: existingVotes,
+                    updatedAt: { $date: new Date().toISOString() },
+                  },
+                },
+                multi: true,
+              },
+            ],
+          })
+          .catch(() => null);
+      }
+
+      await db
+        .$runCommandRaw({
+          insert: "vote_records",
+          documents: [
+            {
+              disputeId: disputeObjectId,
+              escrowId: resolvedEscrowId,
+              voterUid,
+              ruling: finalRuling,
+              createdAt: { $date: new Date().toISOString() },
+            },
+          ],
+        })
+        .catch(() => null);
+    }
+
     const quorumCount = isFavorConsumer ? votesForConsumer : votesForMerchant;
-    if (quorumCount < 3) {
+    if (quorumCount < QUORUM_THRESHOLD) {
       return NextResponse.json(
         {
           success: false,
-          error: `3-of-5 Elder quorum not met for ${finalRuling} (received ${quorumCount} votes).`,
+          pendingQuorum: true,
+          alreadyVoted,
+          escrowId: resolvedEscrowId,
+          disputeId: disputeObjectId,
+          ruling: finalRuling,
+          votesForConsumer,
+          votesForMerchant,
+          quorumRequired: QUORUM_THRESHOLD,
+          error: alreadyVoted
+            ? `Elder ${voterUid} already voted (${quorumCount}/${QUORUM_THRESHOLD} for ${finalRuling}).`
+            : `Vote recorded for ${voterUid}; 3-of-5 Elder quorum not yet met for ${finalRuling} (${quorumCount}/${QUORUM_THRESHOLD} votes).`,
         },
         { status: 409 }
       );
     }
+
+    const recordedVotersForRuling = existingVotes
+      .filter((v) => String(v?.ruling || "").toUpperCase() === finalRuling)
+      .map((v) => String(v?.elderUid || "").trim())
+      .filter(Boolean);
 
     const { majorityElders, majorityCount } = await resolveMajorityElders(
       db,
@@ -293,6 +391,7 @@ export async function POST(req: NextRequest) {
       resolvedEscrowId,
       eligibleElders,
       isFavorConsumer,
+      recordedVotersForRuling,
       quorumCount
     );
 
@@ -377,6 +476,9 @@ export async function POST(req: NextRequest) {
               u: {
                 $set: {
                   status: finalDisputeStatus,
+                  votesForConsumer,
+                  votesForMerchant,
+                  elderVotes: existingVotes,
                   selectedElders: eligibleElders,
                   reason: `Adjudicated by 5-Elder VRF Panel (${participatingMajorityElders} majority): ${finalRuling}`,
                   updatedAt: { $date: nowIso },
@@ -432,14 +534,14 @@ export async function POST(req: NextRequest) {
         })
         .catch(() => null);
 
-      for (const elderUid of majorityElders) {
-        if (conflictedUids.has(elderUid)) continue;
+      for (const elderUidItem of majorityElders) {
+        if (conflictedUids.has(elderUidItem)) continue;
         await db
           .$runCommandRaw({
             update: col,
             updates: [
               {
-                q: { uid: elderUid },
+                q: { uid: elderUidItem },
                 u: { $inc: { mbzrBalance: rewardPerElderMbzr } },
                 multi: true,
               },
@@ -452,6 +554,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       {
         success: true,
+        validated: true,
         txHash,
         settlementMode: chainSettlement,
         escrowId: resolvedEscrowId,
@@ -459,6 +562,8 @@ export async function POST(req: NextRequest) {
         ruling: finalRuling,
         winningOutcome: finalDisputeStatus,
         escrowStatus: finalEscrowStatus,
+        votesForConsumer,
+        votesForMerchant,
         winnerUid,
         eligibleVrfElders: eligibleElders,
         majorityElderUids: majorityElders,
