@@ -6,6 +6,7 @@ import type {
   ProposalScope,
   ProposalStatus,
   Tier,
+  VotingStage,
 } from "@prisma/client";
 
 export type AdjudicationOutcome =
@@ -62,6 +63,9 @@ export interface CooldownCheckResult {
 export interface TriStateVerdict {
   outcome: AdjudicationOutcome;
   nextStatus: ProposalStatus;
+  votingStage: VotingStage;
+  resolvedChamber: GovernanceChamber;
+  resolvedScope: ProposalScope;
   requiredChambers: GovernanceChamber[];
   violations: ConstitutionalViolation[];
   borderlineFlags: BorderlineFlag[];
@@ -112,6 +116,7 @@ const OUTCOME_MULTIPLIERS: Record<string, number> = {
   HARD_BLOCKED: 3.0,
 };
 
+// GENESIS (Genesis 100) governs Academy Core curriculum & certification policy
 const PARAMETER_JURISDICTION: Record<string, GovernanceChamber[]> = {
   MUTUAL_AID_ALLOCATION: ["CITIZEN", "GENESIS"],
   ESCROW_TIMELOCK_HOURS: ["MERCHANT", "GENESIS"],
@@ -119,6 +124,8 @@ const PARAMETER_JURISDICTION: Record<string, GovernanceChamber[]> = {
   UPTIME_SHIELD_TARGET_PCT: ["SERVICE_PROVIDER", "GENESIS"],
   NODE_YIELD_SPLIT_PCT: ["SERVICE_PROVIDER", "GENESIS"],
   DISPUTE_MIN_BOND_MBZR: ["GENESIS", "MERCHANT"],
+  ACADEMY_CURRICULUM_POLICY: ["GENESIS", "FOUNDER"],
+  ACADEMY_CERTIFICATION_GATE: ["GENESIS", "FOUNDER"],
   WASM_BEACON_UPGRADE: ["GENESIS", "FOUNDER"],
 };
 
@@ -172,6 +179,26 @@ const PROTECTED_KEYWORDS = [
   "mainnet",
   "fiat",
 ];
+
+function isAcademyPolicyDraft(title: string, description: string, paramKey?: string): boolean {
+  if (
+    paramKey === "ACADEMY_CURRICULUM_POLICY" ||
+    paramKey === "ACADEMY_CERTIFICATION_GATE" ||
+    (paramKey && (paramKey.includes("ACADEMY") || paramKey.includes("CURRICULUM") || paramKey.includes("CERTIFICATION")))
+  ) {
+    return true;
+  }
+  const text = `${title} ${description}`.toLowerCase();
+  return (
+    text.includes("academy core") ||
+    text.includes("academy curriculum") ||
+    text.includes("certification gate") ||
+    text.includes("certification exam") ||
+    text.includes("module 01") ||
+    text.includes("module 02") ||
+    text.includes("module 03")
+  );
+}
 
 // =============================================================
 // GATE 1: DUAL-LAYER PROPOSAL COOLDOWN GUARD
@@ -261,6 +288,18 @@ export function adjudicateProposalTriState(
   const violations: ConstitutionalViolation[] = [];
   const borderlineFlags: BorderlineFlag[] = [];
   const isFounder = proposer.tier === "BAZAAR_FOUNDER";
+  const paramKey = draft.targetParameter?.trim().toUpperCase() || undefined;
+
+  let resolvedChamber: GovernanceChamber = proposer.assignedChamber;
+  let resolvedScope: ProposalScope = draft.scope;
+
+  const academyDraft = isAcademyPolicyDraft(draft.title, draft.description, paramKey);
+  if (academyDraft) {
+    resolvedChamber = "GENESIS";
+    if (proposer.assignedChamber !== "GENESIS" && !isFounder) {
+      resolvedScope = "CROSS_CHAMBER_CONSTITUTIONAL";
+    }
+  }
 
   // Stage 1: Hard-Block Constitutional Axioms
   if (proposer.tier === "OBSERVER") {
@@ -295,8 +334,6 @@ export function adjudicateProposalTriState(
     });
   }
 
-  const paramKey = draft.targetParameter?.trim().toUpperCase() || undefined;
-
   if (paramKey && IMMUTABLE_CONSTITUTIONAL_KEYS[paramKey]) {
     const rule = IMMUTABLE_CONSTITUTIONAL_KEYS[paramKey];
     violations.push({
@@ -314,7 +351,7 @@ export function adjudicateProposalTriState(
         code: "ART_I_UNKNOWN_PARAMETER",
         explanation: `Parameter '${paramKey}' is not registered in the Republic constitutional schema.`,
       });
-    } else if (!allowedChambers.includes(proposer.assignedChamber)) {
+    } else if (!allowedChambers.includes(proposer.assignedChamber) && !isFounder) {
       violations.push({
         article: "Article I (Segregation of Duties & Chamber Jurisdiction)",
         code: "ART_I_JURISDICTION_BREACH",
@@ -347,6 +384,9 @@ export function adjudicateProposalTriState(
     return {
       outcome: "HARD_BLOCKED",
       nextStatus: "REJECTED",
+      votingStage: "PRIMARY_TIER",
+      resolvedChamber,
+      resolvedScope,
       requiredChambers: [],
       violations,
       borderlineFlags: [],
@@ -381,13 +421,16 @@ export function adjudicateProposalTriState(
   }
 
   if (
-    draft.scope === "CHAMBER_LOCAL" &&
-    (paramKey === "MERCHANT_TRADE_LEVY_BPS" ||
-      paramKey === "NODE_YIELD_SPLIT_PCT")
+    (resolvedScope === "CHAMBER_LOCAL" &&
+      (paramKey === "MERCHANT_TRADE_LEVY_BPS" ||
+        paramKey === "NODE_YIELD_SPLIT_PCT")) ||
+    (academyDraft && proposer.assignedChamber !== "GENESIS" && !isFounder)
   ) {
     borderlineFlags.push({
       heuristic: "CROSS_CHAMBER_SPILLOVER",
-      reason: `Modifying '${paramKey}' affects revenue splits across multiple chambers and requires Elder scope confirmation.`,
+      reason: academyDraft
+        ? "Academy Core curriculum/certification proposals are stewarded by GENESIS_100 and require Elder scope review when submitted from outside GENESIS."
+        : `Modifying '${paramKey}' affects revenue splits across multiple chambers and requires Elder scope confirmation.`,
     });
   }
 
@@ -406,6 +449,9 @@ export function adjudicateProposalTriState(
     return {
       outcome: "BORDERLINE_ESCALATED",
       nextStatus: "ELDER_REVIEW",
+      votingStage: "PRIMARY_TIER",
+      resolvedChamber,
+      resolvedScope,
       requiredChambers: [],
       violations: [],
       borderlineFlags,
@@ -413,10 +459,10 @@ export function adjudicateProposalTriState(
     };
   }
 
-  // Stage 3: Clean Constitutional Approval
+  // Stage 3: Clean Constitutional Approval -> Opens Stage 1 (PRIMARY_TIER)
   const requiredChambers: GovernanceChamber[] =
-    draft.scope === "CHAMBER_LOCAL"
-      ? [proposer.assignedChamber]
+    resolvedScope === "CHAMBER_LOCAL"
+      ? [resolvedChamber]
       : ["FOUNDER", "GENESIS", "MERCHANT", "SERVICE_PROVIDER", "CITIZEN"];
 
   const adjudicatorSealHash = crypto
@@ -424,11 +470,13 @@ export function adjudicateProposalTriState(
     .update(
       JSON.stringify({
         authorUid: proposer.uid,
-        chamber: proposer.assignedChamber,
+        originChamber: proposer.assignedChamber,
+        resolvedChamber,
+        resolvedScope,
+        votingStage: "PRIMARY_TIER",
         title: draft.title,
         paramKey,
         proposedValue: draft.proposedValue ?? null,
-        scope: draft.scope,
       })
     )
     .digest("hex");
@@ -436,6 +484,9 @@ export function adjudicateProposalTriState(
   return {
     outcome: "APPROVED",
     nextStatus: "ACTIVE",
+    votingStage: "PRIMARY_TIER",
+    resolvedChamber,
+    resolvedScope,
     requiredChambers,
     violations: [],
     borderlineFlags: [],

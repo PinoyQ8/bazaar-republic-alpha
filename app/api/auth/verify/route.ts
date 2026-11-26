@@ -1,16 +1,26 @@
-﻿import { NextResponse } from "next/server";
+﻿// Location: app/api/node/status/route.ts (or heartbeat route)
+import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
 const ALLOWED_HEARTBEAT_STATUSES = new Set(["ACTIVE", "SYNCING", "MAINTENANCE"]);
+const SANCTIONED_STATUSES = new Set(["FROZEN", "QUARANTINED", "SUSPENDED"]);
 
 export async function POST(req: Request) {
   try {
     const body = await req.json().catch(() => null);
-    const uid = typeof body?.uid === "string" ? body.uid.trim() : "";
+    const headerUid =
+      req.headers.get("x-pioneer-uid") || req.headers.get("x-actor-uid") || "";
+    const uid =
+      typeof body?.uid === "string" && body.uid.trim()
+        ? body.uid.trim()
+        : headerUid.trim();
+
     const requestedStatus =
-      typeof body?.status === "string" ? body.status.trim().toUpperCase() : "ACTIVE";
+      typeof body?.status === "string"
+        ? body.status.trim().toUpperCase()
+        : "ACTIVE";
 
     if (!uid) {
       return NextResponse.json(
@@ -28,9 +38,18 @@ export async function POST(req: Request) {
       select: { id: true, isFrozen: true, status: true },
     });
 
-    if (existing?.isFrozen || existing?.status === "FROZEN") {
+    const existingStatus = String(existing?.status || "").toUpperCase();
+    if (existing?.isFrozen || SANCTIONED_STATUSES.has(existingStatus)) {
       return NextResponse.json(
-        { success: false, error: "NODE_SANCTIONED_FROZEN" },
+        {
+          success: false,
+          error:
+            existingStatus === "QUARANTINED"
+              ? "NODE_QUARANTINED"
+              : existingStatus === "SUSPENDED"
+              ? "NODE_SUSPENDED"
+              : "NODE_SANCTIONED_FROZEN",
+        },
         { status: 403 }
       );
     }

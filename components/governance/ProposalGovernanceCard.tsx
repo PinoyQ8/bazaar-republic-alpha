@@ -1,132 +1,261 @@
-// Location: components/governance/ProposalGovernanceCard.tsx
 "use client";
 
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   CheckCircle2,
   Clock,
   Gavel,
-  PauseCircle,
-  Play,
+  Lock,
   ShieldAlert,
-  Sparkles,
+  ThumbsDown,
+  ThumbsUp,
+  XCircle,
 } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
+import {
+  canAccessSubSection,
+  canPerformGovernanceAction,
+  GOVERNANCE_TIER_META,
+  GovernanceTierLevel,
+  normalizeTierLevel,
+} from "@/app/lib/governance/tierRbac";
 
 export type GovernanceProposalStatus =
-  | "PENDING"
-  | "ELDER_REVIEW"
+  | "DRAFT"
   | "ACTIVE"
-  | "PASSED"
+  | "ELDER_REVIEW"
   | "HOLD_AND_MODIFY"
-  | "EXECUTED"
+  | "PASSED"
   | "REJECTED"
-  | "EXPIRED";
+  | "EXECUTED"
+  | "VETOED"
+  | string;
 
 export interface GovernanceProposalRecord {
   id: string;
   title: string;
   description: string;
   status: GovernanceProposalStatus;
-  authorUid: string | null;
+  authorUid?: string | null;
   assignedChamber: string;
   scope: string;
-  targetParameter: string | null;
-  proposedValue: number | null;
+  targetParameter?: string | null;
+  proposedValue?: string | null;
   votesFor: number;
   votesAgainst: number;
-  adjudicatorSealHash: string | null;
-  elderPanelUids: string[];
-  elderVotesFor: number;
-  elderVotesAgainst: number;
-  elderReviewExpiresAt: string | null;
-  visionAlignmentPct: number | null;
-  executionSealHash: string | null;
-  holdReason: string | null;
-  holdExpiresAt: string | null;
-  executedAt: string | null;
-  expiresAt: string | null;
+  adjudicatorSealHash?: string | null;
+  elderPanelUids?: string[];
+  elderVotesFor?: number;
+  elderVotesAgainst?: number;
+  elderReviewExpiresAt?: string | null;
+  visionAlignmentPct?: number | null;
+  executionSealHash?: string | null;
+  holdReason?: string | null;
+  holdExpiresAt?: string | null;
+  executedAt?: string | null;
+  expiresAt?: string | null;
   createdAt: string;
 }
 
-interface ProposalGovernanceCardProps {
+export interface ProposalGovernanceCardProps {
   proposal: GovernanceProposalRecord;
   currentUid?: string;
   isFounder?: boolean;
-  onRefresh: () => Promise<void> | void;
-}
-
-export function ProposalStatusBadge({ status }: { status: GovernanceProposalStatus }) {
-  const styles: Record<GovernanceProposalStatus, string> = {
-    PENDING: "bg-slate-800 text-slate-300 border-slate-700",
-    ELDER_REVIEW: "bg-amber-950/80 text-amber-300 border-amber-700/70",
-    ACTIVE: "bg-cyan-950/80 text-cyan-300 border-cyan-700/70",
-    PASSED: "bg-indigo-950/80 text-indigo-300 border-indigo-700/70",
-    HOLD_AND_MODIFY: "bg-orange-950/80 text-orange-300 border-orange-700/70 animate-pulse",
-    EXECUTED: "bg-emerald-950/80 text-emerald-300 border-emerald-700/70",
-    REJECTED: "bg-rose-950/80 text-rose-300 border-rose-700/70",
-    EXPIRED: "bg-zinc-900 text-zinc-400 border-zinc-700",
-  };
-
-  return (
-    <span
-      className={`text-[9px] font-mono font-bold uppercase tracking-wider px-2 py-0.5 rounded border ${
-        styles[status] || styles.PENDING
-      }`}
-    >
-      {status.replaceAll("_", " ")}
-    </span>
-  );
+  governanceTier?: GovernanceTierLevel | string;
+  hasRole?: boolean;
+  hasPassport?: boolean;
+  isFrozen?: boolean;
+  onRefresh?: () => Promise<void> | void;
 }
 
 export default function ProposalGovernanceCard({
   proposal,
-  currentUid = "",
-  isFounder = false,
+  currentUid,
+  isFounder: isFounderProp,
+  governanceTier,
+  hasRole: hasRoleProp,
+  hasPassport: hasPassportProp,
+  isFrozen: isFrozenProp,
   onRefresh,
 }: ProposalGovernanceCardProps) {
+  const {
+    pioneer,
+    hasActiveRole: authHasRole,
+    isFounder: authIsFounder,
+  } = useAuth();
+
   const [busyAction, setBusyAction] = useState<string | null>(null);
-  const [rationale, setRationale] = useState("");
-  const [modifiedValue, setModifiedValue] = useState<string>(
-    proposal.proposedValue !== null ? String(proposal.proposedValue) : ""
-  );
   const [feedback, setFeedback] = useState<{
     type: "ok" | "err";
-    message: string;
+    text: string;
   } | null>(null);
 
-  const canElderVote =
-    proposal.status === "ELDER_REVIEW" &&
-    currentUid.length > 0 &&
-    proposal.elderPanelUids.includes(currentUid);
+  const effectiveTier = normalizeTierLevel(governanceTier ?? pioneer?.tier ?? 1);
+  const effectiveHasRole = hasRoleProp ?? authHasRole;
+  const effectiveHasPassport =
+    hasPassportProp ?? Boolean(pioneer?.isAuthenticated);
+  const effectiveFrozen = isFrozenProp ?? pioneer?.status === "FROZEN";
+  const effectiveIsFounder = isFounderProp ?? authIsFounder;
 
-  const runAction = async (
-    actionKey: string,
-    url: string,
-    payload: Record<string, unknown>
-  ) => {
-    setBusyAction(actionKey);
+  const rbacSubject = useMemo(
+    () => ({
+      tier: effectiveTier,
+      hasRole: effectiveHasRole,
+      hasPassport: effectiveHasPassport,
+      isFrozen: effectiveFrozen,
+      isFounder: effectiveIsFounder,
+      role: pioneer?.role,
+    }),
+    [
+      effectiveTier,
+      effectiveHasRole,
+      effectiveHasPassport,
+      effectiveFrozen,
+      effectiveIsFounder,
+      pioneer?.role,
+    ]
+  );
+
+  const votePerm = useMemo(
+    () =>
+      canPerformGovernanceAction(effectiveTier, "VOTE_PROPOSAL", {
+        hasPassport: effectiveHasPassport,
+        isFrozen: effectiveFrozen,
+        hasRole: effectiveHasRole,
+      }),
+    [effectiveTier, effectiveHasPassport, effectiveFrozen, effectiveHasRole]
+  );
+
+  const elderAccess = useMemo(
+    () => canAccessSubSection("GOVERNANCE_ELDER_ACTIONS", rbacSubject),
+    [rbacSubject]
+  );
+
+  const handleCastVote = async (choice: "FOR" | "AGAINST") => {
+    if (!votePerm.allowed) {
+      setFeedback({
+        type: "err",
+        text: votePerm.reason ?? "Voting is currently locked.",
+      });
+      return;
+    }
+
+    setBusyAction(`VOTE_${choice}`);
     setFeedback(null);
     try {
-      const res = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const data = await res.json();
-      if (!res.ok || data.success === false) {
-        throw new Error(data.error || `Request failed (${res.status})`);
+      const res = await fetch(
+        `/api/governance/proposals/${encodeURIComponent(proposal.id)}/vote`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            choice,
+            voterUid: currentUid || pioneer?.uid || "anonymous_pioneer",
+          }),
+        }
+      );
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data?.success === false) {
+        throw new Error(data?.error || "Failed to record vote.");
       }
-      setRationale("");
       setFeedback({
         type: "ok",
-        message: data.status || data.finalStatus || "Action sealed on ledger.",
+        text: `Recorded ${choice} vote on ${proposal.id}.`,
       });
-      await onRefresh();
+      await onRefresh?.();
     } catch (err: unknown) {
       setFeedback({
         type: "err",
-        message:
-          err instanceof Error ? err.message : "Governance action failed.",
+        text: err instanceof Error ? err.message : "Vote request failed.",
+      });
+    } finally {
+      setBusyAction(null);
+    }
+  };
+
+  const handleElderRuling = async (
+    ruling: "CONSTITUTIONAL_CLEAR" | "CONSTITUTIONAL_VIOLATION"
+  ) => {
+    if (!elderAccess.allowed) {
+      setFeedback({
+        type: "err",
+        text:
+          elderAccess.reason ??
+          `Elder adjudication requires ${elderAccess.requiredTierLabel}.`,
+      });
+      return;
+    }
+
+    setBusyAction(ruling);
+    setFeedback(null);
+    try {
+      const res = await fetch(
+        `/api/governance/proposals/${encodeURIComponent(proposal.id)}/elder-review`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            ruling,
+            rationale:
+              ruling === "CONSTITUTIONAL_CLEAR"
+                ? "Verified constitutional alignment and quorum."
+                : "Flagged constitutional or charter boundary violation.",
+            elderUid: currentUid || pioneer?.uid || "elder_panel_member",
+          }),
+        }
+      );
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data?.success === false) {
+        throw new Error(data?.error || "Elder review ruling failed.");
+      }
+      setFeedback({
+        type: "ok",
+        text: `Elder ruling (${ruling}) recorded for ${proposal.id}.`,
+      });
+      await onRefresh?.();
+    } catch (err: unknown) {
+      setFeedback({
+        type: "err",
+        text:
+          err instanceof Error ? err.message : "Elder review request failed.",
+      });
+    } finally {
+      setBusyAction(null);
+    }
+  };
+
+  const handleFounderHoldAction = async (
+    decision: "APPROVE_OVERRIDE" | "MODIFY_AND_RESUBMIT" | "SOFT_VETO"
+  ) => {
+    if (!effectiveIsFounder) return;
+    setBusyAction(decision);
+    setFeedback(null);
+    try {
+      const res = await fetch(
+        `/api/governance/proposals/${encodeURIComponent(proposal.id)}/founder-hold`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            decision,
+            founderUid: currentUid || pioneer?.uid || "founder",
+          }),
+        }
+      );
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data?.success === false) {
+        throw new Error(data?.error || "Founder hold action failed.");
+      }
+      setFeedback({
+        type: "ok",
+        text: `Founder decision (${decision}) applied to ${proposal.id}.`,
+      });
+      await onRefresh?.();
+    } catch (err: unknown) {
+      setFeedback({
+        type: "err",
+        text:
+          err instanceof Error ? err.message : "Founder hold request failed.",
       });
     } finally {
       setBusyAction(null);
@@ -134,309 +263,213 @@ export default function ProposalGovernanceCard({
   };
 
   return (
-    <article className="bg-slate-900/90 border border-slate-800 rounded-xl p-3 space-y-2.5 font-mono text-xs overflow-hidden">
-      {/* Header Row */}
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <div className="text-[10px] text-slate-400">
-            {proposal.assignedChamber} •{" "}
-            {proposal.scope === "CHAMBER_LOCAL" ? "Local" : "4/5 Global"}
-          </div>
-          <h3 className="text-sm font-sans font-bold text-slate-100 truncate">
-            {proposal.title}
-          </h3>
-        </div>
-        <ProposalStatusBadge status={proposal.status} />
+    <article className="rounded-xl border border-slate-800 bg-slate-900/70 p-3.5 space-y-2.5 text-xs font-mono text-slate-100">
+      {/* Header & Status Badge */}
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[10px] font-bold text-cyan-400 truncate">
+          {proposal.assignedChamber} • {proposal.scope}
+        </span>
+        <span
+          className={`shrink-0 rounded border px-1.5 py-0.5 text-[9px] font-bold uppercase ${
+            proposal.status === "ELDER_REVIEW"
+              ? "border-amber-700/80 bg-amber-950/70 text-amber-300"
+              : proposal.status === "HOLD_AND_MODIFY"
+                ? "border-purple-700/80 bg-purple-950/70 text-purple-300"
+                : proposal.status === "EXECUTED"
+                  ? "border-emerald-700/80 bg-emerald-950/70 text-emerald-300"
+                  : "border-slate-700 bg-slate-950 text-slate-300"
+          }`}
+        >
+          {proposal.status}
+        </span>
       </div>
 
-      {/* Description */}
-      <p className="text-[11px] text-slate-300 leading-relaxed wrap-break-word">
-        {proposal.description}
-      </p>
+      {/* Title & Summary */}
+      <div>
+        <h3 className="text-xs font-bold text-white leading-snug">
+          {proposal.title}
+        </h3>
+        <p className="text-[10px] text-slate-400 mt-1 leading-relaxed">
+          {proposal.description}
+        </p>
+      </div>
 
-      {/* Parameter & Vision Telemetry */}
-      {(proposal.targetParameter || proposal.visionAlignmentPct !== null) && (
-        <div className="grid grid-cols-2 gap-2 p-2 bg-slate-950/90 rounded-lg border border-slate-800/80 text-[10px]">
-          <div>
-            <span className="text-slate-500 block uppercase">Target</span>
-            <span className="text-cyan-300 font-bold break-all">
-              {proposal.targetParameter
-                ? `${proposal.targetParameter}${
-                    proposal.proposedValue !== null
-                      ? ` (${proposal.proposedValue})`
-                      : ""
-                  }`
-                : "POLICY_TEXT"}
+      {/* Parameter Target */}
+      {proposal.targetParameter && (
+        <div className="rounded-lg border border-slate-800/90 bg-slate-950/80 px-2.5 py-1.5 text-[10px] text-slate-300 flex items-center justify-between gap-2">
+          <span className="text-slate-500 truncate">{proposal.targetParameter}</span>
+          {proposal.proposedValue && (
+            <span className="text-cyan-300 font-bold shrink-0">
+              {proposal.proposedValue}
             </span>
-          </div>
-          <div className="text-right">
-            <span className="text-slate-500 block uppercase">Vision Align</span>
-            <span className="text-emerald-400 font-bold">
-              {proposal.visionAlignmentPct !== null
-                ? `${proposal.visionAlignmentPct}%`
-                : "Pending"}
-            </span>
-          </div>
+          )}
         </div>
       )}
 
-      {/* Diagnostic / Hold / Seal Notes */}
-      {proposal.holdReason && (
-        <div className="p-2 rounded-lg bg-amber-950/30 border border-amber-800/50 text-[10px] text-amber-200 wrap-break-word">
-          <span className="font-bold uppercase mb-0.5 flex items-center gap-1">
-            <ShieldAlert className="w-3 h-3 text-amber-400 shrink-0" />
-            Adjudicator / Hold Note
-          </span>
-          {proposal.holdReason}
+      {/* Vote Tallies */}
+      <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1 border-t border-slate-800/80">
+        <span>
+          For: <strong className="text-emerald-400">{proposal.votesFor}</strong> • Against:{" "}
+          <strong className="text-rose-400">{proposal.votesAgainst}</strong>
+        </span>
+        <span className="text-[9px] text-slate-500">{proposal.id}</span>
+      </div>
+
+      {/* ACTIVE PROPOSAL VOTING CONTROLS (Gated by VOTE_PROPOSAL) */}
+      {proposal.status === "ACTIVE" && (
+        <div className="space-y-1.5 pt-1">
+          {!votePerm.allowed ? (
+            <div className="rounded-lg border border-amber-900/60 bg-amber-950/25 px-2.5 py-1.5 text-[10px] text-amber-300 flex items-center justify-between gap-2">
+              <span className="flex items-center gap-1.5">
+                <Lock className="h-3 w-3 shrink-0 text-amber-400" />
+                <span>{votePerm.reason ?? "Voting locked"}</span>
+              </span>
+              <span className="rounded border border-amber-800/70 bg-amber-950/70 px-1.5 py-0.5 text-[9px] font-bold">
+                {GOVERNANCE_TIER_META[votePerm.requiredTier].shortLabel}
+              </span>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-1.5">
+              <button
+                type="button"
+                disabled={busyAction !== null}
+                onClick={() => handleCastVote("FOR")}
+                className="rounded-lg border border-emerald-700/80 bg-emerald-950/50 py-1.5 text-[10px] font-bold text-emerald-300 hover:bg-emerald-900/60 disabled:opacity-45 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center gap-1"
+              >
+                <ThumbsUp className="h-3 w-3" />
+                {busyAction === "VOTE_FOR" ? "Voting..." : "Vote For"}
+              </button>
+              <button
+                type="button"
+                disabled={busyAction !== null}
+                onClick={() => handleCastVote("AGAINST")}
+                className="rounded-lg border border-rose-800/80 bg-rose-950/40 py-1.5 text-[10px] font-bold text-rose-300 hover:bg-rose-900/50 disabled:opacity-45 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center gap-1"
+              >
+                <ThumbsDown className="h-3 w-3" />
+                {busyAction === "VOTE_AGAINST" ? "Voting..." : "Vote Against"}
+              </button>
+            </div>
+          )}
         </div>
       )}
 
-      {proposal.executionSealHash && proposal.status === "EXECUTED" && (
-        <div className="p-2 rounded-lg bg-emerald-950/30 border border-emerald-800/50 text-[10px] text-emerald-300 break-all flex items-center gap-1.5">
-          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-          <span>Executed Seal: {proposal.executionSealHash.slice(0, 18)}…</span>
-        </div>
-      )}
-
-      {/* ELDER_REVIEW Panel (24h 5-Elder VRF Clarification) */}
+      {/* ELDER_REVIEW ADJUDICATION PANEL (Gated by GOVERNANCE_ELDER_ACTIONS) */}
       {proposal.status === "ELDER_REVIEW" && (
-        <div className="p-2.5 rounded-lg bg-amber-950/20 border border-amber-700/40 space-y-2">
-          <div className="flex items-center justify-between text-[10px]">
-            <span className="text-amber-300 font-bold flex items-center gap-1">
-              <Gavel className="w-3 h-3" /> 5-Elder VRF Clarification
+        <div className="rounded-lg border border-amber-800/70 bg-amber-950/20 p-2.5 space-y-2 text-[10px]">
+          <div className="flex items-center justify-between gap-2">
+            <span className="font-bold text-amber-300 flex items-center gap-1.5">
+              <Gavel className="h-3.5 w-3.5 text-amber-400" />
+              5-Elder Clarification Window
             </span>
-            <span className="text-slate-300">
-              Clear:{" "}
-              <strong className="text-emerald-400">
-                {proposal.elderVotesFor}
-              </strong>{" "}
-              / Reject:{" "}
-              <strong className="text-rose-400">
-                {proposal.elderVotesAgainst}
-              </strong>
+            <span className="text-slate-400">
+              {proposal.elderVotesFor ?? 0} Clear / {proposal.elderVotesAgainst ?? 0} Viol.
             </span>
           </div>
 
           {proposal.elderReviewExpiresAt && (
-            <div className="text-[10px] text-slate-400 flex items-center gap-1">
-              <Clock className="w-3 h-3 text-amber-400" />
-              Window closes:{" "}
-              {new Date(proposal.elderReviewExpiresAt).toLocaleString()}
+            <div className="text-[9px] text-slate-400 flex items-center gap-1">
+              <Clock className="h-3 w-3 text-amber-400" />
+              <span>Review deadline: {proposal.elderReviewExpiresAt}</span>
             </div>
           )}
 
-          {canElderVote ? (
-            <div className="space-y-1.5 pt-1">
-              <input
-                type="text"
-                value={rationale}
-                onChange={(e) => setRationale(e.target.value)}
-                placeholder="Clarification rationale..."
-                className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-[10px] text-slate-100"
-              />
-              <div className="grid grid-cols-2 gap-1.5">
-                <button
-                  disabled={busyAction !== null}
-                  onClick={() =>
-                    runAction(
-                      "elder-clear",
-                      `/api/governance/proposals/${proposal.id}/elder-review`,
-                      {
-                        elderUid: currentUid,
-                        ruling: "CONSTITUTIONAL_CLEAR",
-                        rationale,
-                      }
-                    )
-                  }
-                  className="py-1.5 bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-bold rounded text-[10px] uppercase disabled:opacity-50"
-                >
-                  {busyAction === "elder-clear" ? "Sealing..." : "Clear Ballot"}
-                </button>
-                <button
-                  disabled={busyAction !== null}
-                  onClick={() =>
-                    runAction(
-                      "elder-reject",
-                      `/api/governance/proposals/${proposal.id}/elder-review`,
-                      {
-                        elderUid: currentUid,
-                        ruling: "CONSTITUTIONAL_VIOLATION",
-                        rationale,
-                      }
-                    )
-                  }
-                  className="py-1.5 bg-rose-900 hover:bg-rose-800 text-rose-100 border border-rose-700 font-bold rounded text-[10px] uppercase disabled:opacity-50"
-                >
-                  {busyAction === "elder-reject"
-                    ? "Sealing..."
-                    : "Rule Violation"}
-                </button>
-              </div>
+          {!elderAccess.allowed ? (
+            <div className="rounded border border-amber-900/70 bg-slate-950/80 px-2 py-1.5 flex items-center justify-between gap-2 text-amber-300">
+              <span className="flex items-center gap-1.5">
+                <Lock className="h-3 w-3 shrink-0 text-amber-400" />
+                <span>
+                  {elderAccess.reason ??
+                    `Elder adjudication requires ${elderAccess.requiredTierLabel}`}
+                </span>
+              </span>
+              <span className="rounded border border-amber-800/70 bg-amber-950/80 px-1.5 py-0.5 text-[9px] font-bold shrink-0">
+                {elderAccess.requiredTierLabel}
+              </span>
             </div>
           ) : (
-            <div className="text-[10px] text-slate-400">
-              Panel ({proposal.elderPanelUids.length || 0} seated):{" "}
-              {proposal.elderPanelUids.join(", ") || "Awaiting VRF draw"}
+            <div className="grid grid-cols-2 gap-1.5 pt-0.5">
+              <button
+                type="button"
+                disabled={busyAction !== null}
+                onClick={() => handleElderRuling("CONSTITUTIONAL_CLEAR")}
+                className="rounded border border-emerald-700 bg-emerald-950/60 py-1.5 px-2 font-bold text-emerald-300 hover:bg-emerald-900/60 disabled:opacity-45 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center gap-1"
+              >
+                <CheckCircle2 className="h-3 w-3" />
+                {busyAction === "CONSTITUTIONAL_CLEAR" ? "Sealing..." : "Clear"}
+              </button>
+              <button
+                type="button"
+                disabled={busyAction !== null}
+                onClick={() => handleElderRuling("CONSTITUTIONAL_VIOLATION")}
+                className="rounded border border-rose-800 bg-rose-950/50 py-1.5 px-2 font-bold text-rose-300 hover:bg-rose-900/60 disabled:opacity-45 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center gap-1"
+              >
+                <XCircle className="h-3 w-3" />
+                {busyAction === "CONSTITUTIONAL_VIOLATION"
+                  ? "Flagging..."
+                  : "Violation"}
+              </button>
             </div>
           )}
         </div>
       )}
 
-      {/* HOLD_AND_MODIFY Panel (72h Founder / Descendant Soft Veto SLA) */}
+      {/* HOLD_AND_MODIFY (72h Founder Hold) */}
       {proposal.status === "HOLD_AND_MODIFY" && (
-        <div className="p-2.5 rounded-lg bg-orange-950/25 border border-orange-700/50 space-y-2">
-          <div className="flex items-center justify-between text-[10px]">
-            <span className="text-orange-300 font-bold flex items-center gap-1">
-              <PauseCircle className="w-3 h-3" /> Hold & Modify (72h SLA)
+        <div className="rounded-lg border border-purple-800/70 bg-purple-950/20 p-2.5 space-y-2 text-[10px]">
+          <div className="flex items-center justify-between text-purple-300 font-bold">
+            <span className="flex items-center gap-1.5">
+              <ShieldAlert className="h-3.5 w-3.5 text-purple-400" />
+              72h Founder Hold & Modify
             </span>
-            <span className="text-orange-200">
-              {proposal.holdExpiresAt
-                ? `Due ${new Date(proposal.holdExpiresAt).toLocaleString()}`
-                : "72h Window"}
-            </span>
+            {proposal.holdExpiresAt && (
+              <span className="text-[9px] text-purple-200">
+                {proposal.holdExpiresAt.slice(0, 10)}
+              </span>
+            )}
           </div>
-
-          {isFounder && currentUid ? (
-            <div className="space-y-1.5 pt-1">
-              <input
-                type="text"
-                value={rationale}
-                onChange={(e) => setRationale(e.target.value)}
-                placeholder="Public rationale (min 15 chars)..."
-                className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-[10px] text-slate-100"
-              />
-              {proposal.proposedValue !== null && (
-                <input
-                  type="number"
-                  value={modifiedValue}
-                  onChange={(e) => setModifiedValue(e.target.value)}
-                  placeholder="Adjusted value for 48h re-ballot"
-                  className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-[10px] text-slate-100"
-                />
-              )}
-              <div className="grid grid-cols-3 gap-1">
-                <button
-                  disabled={busyAction !== null}
-                  onClick={() =>
-                    runAction(
-                      "hold-approve",
-                      `/api/governance/proposals/${proposal.id}/founder-hold`,
-                      {
-                        chamber1Mode: "FOUNDER_ACTIVE",
-                        signers: [
-                          {
-                            uid: currentUid,
-                            role: "BAZAAR_FOUNDER",
-                            weightPct: 100,
-                          },
-                        ],
-                        action: "APPROVE_OVERRIDE",
-                        publicRationale: rationale,
-                      }
-                    )
-                  }
-                  className="py-1.5 bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-bold rounded text-[9px] uppercase disabled:opacity-50"
-                >
-                  Approve
-                </button>
-                <button
-                  disabled={busyAction !== null}
-                  onClick={() =>
-                    runAction(
-                      "hold-modify",
-                      `/api/governance/proposals/${proposal.id}/founder-hold`,
-                      {
-                        chamber1Mode: "FOUNDER_ACTIVE",
-                        signers: [
-                          {
-                            uid: currentUid,
-                            role: "BAZAAR_FOUNDER",
-                            weightPct: 100,
-                          },
-                        ],
-                        action: "MODIFY_AND_RESUBMIT",
-                        publicRationale: rationale,
-                        modifiedValue:
-                          modifiedValue.trim() !== ""
-                            ? Number(modifiedValue)
-                            : undefined,
-                      }
-                    )
-                  }
-                  className="py-1.5 bg-cyan-700 hover:bg-cyan-600 text-white font-bold rounded text-[9px] uppercase disabled:opacity-50"
-                >
-                  Modify 48h
-                </button>
-                <button
-                  disabled={busyAction !== null}
-                  onClick={() =>
-                    runAction(
-                      "hold-veto",
-                      `/api/governance/proposals/${proposal.id}/founder-hold`,
-                      {
-                        chamber1Mode: "FOUNDER_ACTIVE",
-                        signers: [
-                          {
-                            uid: currentUid,
-                            role: "BAZAAR_FOUNDER",
-                            weightPct: 100,
-                          },
-                        ],
-                        action: "SOFT_VETO",
-                        publicRationale: rationale,
-                      }
-                    )
-                  }
-                  className="py-1.5 bg-rose-900 hover:bg-rose-800 text-rose-100 border border-rose-700 font-bold rounded text-[9px] uppercase disabled:opacity-50"
-                >
-                  Soft Veto
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="text-[10px] text-orange-200/80">
-              Awaiting Chamber 1 decision (Approve, 48h Modify re-ballot, or Soft Veto); unreviewed holds auto-expire after 72h.
+          {proposal.holdReason && (
+            <p className="text-slate-300 leading-relaxed">{proposal.holdReason}</p>
+          )}
+          {effectiveIsFounder && (
+            <div className="grid grid-cols-3 gap-1 pt-0.5">
+              <button
+                type="button"
+                disabled={busyAction !== null}
+                onClick={() => handleFounderHoldAction("APPROVE_OVERRIDE")}
+                className="rounded border border-emerald-700 bg-emerald-950/60 py-1 font-bold text-emerald-300 cursor-pointer"
+              >
+                Approve
+              </button>
+              <button
+                type="button"
+                disabled={busyAction !== null}
+                onClick={() => handleFounderHoldAction("MODIFY_AND_RESUBMIT")}
+                className="rounded border border-cyan-700 bg-cyan-950/60 py-1 font-bold text-cyan-300 cursor-pointer"
+              >
+                Modify
+              </button>
+              <button
+                type="button"
+                disabled={busyAction !== null}
+                onClick={() => handleFounderHoldAction("SOFT_VETO")}
+                className="rounded border border-rose-800 bg-rose-950/60 py-1 font-bold text-rose-300 cursor-pointer"
+              >
+                Soft Veto
+              </button>
             </div>
           )}
         </div>
-      )}
-
-      {/* ACTIVE / PASSED Post-Passage Vision Audit Trigger */}
-      {(proposal.status === "ACTIVE" || proposal.status === "PASSED") && (
-        <button
-          disabled={busyAction !== null}
-          onClick={() =>
-            runAction(
-              "execute",
-              `/api/governance/proposals/${proposal.id}/execute`,
-              {
-                forceCloseForTest: true,
-              }
-            )
-          }
-          className="w-full py-1.5 bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-cyan-800/60 rounded text-[10px] font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 transition disabled:opacity-50"
-        >
-          {busyAction === "execute" ? (
-            <>
-              <Sparkles className="w-3 h-3 animate-spin" /> Auditing Vision…
-            </>
-          ) : (
-            <>
-              <Play className="w-3 h-3" /> Tally & Audit Vision Execution
-            </>
-          )}
-        </button>
       )}
 
       {feedback && (
         <div
-          className={`text-[10px] px-2 py-1 rounded ${
+          className={`rounded-lg border px-2.5 py-1.5 text-[10px] ${
             feedback.type === "ok"
-              ? "bg-emerald-950/60 text-emerald-300 border border-emerald-800/60"
-              : "bg-rose-950/60 text-rose-300 border border-rose-800/60"
+              ? "border-emerald-800/80 bg-emerald-950/40 text-emerald-300"
+              : "border-rose-800/80 bg-rose-950/40 text-rose-300"
           }`}
         >
-          {feedback.message}
+          {feedback.text}
         </div>
       )}
     </article>
