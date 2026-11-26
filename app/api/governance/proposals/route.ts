@@ -1,12 +1,16 @@
 // Location: app/api/governance/proposals/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import type { GovernanceChamber, ProposalScope, ProposalStatus } from "@prisma/client";
+import type {
+  GovernanceChamber,
+  ProposalScope,
+  ProposalStatus,
+} from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
   adjudicateProposalTriState,
   drawRandomElderPanel,
   evaluateProposalCooldown,
-} from "@/lib/governance/meshAdjudicator";
+  } from "@/lib/governance/meshAdjudicator";
 
 export const dynamic = "force-dynamic";
 
@@ -14,6 +18,8 @@ const VALID_STATUSES = new Set<ProposalStatus>([
   "PENDING",
   "ELDER_REVIEW",
   "ACTIVE",
+  "TIER_PASSED",
+  "GLOBAL_ACTIVE",
   "PASSED",
   "HOLD_AND_MODIFY",
   "EXECUTED",
@@ -38,10 +44,14 @@ export async function GET(req: NextRequest) {
     const chamberParam = searchParams.get("chamber")?.toUpperCase() as
       | GovernanceChamber
       | undefined;
+    const originTierParam = searchParams.get("originTier")?.toUpperCase() as
+      | GovernanceChamber
+      | undefined;
 
     const where: {
       status?: ProposalStatus;
       assignedChamber?: GovernanceChamber;
+      originTier?: GovernanceChamber;
     } = {};
 
     if (statusParam && VALID_STATUSES.has(statusParam)) {
@@ -49,6 +59,9 @@ export async function GET(req: NextRequest) {
     }
     if (chamberParam && VALID_CHAMBERS.has(chamberParam)) {
       where.assignedChamber = chamberParam;
+    }
+    if (originTierParam && VALID_CHAMBERS.has(originTierParam)) {
+      where.originTier = originTierParam;
     }
 
     const proposals = await prisma.internalProposal.findMany({
@@ -115,6 +128,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const originTier: GovernanceChamber = proposer.assignedChamber;
+
     const normalizedScope: ProposalScope =
       scope === "CROSS_CHAMBER_CONSTITUTIONAL"
         ? "CROSS_CHAMBER_CONSTITUTIONAL"
@@ -135,8 +150,16 @@ export async function POST(req: NextRequest) {
     const [activeBallotsInChamber, lastSameParamProposal] = await Promise.all([
       prisma.internalProposal.count({
         where: {
-          assignedChamber: proposer.assignedChamber,
-          status: { in: ["ACTIVE", "ELDER_REVIEW", "HOLD_AND_MODIFY"] },
+          assignedChamber: originTier,
+          status: {
+            in: [
+              "ACTIVE",
+              "TIER_PASSED",
+              "GLOBAL_ACTIVE",
+              "ELDER_REVIEW",
+              "HOLD_AND_MODIFY",
+            ],
+          },
         },
       }),
       normalizedParam
@@ -154,7 +177,7 @@ export async function POST(req: NextRequest) {
     const proposerContext = {
       uid: proposer.uid,
       tier: proposer.tier,
-      assignedChamber: proposer.assignedChamber,
+      assignedChamber: originTier,
       status: proposer.status,
       isFrozen: proposer.isFrozen,
       trustScore: proposer.trustScore,
@@ -244,11 +267,18 @@ export async function POST(req: NextRequest) {
           title: title.trim(),
           description: description.trim(),
           authorUid: resolvedAuthorUid,
-          assignedChamber: proposer.assignedChamber,
-          scope: normalizedScope,
+          originTier,
+          assignedChamber: verdict.resolvedChamber,
+          scope: verdict.resolvedScope,
           status: verdict.nextStatus,
+          votingStage: verdict.votingStage,
           targetParameter: normalizedParam,
           proposedValue: numericValue,
+          primaryVotesFor: 0,
+          primaryVotesAgainst: 0,
+          primaryQuorumMet: false,
+          globalVotesFor: 0,
+          globalVotesAgainst: 0,
           votesFor: 0,
           votesAgainst: 0,
           adjudicatorSealHash: verdict.adjudicatorSealHash ?? null,
@@ -292,6 +322,10 @@ export async function POST(req: NextRequest) {
         adjudication: {
           outcome: verdict.outcome,
           nextStatus: verdict.nextStatus,
+          votingStage: verdict.votingStage,
+          originTier,
+          resolvedChamber: verdict.resolvedChamber,
+          resolvedScope: verdict.resolvedScope,
           requiredChambers: verdict.requiredChambers,
           violations: verdict.violations,
           borderlineFlags: verdict.borderlineFlags,

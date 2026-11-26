@@ -18,6 +18,12 @@ import PioneerAuthGate from '@/app/components/PioneerAuthGate';
 import { EscrowCard } from '@/components/vault/EscrowCard';
 import LivePiCheckout from '@/components/vault/LivePiCheckout';
 import { useAuth } from '@/context/AuthContext';
+import {
+  canAccessSubSection,
+  canPerformGovernanceAction,
+  GOVERNANCE_TIER_META,
+  normalizeTierLevel,
+} from '@/app/lib/governance/tierRbac';
 
 export interface EscrowVaultItem {
   id: string;
@@ -39,7 +45,7 @@ export interface EscrowVaultItem {
 type StatusFilter = 'ALL' | 'LOCKED' | 'DISPUTED' | 'RELEASED' | 'REFUNDED';
 
 export default function MeshEscrowPage() {
-  const { pioneer } = useAuth();
+  const { pioneer, hasActiveRole, isFounder } = useAuth();
   const [activeTab, setActiveTab] = useState<'vaults' | 'create'>('vaults');
 
   // Filter State
@@ -63,6 +69,44 @@ export default function MeshEscrowPage() {
   const [description, setDescription] = useState('');
   const [isCreating, setIsCreating] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+
+  // RBAC Evaluation
+  const effectiveTier = normalizeTierLevel(pioneer?.tier ?? 1);
+  const tierMeta = GOVERNANCE_TIER_META[effectiveTier];
+  const isFrozen = pioneer?.status === 'FROZEN';
+  const hasPassport = Boolean(pioneer?.isAuthenticated);
+
+  const rbacSubject = useMemo(
+    () => ({
+      tier: effectiveTier,
+      hasRole: hasActiveRole,
+      hasPassport,
+      isFrozen,
+      isFounder,
+      role: pioneer?.role,
+    }),
+    [effectiveTier, hasActiveRole, hasPassport, isFrozen, isFounder, pioneer?.role]
+  );
+
+  const viewAccess = useMemo(
+    () => canAccessSubSection('ESCROW_VIEW', rbacSubject),
+    [rbacSubject]
+  );
+
+  const executeAccess = useMemo(
+    () => canAccessSubSection('ESCROW_EXECUTE', rbacSubject),
+    [rbacSubject]
+  );
+
+  const elderAdjudicatePerm = useMemo(
+    () =>
+      canPerformGovernanceAction(effectiveTier, 'ADJUDICATE_ELDER_DISPUTE', {
+        isFrozen,
+        hasPassport,
+        hasRole: hasActiveRole,
+      }),
+    [effectiveTier, isFrozen, hasPassport, hasActiveRole]
+  );
 
   // 1. Fetch Active Escrow Vaults from Backend
   const fetchEscrows = useCallback(async () => {
@@ -102,9 +146,17 @@ export default function MeshEscrowPage() {
     fetchEscrows();
   }, [fetchEscrows]);
 
-  // 2. Submit Live Lock to Soroban / Prisma Pipeline
+  // 2. Submit Live Lock to Soroban / Prisma Pipeline (Gated by ESCROW_EXECUTE)
   const handleCreateVault = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!executeAccess.allowed) {
+      setFormError(
+        executeAccess.reason ||
+          `Escrow lock creation requires ${executeAccess.requiredTierLabel}.`
+      );
+      return;
+    }
+
     const numericAmount = parseFloat(amount);
     if (!providerAddress.trim() || !Number.isFinite(numericAmount) || numericAmount <= 0) {
       setFormError('Please provide a valid provider handle/address and PI amount.');
@@ -171,6 +223,7 @@ export default function MeshEscrowPage() {
   };
 
   const handleLaunchAdjudicationPortal = () => {
+    if (!elderAdjudicatePerm.allowed) return;
     const target =
       filteredVaults.find((v) => v.status === 'DISPUTED') ||
       vaults.find((v) => v.status === 'DISPUTED') ||
@@ -193,9 +246,14 @@ export default function MeshEscrowPage() {
             >
               <ArrowLeft size={16} /> Hub
             </Link>
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center space-x-1.5">
+              <span
+                className={`text-[9px] font-mono border px-2 py-0.5 rounded font-bold uppercase ${tierMeta.badgeClass}`}
+              >
+                {tierMeta.shortLabel}
+              </span>
               <span className="text-[10px] font-mono bg-indigo-950 text-indigo-400 border border-indigo-800 px-2 py-0.5 rounded font-bold uppercase tracking-wider flex items-center gap-1">
-                <ShieldCheck size={10} /> Noir ZK-Verified
+                <ShieldCheck size={10} /> Noir ZK
               </span>
             </div>
           </div>
@@ -209,6 +267,25 @@ export default function MeshEscrowPage() {
               100% Settled in Pi (PI)
             </span>
           </div>
+
+          {/* EXECUTION / VIEW CLEARANCE NOTICE */}
+          {!executeAccess.allowed && (
+            <div className="bg-amber-950/30 border border-amber-800/70 p-3 rounded-2xl font-mono text-[10px] text-amber-200 space-y-1">
+              <div className="flex items-center justify-between font-bold text-amber-300">
+                <span className="flex items-center gap-1.5">
+                  <Lock size={12} className="text-amber-400" />
+                  Escrow Ledger: {viewAccess.allowed ? 'View-Only Mode' : 'Restricted'}
+                </span>
+                <span className="bg-amber-950/80 border border-amber-700/70 px-1.5 py-0.5 rounded text-[9px]">
+                  {executeAccess.requiredTierLabel}
+                </span>
+              </div>
+              <p className="text-neutral-300 leading-relaxed">
+                {executeAccess.reason ||
+                  'Vault inspection is open; creating or executing escrow locks requires an active role/passport and Tier 2+.'}
+              </p>
+            </div>
+          )}
 
           {/* NATIVE PI SDK GATEWAY COMPONENT */}
           <LivePiCheckout
@@ -255,14 +332,25 @@ export default function MeshEscrowPage() {
               </button>
               <button
                 type="button"
-                onClick={() => setActiveTab('create')}
+                onClick={() => {
+                  setFormError(null);
+                  setActiveTab('create');
+                }}
+                title={
+                  executeAccess.allowed
+                    ? 'Lock a new escrow vault'
+                    : executeAccess.reason
+                }
                 className={`py-2 rounded-xl transition font-bold flex items-center justify-center gap-1.5 cursor-pointer ${
                   activeTab === 'create'
                     ? 'bg-indigo-950 border border-indigo-700 text-indigo-300'
-                    : 'text-neutral-400 hover:text-white'
+                    : executeAccess.allowed
+                      ? 'text-neutral-400 hover:text-white'
+                      : 'text-neutral-500 hover:text-amber-300'
                 }`}
               >
-                <Plus size={14} /> Lock New Vault
+                {executeAccess.allowed ? <Plus size={14} /> : <Lock size={13} className="text-amber-400" />}
+                Lock New Vault
               </button>
             </div>
           </div>
@@ -330,9 +418,9 @@ export default function MeshEscrowPage() {
                   )}
                 </div>
               ) : (
-                filteredVaults.map((vault) => (
+                filteredVaults.map((vault, idx) => (
                   <EscrowCard
-                    key={vault.id || vault.escrowId}
+                    key={`${vault.id || vault.escrowId || 'vault'}-${idx}`}
                     initialEscrowId={vault.escrowId || vault.id}
                   />
                 ))
@@ -350,8 +438,20 @@ export default function MeshEscrowPage() {
                 <h2 className="text-xs font-mono font-bold text-neutral-300 uppercase tracking-wider">
                   Create Merchant Escrow Lock
                 </h2>
-                <span className="text-[10px] font-mono text-indigo-400">Step 1 of 2</span>
+                <span className="text-[10px] font-mono text-indigo-400">
+                  {executeAccess.allowed ? 'T2+ Cleared' : executeAccess.requiredTierLabel}
+                </span>
               </div>
+
+              {!executeAccess.allowed && (
+                <div className="p-2.5 bg-amber-950/30 border border-amber-800/70 rounded-xl text-[10px] text-amber-200 flex items-center gap-1.5">
+                  <Lock size={12} className="shrink-0 text-amber-400" />
+                  <span>
+                    {executeAccess.reason ||
+                      `Locking new escrow vaults requires ${executeAccess.requiredTierLabel}.`}
+                  </span>
+                </div>
+              )}
 
               {formError && (
                 <div className="p-2.5 bg-rose-950/40 border border-rose-800/60 rounded-xl text-[10px] text-rose-300 flex items-center gap-1.5">
@@ -367,10 +467,11 @@ export default function MeshEscrowPage() {
                 <input
                   type="text"
                   required
+                  disabled={!executeAccess.allowed || isCreating}
                   placeholder="GAU5... or @Merchant_Pioneer"
                   value={providerAddress}
                   onChange={(e) => setProviderAddress(e.target.value)}
-                  className="w-full bg-neutral-950 border border-neutral-800 rounded-xl p-2.5 text-xs font-mono text-white focus:outline-none focus:border-indigo-600"
+                  className="w-full bg-neutral-950 border border-neutral-800 rounded-xl p-2.5 text-xs font-mono text-white focus:outline-none focus:border-indigo-600 disabled:opacity-50"
                 />
               </div>
 
@@ -383,9 +484,10 @@ export default function MeshEscrowPage() {
                     type="number"
                     step="0.0000001"
                     required
+                    disabled={!executeAccess.allowed || isCreating}
                     value={amount}
                     onChange={(e) => setAmount(e.target.value)}
-                    className="w-full bg-neutral-950 border border-neutral-800 rounded-xl p-2.5 text-xs font-mono text-white focus:outline-none focus:border-indigo-600"
+                    className="w-full bg-neutral-950 border border-neutral-800 rounded-xl p-2.5 text-xs font-mono text-white focus:outline-none focus:border-indigo-600 disabled:opacity-50"
                   />
                 </div>
                 <div className="space-y-1">
@@ -407,8 +509,9 @@ export default function MeshEscrowPage() {
                     <button
                       type="button"
                       key={hrs}
+                      disabled={!executeAccess.allowed || isCreating}
                       onClick={() => setTimelockHours(hrs)}
-                      className={`py-2 rounded-xl border transition text-center cursor-pointer ${
+                      className={`py-2 rounded-xl border transition text-center cursor-pointer disabled:opacity-50 ${
                         timelockHours === hrs
                           ? 'bg-indigo-950 border-indigo-600 text-indigo-300 font-bold'
                           : 'bg-neutral-950 border-neutral-800 text-neutral-400'
@@ -426,22 +529,29 @@ export default function MeshEscrowPage() {
                 </label>
                 <textarea
                   rows={2}
+                  disabled={!executeAccess.allowed || isCreating}
                   placeholder="Describe service deliverables or order scope..."
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  className="w-full bg-neutral-950 border border-neutral-800 rounded-xl p-2.5 text-xs font-mono text-white focus:outline-none focus:border-indigo-600"
+                  className="w-full bg-neutral-950 border border-neutral-800 rounded-xl p-2.5 text-xs font-mono text-white focus:outline-none focus:border-indigo-600 disabled:opacity-50"
                 />
               </div>
 
               <button
                 type="submit"
-                disabled={isCreating}
-                className="w-full py-3 bg-linear-to-r from-indigo-600 to-cyan-600 hover:from-indigo-500 hover:to-cyan-500 font-bold rounded-xl text-white text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition shadow-lg disabled:opacity-50 cursor-pointer"
+                disabled={!executeAccess.allowed || isCreating}
+                title={executeAccess.allowed ? undefined : executeAccess.reason}
+                className="w-full py-3 bg-linear-to-r from-indigo-600 to-cyan-600 hover:from-indigo-500 hover:to-cyan-500 font-bold rounded-xl text-white text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition shadow-lg disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
               >
                 {isCreating ? (
                   <>
                     <RefreshCw size={14} className="animate-spin text-cyan-300" />
                     Locking Vault Contract...
+                  </>
+                ) : !executeAccess.allowed ? (
+                  <>
+                    <Lock size={14} />
+                    Requires {executeAccess.requiredTierLabel}
                   </>
                 ) : (
                   <>
@@ -460,7 +570,7 @@ export default function MeshEscrowPage() {
                 <Scale size={14} /> Dispute Governance (5-Elder Panel)
               </span>
               <span className="text-[10px] text-cyan-400 bg-cyan-950 border border-cyan-800 px-1.5 py-0.5 rounded font-bold">
-                VRF Active
+                {GOVERNANCE_TIER_META[5].shortLabel}
               </span>
             </div>
             <p className="text-[11px] text-neutral-400 leading-relaxed">
@@ -473,10 +583,23 @@ export default function MeshEscrowPage() {
             </p>
             <button
               type="button"
+              disabled={!elderAdjudicatePerm.allowed}
               onClick={handleLaunchAdjudicationPortal}
-              className="w-full py-2 bg-neutral-950 hover:bg-neutral-900 border border-neutral-800 text-amber-400 hover:text-amber-300 rounded-xl font-bold text-[11px] flex items-center justify-center gap-1.5 transition cursor-pointer"
+              title={
+                elderAdjudicatePerm.allowed
+                  ? 'Open Genesis 100 Adjudicator Portal'
+                  : elderAdjudicatePerm.reason
+              }
+              className="w-full py-2 bg-neutral-950 hover:bg-neutral-900 border border-neutral-800 text-amber-400 hover:text-amber-300 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl font-bold text-[11px] flex items-center justify-center gap-1.5 transition cursor-pointer"
             >
-              <Award size={14} /> Genesis 100 Adjudicator Portal
+              {elderAdjudicatePerm.allowed ? (
+                <Award size={14} />
+              ) : (
+                <Lock size={13} className="text-amber-500" />
+              )}
+              {elderAdjudicatePerm.allowed
+                ? 'Genesis 100 Adjudicator Portal'
+                : `Elder Portal Locked (${GOVERNANCE_TIER_META[5].shortLabel})`}
             </button>
           </div>
         </div>

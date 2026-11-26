@@ -1,226 +1,237 @@
 ﻿// Location: components/MeshMobileNav.tsx
-'use client';
+"use client";
 
-import React, { useState, useEffect } from 'react';
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { 
-  Menu, 
-  X, 
-  Store, 
-  GraduationCap, 
-  Activity, 
-  ArrowRight, 
-  Shield, 
-  CreditCard, 
-  Package, 
-  LayoutDashboard, 
-  Scale 
-} from 'lucide-react';
+import React from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import {
+  Store,
+  ShieldCheck,
+  Coins,
+  GraduationCap,
+  Landmark,
+  Menu,
+  Crown,
+} from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
+import {
+  GovernanceSubSectionKey,
+  GovernanceTierLevel,
+  isFounderSubject,
+  normalizeTierLevel,
+} from "@/app/lib/governance/tierRbac";
 
-export default function MeshMobileNav() {
+export interface MeshMobileNavItem {
+  key: "market" | "escrow" | "staking" | "academy" | "genesis" | "founder" | "menu";
+  label: string;
+  href: string;
+  matchPrefixes?: string[];
+  description: string;
+  subSectionKey: GovernanceSubSectionKey;
+  minTier?: GovernanceTierLevel;
+  founderOnly?: boolean;
+  icon: (active: boolean) => React.ReactNode;
+}
+
+export interface MeshMobileNavProps {
+  governanceTier?: GovernanceTierLevel | string;
+  hasRole?: boolean;
+  isFounder?: boolean;
+  role?: string;
+  showActiveContextBar?: boolean;
+}
+
+export const MESH_NAV_ITEMS: MeshMobileNavItem[] = [
+  {
+    key: "market",
+    label: "Market",
+    href: "/dashboard/marketplace",
+    matchPrefixes: ["/dashboard/marketplace", "/marketplace"],
+    description: "Public catalog & commerce (Inventory locked until Role + Tier 2+)",
+    subSectionKey: "MARKET_CATALOG",
+    minTier: 1,
+    icon: (active) => (
+      <Store className={`h-4 w-4 ${active ? "text-cyan-400" : "text-zinc-400"}`} />
+    ),
+  },
+  {
+    key: "escrow",
+    label: "Escrow",
+    href: "/mesh/escrow",
+    matchPrefixes: ["/mesh/escrow", "/escrow"],
+    description: "Soroban escrow locks, release/refund settlement & dispute flow",
+    subSectionKey: "ESCROW_VIEW",
+    minTier: 1,
+    icon: (active) => (
+      <ShieldCheck className={`h-4 w-4 ${active ? "text-cyan-400" : "text-zinc-400"}`} />
+    ),
+  },
+  {
+    key: "staking",
+    label: "Staking",
+    href: "/dashboard",
+    matchPrefixes: ["/dashboard"],
+    description: "1,000 Pi Genesis LP Vault, epoch fees & validator telemetry (Vault T3+)",
+    subSectionKey: "STAKING_METRICS",
+    minTier: 1,
+    icon: (active) => (
+      <Coins className={`h-4 w-4 ${active ? "text-emerald-400" : "text-zinc-400"}`} />
+    ),
+  },
+  {
+    key: "academy",
+    label: "Academy",
+    href: "/academy",
+    matchPrefixes: ["/academy"],
+    description: "Onboarding modules, DAO tracks & passport tier progression",
+    subSectionKey: "ACADEMY_MODULES",
+    minTier: 1,
+    icon: (active) => (
+      <GraduationCap className={`h-4 w-4 ${active ? "text-cyan-400" : "text-zinc-400"}`} />
+    ),
+  },
+  {
+    key: "genesis",
+    label: "Genesis",
+    href: "/governance",
+    matchPrefixes: ["/governance"],
+    description: "Two-stage chamber proposals, quorum & Elder governance",
+    subSectionKey: "GOVERNANCE_VIEW",
+    minTier: 1,
+    icon: (active) => (
+      <Landmark className={`h-4 w-4 ${active ? "text-indigo-400" : "text-zinc-400"}`} />
+    ),
+  },
+  {
+    key: "founder",
+    label: "Founder",
+    href: "/founder",
+    matchPrefixes: ["/founder"],
+    description: "72h Hold & Modify veto, emergency freezes & heir succession",
+    subSectionKey: "FOUNDER_CONSOLE",
+    founderOnly: true,
+    icon: (active) => (
+      <Crown className={`h-4 w-4 ${active ? "text-amber-400" : "text-amber-500/80"}`} />
+    ),
+  },
+  {
+    key: "menu",
+    label: "Menu",
+    href: "/menu",
+    matchPrefixes: ["/menu"],
+    description: "Pioneer session info, Log Out & secondary protocol links",
+    subSectionKey: "GOVERNANCE_VIEW",
+    minTier: 1,
+    icon: (active) => (
+      <Menu className={`h-4 w-4 ${active ? "text-cyan-400" : "text-zinc-400"}`} />
+    ),
+  },
+];
+
+function isItemActive(pathname: string, item: MeshMobileNavItem): boolean {
+  // Keep /dashboard/marketplace highlighted under Market rather than Staking (/dashboard)
+  if (
+    item.key === "staking" &&
+    (pathname === "/dashboard/marketplace" ||
+      pathname.startsWith("/dashboard/marketplace/"))
+  ) {
+    return false;
+  }
+
+  const prefixes = item.matchPrefixes ?? [item.href];
+  return prefixes.some(
+    (prefix) =>
+      pathname === prefix || (prefix !== "/" && pathname.startsWith(`${prefix}/`))
+  );
+}
+
+export default function MeshMobileNav({
+  governanceTier,
+  hasRole,
+  isFounder,
+  role,
+  showActiveContextBar = false,
+}: MeshMobileNavProps) {
   const pathname = usePathname();
-  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const { pioneer, hasActiveRole, isFounder: authIsFounder } = useAuth();
 
-  useEffect(() => {
-    document.body.style.overflow = isDrawerOpen ? 'hidden' : 'unset';
-    return () => {
-      document.body.style.overflow = 'unset';
-    };
-  }, [isDrawerOpen]);
+  const effectiveRole = role ?? pioneer?.role;
+  const effectiveTier = normalizeTierLevel(governanceTier ?? pioneer?.tier ?? 1);
+  const derivedHasRole = hasRole ?? hasActiveRole;
 
-  const toggleDrawer = () => setIsDrawerOpen((prev) => !prev);
-  const isActive = (path: string) => 
-    pathname === path || (path !== '/dashboard' && pathname?.startsWith(path));
+  const hasFounderRole =
+    isFounder ??
+    (role || governanceTier
+      ? isFounderSubject({ isFounder, role: effectiveRole ?? String(governanceTier ?? "") })
+      : authIsFounder);
+
+  const visibleItems = MESH_NAV_ITEMS.filter((item) => {
+    if (item.founderOnly) {
+      return hasFounderRole;
+    }
+    if (item.key === "market") {
+      return true;
+    }
+    const requiredTier = item.minTier ?? 1;
+    return effectiveTier >= requiredTier;
+  });
+
+  const activeItem = visibleItems.find((item) => isItemActive(pathname, item));
 
   return (
-    <>
-      {/* 1. Command Drawer Overlay */}
-      {isDrawerOpen && (
-        <div className="fixed inset-0 z-50 flex flex-col bg-slate-950/95 backdrop-blur-xl animate-in fade-in pb-24 pt-6 px-6 overflow-y-auto">
-          {/* Drawer Header */}
-          <div className="flex justify-between items-center mb-6 border-b border-zinc-800 pb-3">
-            <span className="font-mono text-xs font-bold text-amber-500 uppercase tracking-wider flex items-center gap-1.5">
-              <Shield size={14} /> MESH COMMAND HUB
-            </span>
-            <button
-              type="button"
-              onClick={toggleDrawer}
-              className="text-zinc-400 hover:text-white p-2 rounded-lg bg-zinc-900 border border-zinc-800 transition"
-              aria-label="Close menu"
-            >
-              <X size={18} />
-            </button>
+    <nav
+      aria-label="Mesh Mobile Navigation"
+      data-has-role={derivedHasRole ? "true" : "false"}
+      data-tier={String(effectiveTier)}
+      className="fixed bottom-0 left-0 right-0 z-50 flex justify-center pointer-events-none"
+    >
+      <div className="w-full max-w-[384px] bg-zinc-950/95 backdrop-blur-md border-t border-zinc-800/90 pointer-events-auto shadow-2xl">
+        {showActiveContextBar && activeItem && (
+          <div className="border-b border-zinc-800/70 bg-zinc-900/50 px-2.5 py-1 text-[9px] font-mono text-zinc-400 truncate">
+            <strong className="text-cyan-300 uppercase">{activeItem.label}:</strong>{" "}
+            {activeItem.description}
           </div>
+        )}
 
-          <div className="flex flex-col gap-5 font-mono text-xs">
-            {/* Commerce Section */}
-            <div className="space-y-1.5">
-              <span className="text-[10px] text-zinc-500 font-semibold uppercase tracking-wider px-1">
-                Commerce & POS
-              </span>
-              <div className="grid gap-1.5">
-                <Link
-                  href="/dashboard/marketplace"
-                  onClick={() => setIsDrawerOpen(false)}
-                  className="p-3 bg-zinc-900/60 border border-zinc-800 rounded-xl text-zinc-200 hover:text-amber-400 flex items-center justify-between transition"
-                >
-                  <div className="flex items-center gap-2.5">
-                    <Store size={15} className="text-amber-400" />
-                    <span>Marketplace</span>
-                  </div>
-                  <ArrowRight size={14} className="text-zinc-600" />
-                </Link>
+        <div className="px-1.5 py-1.5 flex items-center justify-between gap-0.5">
+          {visibleItems.map((item) => {
+            const active = isItemActive(pathname, item);
 
-                <Link
-                  href="/pos"
-                  onClick={() => setIsDrawerOpen(false)}
-                  className="p-3 bg-zinc-900/60 border border-zinc-800 rounded-xl text-zinc-200 hover:text-amber-400 flex items-center justify-between transition"
-                >
-                  <div className="flex items-center gap-2.5">
-                    <CreditCard size={15} className="text-purple-400" />
-                    <span>Merchant POS Terminal</span>
-                  </div>
-                  <ArrowRight size={14} className="text-zinc-600" />
-                </Link>
-
-                <Link
-                  href="/orders/TEST_UI_02"
-                  onClick={() => setIsDrawerOpen(false)}
-                  className="p-3 bg-zinc-900/60 border border-zinc-800 rounded-xl text-zinc-200 hover:text-amber-400 flex items-center justify-between transition"
-                >
-                  <div className="flex items-center gap-2.5">
-                    <Package size={15} className="text-blue-400" />
-                    <span>Order Vault Tracker</span>
-                  </div>
-                  <ArrowRight size={14} className="text-zinc-600" />
-                </Link>
-              </div>
-            </div>
-
-            {/* Protocol & Ledger Section */}
-            <div className="space-y-1.5">
-              <span className="text-[10px] text-zinc-500 font-semibold uppercase tracking-wider px-1">
-                Protocol & Governance
-              </span>
-              <div className="grid gap-1.5">
-                <Link
-                  href="/mesh/escrow"
-                  onClick={() => setIsDrawerOpen(false)}
-                  className="p-3 bg-zinc-900/60 border border-zinc-800 rounded-xl text-zinc-200 hover:text-cyan-400 flex items-center justify-between transition"
-                >
-                  <div className="flex items-center gap-2.5">
-                    <Activity size={15} className="text-cyan-400" />
-                    <span>Soroban Escrow Grid</span>
-                  </div>
-                  <ArrowRight size={14} className="text-zinc-600" />
-                </Link>
-
-                <Link
-                  href="/dashboard/assembly"
-                  onClick={() => setIsDrawerOpen(false)}
-                  className="p-3 bg-zinc-900/60 border border-zinc-800 rounded-xl text-zinc-200 hover:text-rose-400 flex items-center justify-between transition"
-                >
-                  <div className="flex items-center gap-2.5">
-                    <Scale size={15} className="text-rose-400" />
-                    <span>DAO Assembly Arbitration</span>
-                  </div>
-                  <ArrowRight size={14} className="text-zinc-600" />
-                </Link>
-
-                <Link
-                  href="/dashboard"
-                  onClick={() => setIsDrawerOpen(false)}
-                  className="p-3 bg-zinc-900/60 border border-zinc-800 rounded-xl text-zinc-200 hover:text-emerald-400 flex items-center justify-between transition"
-                >
-                  <div className="flex items-center gap-2.5">
-                    <LayoutDashboard size={15} className="text-emerald-400" />
-                    <span>Node Telemetry Dashboard</span>
-                  </div>
-                  <ArrowRight size={14} className="text-zinc-600" />
-                </Link>
-              </div>
-            </div>
-
-            {/* Ecosystem & Training */}
-            <div className="space-y-1.5">
-              <span className="text-[10px] text-zinc-500 font-semibold uppercase tracking-wider px-1">
-                Network Education
-              </span>
+            return (
               <Link
-                href="/academy"
-                onClick={() => setIsDrawerOpen(false)}
-                className="p-3 bg-zinc-900/60 border border-zinc-800 rounded-xl text-zinc-200 hover:text-emerald-400 flex items-center justify-between transition"
+                key={item.key}
+                href={item.href}
+                title={`${item.label} — ${item.description}`}
+                className={`flex-1 min-w-0 flex flex-col items-center justify-center py-1 px-1 rounded-lg transition-colors ${
+                  active
+                    ? "bg-zinc-900/90 text-zinc-100"
+                    : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/40"
+                }`}
               >
-                <div className="flex items-center gap-2.5">
-                  <GraduationCap size={15} className="text-emerald-400" />
-                  <span>Academy Grid</span>
+                <div className="relative flex items-center justify-center">
+                  {item.icon(active)}
+                  {item.founderOnly && (
+                    <span className="ml-0.5 h-1.5 w-1.5 rounded-full bg-amber-400" />
+                  )}
                 </div>
-                <ArrowRight size={14} className="text-zinc-600" />
+                <span
+                  className={`text-[9px] leading-tight mt-0.5 truncate w-full text-center tracking-tight ${
+                    active
+                      ? item.founderOnly
+                        ? "text-amber-400 font-bold"
+                        : "text-cyan-300 font-bold"
+                      : item.founderOnly
+                        ? "text-amber-500/80 font-medium"
+                        : "text-zinc-400 font-medium"
+                  }`}
+                >
+                  {item.label}
+                </span>
               </Link>
-            </div>
-          </div>
+            );
+          })}
         </div>
-      )}
-
-      {/* 2. Anchored Bottom Bar */}
-      <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-zinc-800/80 bg-slate-950/90 backdrop-blur-md shadow-2xl pb-safe">
-        <div className="flex justify-between items-center max-w-[384px] mx-auto px-6 py-2.5">
-          {/* Marketplace / Shop */}
-          <Link
-            href="/dashboard/marketplace"
-            onClick={() => setIsDrawerOpen(false)}
-            className={`flex flex-col items-center gap-1 transition-colors ${
-              isActive('/dashboard/marketplace') && !isDrawerOpen
-                ? 'text-amber-400'
-                : 'text-zinc-400 hover:text-zinc-200'
-            }`}
-          >
-            <Store size={20} />
-            <span className="font-mono text-[9px] uppercase tracking-wider">Market</span>
-          </Link>
-
-          {/* On-chain Escrow */}
-          <Link
-            href="/mesh/escrow"
-            onClick={() => setIsDrawerOpen(false)}
-            className={`flex flex-col items-center gap-1 transition-colors ${
-              isActive('/mesh/escrow') && !isDrawerOpen
-                ? 'text-cyan-400'
-                : 'text-zinc-400 hover:text-zinc-200'
-            }`}
-          >
-            <Activity size={20} />
-            <span className="font-mono text-[9px] uppercase tracking-wider">Escrow</span>
-          </Link>
-
-          {/* Academy */}
-          <Link
-            href="/academy"
-            onClick={() => setIsDrawerOpen(false)}
-            className={`flex flex-col items-center gap-1 transition-colors ${
-              isActive('/academy') && !isDrawerOpen
-                ? 'text-emerald-400'
-                : 'text-zinc-400 hover:text-zinc-200'
-            }`}
-          >
-            <GraduationCap size={20} />
-            <span className="font-mono text-[9px] uppercase tracking-wider">Academy</span>
-          </Link>
-
-          {/* Full Command Drawer Button */}
-          <button
-            type="button"
-            onClick={toggleDrawer}
-            className={`flex flex-col items-center gap-1 transition-colors ${
-              isDrawerOpen ? 'text-white' : 'text-zinc-400 hover:text-zinc-200'
-            }`}
-          >
-            <Menu size={20} />
-            <span className="font-mono text-[9px] uppercase tracking-wider">Menu</span>
-          </button>
-        </div>
-      </nav>
-    </>
+      </div>
+    </nav>
   );
 }
