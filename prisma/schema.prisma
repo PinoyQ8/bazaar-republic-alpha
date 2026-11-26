@@ -33,6 +33,11 @@ enum ProposalScope {
   CROSS_CHAMBER_CONSTITUTIONAL
 }
 
+enum VotingStage {
+  PRIMARY_TIER
+  GLOBAL_OTHER_TIERS
+}
+
 enum NodeStatus {
   SYNCING
   ACTIVE
@@ -46,6 +51,8 @@ enum ProposalStatus {
   PENDING
   ELDER_REVIEW
   ACTIVE
+  TIER_PASSED
+  GLOBAL_ACTIVE
   PASSED
   HOLD_AND_MODIFY
   EXECUTED
@@ -165,7 +172,7 @@ model PioneerNode {
   id              String            @id @default(auto()) @map("_id") @db.ObjectId
   uid             String            @unique
   username        String?           @unique
-  walletAddress   String?           // Null-safe: prevents E11000 collisions on unlinked nodes
+  walletAddress   String? // Null-safe: prevents E11000 collisions on unlinked nodes
   tier            Tier              @default(CITIZEN)
   assignedChamber GovernanceChamber @default(CITIZEN)
   status          NodeStatus        @default(SYNCING)
@@ -387,7 +394,9 @@ model InternalProposal {
   title           String
   description     String
   status          ProposalStatus    @default(PENDING)
+  votingStage     VotingStage       @default(PRIMARY_TIER)
   authorUid       String?
+  originTier      GovernanceChamber @default(CITIZEN)
   assignedChamber GovernanceChamber @default(CITIZEN)
   scope           ProposalScope     @default(CHAMBER_LOCAL)
 
@@ -395,9 +404,19 @@ model InternalProposal {
   targetParameter String?
   proposedValue   Float?
 
-  // Chamber Ballot Tallies
-  votesFor     Int @default(0)
-  votesAgainst Int @default(0)
+  // Stage 1: Primary Within-Tier Voting & >= 80% Gate
+  primaryVotesFor        Int       @default(0)
+  primaryVotesAgainst    Int       @default(0)
+  primaryApprovalPct     Float?
+  primaryQuorumMet       Boolean   @default(false)
+  primaryPassedAt        DateTime?
+  globalVotingUnlockedAt DateTime?
+
+  // Stage 2: Global Voting Across Other Tier Groups & Totals
+  globalVotesFor     Int @default(0)
+  globalVotesAgainst Int @default(0)
+  votesFor           Int @default(0)
+  votesAgainst       Int @default(0)
 
   // Tri-State MESH Adjudicator & 5-Elder Borderline Clarification
   adjudicatorSealHash  String?
@@ -419,6 +438,7 @@ model InternalProposal {
 
   votes VoteRecordModel[]
 
+  @@index([status, originTier])
   @@index([status, assignedChamber])
   @@index([targetParameter, status])
   @@index([holdExpiresAt])
@@ -427,12 +447,17 @@ model InternalProposal {
 model VoteRecordModel {
   id         String           @id @default(auto()) @map("_id") @db.ObjectId
   decision   VoteDecision
+  voteStage  VotingStage      @default(PRIMARY_TIER)
+  voterTier  String           @default("CITIZEN")
+  weight     Float            @default(1.0)
   proposalId String           @db.ObjectId
   voterId    String
   voterUid   String?
   createdAt  DateTime         @default(now())
   proposal   InternalProposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
 
+  @@unique([proposalId, voterId, voteStage])
+  @@index([proposalId, voteStage])
   @@index([proposalId, voterId])
   @@map("vote_records")
 }
