@@ -1,25 +1,40 @@
-// Location: app/api/escrow/dispute/resolve/route.ts
-import { NextRequest, NextResponse } from "next/server";
-import { Keypair } from "@stellar/stellar-sdk";
+﻿import { NextRequest, NextResponse } from "next/server";
+import { Keypair, StrKey } from "@stellar/stellar-sdk";
 import { prisma } from "@/lib/prisma";
+import {
+  BazaarVaultService,
+  BAZAAR_VAULT_CONTRACT_ID,
+} from "@/services/bazaarVaultService";
 
 export const dynamic = "force-dynamic";
 
 const PI_TO_MBZR = 1000;
-const QUORUM_THRESHOLD = 3;
-const DEFAULT_ELDERS = [
-  "usr_elder_1",
-  "usr_elder_2",
-  "usr_elder_3",
-  "usr_elder_4",
-  "usr_elder_5",
-];
+const STROOPS_PER_PI = 10_000_000;
 
-function unwrapId(val: any): string {
-  if (!val) return "";
-  if (typeof val === "string") return val;
-  if (typeof val === "object" && typeof val.$oid === "string") return val.$oid;
-  return String(val);
+const DEFAULT_CONSUMER_ADDRESS =
+  "GAU5Y5UWUQ5ETIEI5HWVJR7VDMXUETTSKQ4UKOIIGIW6GVIMCR354UJ3";
+const DEFAULT_PROVIDER_ADDRESS =
+  "GA7UMIANNCXSZK5NQ7GCAWL3BP3GOBGVRHLSRYY5WI2KZG4SRFLZSARW";
+const DEFAULT_ADMIN_ADDRESS =
+  process.env.BAZAAR_VAULT_ADMIN_ADDRESS ||
+  process.env.NEXT_PUBLIC_STELLAR_ADMIN_ADDRESS ||
+  DEFAULT_CONSUMER_ADDRESS;
+
+function resolveSignerKeypair(secretKeyOverride?: unknown): Keypair | null {
+  const rawSecret = String(
+    secretKeyOverride ||
+      process.env.STELLAR_DEPLOYER_SECRET ||
+      process.env.OPERATOR_STELLAR_SECRET ||
+      process.env.STELLAR_VAULT_SEED ||
+      ""
+  )
+    .replace(/["'\r\n]/g, "")
+    .trim();
+
+  if (!rawSecret || !StrKey.isValidEd25519SecretSeed(rawSecret)) {
+    return null;
+  }
+  return Keypair.fromSecret(rawSecret);
 }
 
 function resolveRuling(
@@ -27,7 +42,10 @@ function resolveRuling(
   votesForConsumer: number,
   votesForMerchant: number
 ): "FAVOR_CONSUMER" | "FAVOR_MERCHANT" {
-  const normalized = String(ruling || "").trim().toUpperCase();
+  const normalized = String(ruling || "")
+    .trim()
+    .toUpperCase();
+
   if (
     normalized === "FAVOR_CONSUMER" ||
     normalized === "REFUND_CONSUMER" ||
@@ -36,6 +54,7 @@ function resolveRuling(
   ) {
     return "FAVOR_CONSUMER";
   }
+
   if (
     normalized === "FAVOR_MERCHANT" ||
     normalized === "RELEASE_MERCHANT" ||
@@ -44,171 +63,21 @@ function resolveRuling(
   ) {
     return "FAVOR_MERCHANT";
   }
-  return votesForMerchant > votesForConsumer ? "FAVOR_MERCHANT" : "FAVOR_CONSUMER";
+
+  return votesForMerchant > votesForConsumer
+    ? "FAVOR_MERCHANT"
+    : "FAVOR_CONSUMER";
 }
 
-async function findDisputeDoc(db: any, targetKey: string, isHexBson: boolean) {
-  const filter = isHexBson
-    ? {
-        $or: [
-          { _id: { $oid: targetKey } },
-          { _id: targetKey },
-          { escrowLockId: { $oid: targetKey } },
-          { escrowLockId: targetKey },
-          { escrowId: targetKey },
-        ],
-      }
-    : { escrowId: targetKey };
-
-  for (const col of ["dispute_records", "DisputeRecord"]) {
-    const res: any = await db
-      .$runCommandRaw({ find: col, filter, limit: 1 })
-      .catch(() => null);
-    const doc = res?.cursor?.firstBatch?.[0];
-    if (doc) return { col, doc };
+function toStroopsBigInt(escrow: any, escrowAmountPi: number): bigint {
+  if (escrow?.amountStroops !== undefined && escrow?.amountStroops !== null) {
+    return BigInt(escrow.amountStroops);
   }
-  return null;
-}
-
-async function findEscrowDoc(db: any, keys: string[]) {
-  const cleanKeys = keys.map((k) => unwrapId(k)).filter(Boolean);
-  if (cleanKeys.length === 0) return null;
-
-  const orClauses: any[] = [];
-  for (const k of cleanKeys) {
-    orClauses.push({ escrowId: k });
-    if (/^[0-9a-fA-F]{24}$/.test(k)) {
-      orClauses.push({ _id: { $oid: k } });
-      orClauses.push({ _id: k });
-    }
+  const num = Number(escrowAmountPi ?? 0);
+  if (Number.isInteger(num) && num >= STROOPS_PER_PI) {
+    return BigInt(num);
   }
-
-  for (const col of ["EscrowLock", "escrowvaults"]) {
-    const res: any = await db
-      .$runCommandRaw({ find: col, filter: { $or: orClauses }, limit: 1 })
-      .catch(() => null);
-    const doc = res?.cursor?.firstBatch?.[0];
-    if (doc) return { col, doc };
-  }
-  return null;
-}
-
-async function filterEligibleVrfElders(
-  db: any,
-  candidateUids: string[],
-  conflictedUids: Set<string>
-): Promise<string[]> {
-  const uniqueCandidates = Array.from(
-    new Set(
-      (candidateUids || [])
-        .map((u) => String(u || "").trim())
-        .filter((u) => u.length > 0 && !conflictedUids.has(u))
-    )
-  );
-
-  if (uniqueCandidates.length === 0) return [];
-
-  const ineligible = new Set<string>();
-  for (const col of ["PioneerNode", "pioneernodes"]) {
-    const res: any = await db
-      .$runCommandRaw({
-        find: col,
-        filter: { uid: { $in: uniqueCandidates } },
-      })
-      .catch(() => null);
-
-    const docs: any[] = res?.cursor?.firstBatch || [];
-    for (const node of docs) {
-      const uid = String(node?.uid || "").trim();
-      const qStatus = String(node?.quarantineStatus || "").toUpperCase();
-      const nStatus = String(node?.status || "").toUpperCase();
-      if (
-        uid &&
-        (node?.isFrozen === true ||
-          qStatus === "QUARANTINED" ||
-          nStatus === "REVOKED" ||
-          nStatus === "QUARANTINED")
-      ) {
-        ineligible.add(uid);
-      }
-    }
-  }
-
-  return uniqueCandidates.filter((u) => !ineligible.has(u));
-}
-
-async function resolveMajorityElders(
-  db: any,
-  disputeObjectId: string,
-  resolvedEscrowId: string,
-  eligiblePanel: string[],
-  isFavorConsumer: boolean,
-  recordedVotersForRuling: string[],
-  fallbackMajorityTally: number
-): Promise<{ majorityElders: string[]; majorityCount: number }> {
-  if (recordedVotersForRuling.length > 0) {
-    return {
-      majorityElders: recordedVotersForRuling,
-      majorityCount: recordedVotersForRuling.length,
-    };
-  }
-
-  const expectedDecisions = isFavorConsumer
-    ? ["YES", "FAVOR_CONSUMER", "REFUND_CONSUMER", "CONSUMER"]
-    : ["NO", "FAVOR_MERCHANT", "RELEASE_MERCHANT", "MERCHANT"];
-
-  const targetKeys = Array.from(
-    new Set([disputeObjectId, resolvedEscrowId].filter(Boolean))
-  );
-
-  const recordedMajorityVoters: string[] = [];
-
-  for (const col of ["vote_records", "VoteRecord", "dispute_vote_records"]) {
-    const res: any = await db
-      .$runCommandRaw({
-        find: col,
-        filter: {
-          $or: [
-            { proposalId: { $in: targetKeys } },
-            { disputeId: { $in: targetKeys } },
-            { escrowId: resolvedEscrowId },
-          ],
-        },
-      })
-      .catch(() => null);
-
-    const rows: any[] = res?.cursor?.firstBatch || [];
-    for (const row of rows) {
-      const voterUid = String(row?.voterUid || row?.voterId || "").trim();
-      const decision = String(row?.decision || row?.ruling || "")
-        .trim()
-        .toUpperCase();
-
-      if (!voterUid || !expectedDecisions.includes(decision)) continue;
-      if (eligiblePanel.length > 0 && !eligiblePanel.includes(voterUid)) continue;
-      if (!recordedMajorityVoters.includes(voterUid)) {
-        recordedMajorityVoters.push(voterUid);
-      }
-    }
-  }
-
-  if (recordedMajorityVoters.length > 0) {
-    return {
-      majorityElders: recordedMajorityVoters,
-      majorityCount: recordedMajorityVoters.length,
-    };
-  }
-
-  const boundedCount = Math.min(
-    Math.max(1, fallbackMajorityTally),
-    eligiblePanel.length > 0 ? eligiblePanel.length : Math.max(1, fallbackMajorityTally)
-  );
-  const panelSource = eligiblePanel.length > 0 ? eligiblePanel : DEFAULT_ELDERS;
-
-  return {
-    majorityElders: panelSource.slice(0, boundedCount),
-    majorityCount: boundedCount,
-  };
+  return BigInt(Math.round(num * STROOPS_PER_PI));
 }
 
 export async function POST(req: NextRequest) {
@@ -217,15 +86,18 @@ export async function POST(req: NextRequest) {
     const {
       disputeId,
       escrowId,
-      elderUid,
       ruling,
       adminAddress,
       payoutToAddress,
+      amountStroops: bodyAmountStroops,
+      contractId: bodyContractId,
       secretKey,
+      nonce,
+      skipOnChain = false,
+      enforceQuorum = false,
     } = body || {};
-    const targetKey = String(disputeId || escrowId || "").trim();
-    const voterUid = String(elderUid || "").trim() || "usr_elder_1";
 
+    const targetKey = String(disputeId || escrowId || "").trim();
     if (!targetKey) {
       return NextResponse.json(
         { success: false, error: "Missing disputeId or escrowId" },
@@ -236,316 +108,210 @@ export async function POST(req: NextRequest) {
     const db = prisma as any;
     const isHexBson = /^[0-9a-fA-F]{24}$/.test(targetKey);
 
-    const foundDispute = await findDisputeDoc(db, targetKey, isHexBson);
-    const rawDispute = foundDispute?.doc || null;
-
-    const lookupKeys = [
-      rawDispute?.escrowId,
-      rawDispute?.escrowLockId,
-      escrowId,
-      targetKey,
-    ].filter(Boolean);
-
-    const foundEscrow = await findEscrowDoc(db, lookupKeys);
-    const rawEscrow = foundEscrow?.doc || null;
-
-    if (!rawDispute && !rawEscrow) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: `Dispute or escrow record for '${targetKey}' not found.`,
-        },
-        { status: 404 }
-      );
+    let dispute: any = null;
+    if (db?.disputeRecord) {
+      if (isHexBson) {
+        dispute = await db.disputeRecord
+          .findUnique({ where: { id: targetKey } })
+          .catch(() => null);
+      }
+      if (!dispute) {
+        dispute = await db.disputeRecord
+          .findFirst({
+            where: {
+              OR: [
+                ...(isHexBson ? [{ id: targetKey }] : []),
+                { escrowId: targetKey },
+                { escrowLockId: targetKey },
+              ],
+            },
+          })
+          .catch(() => null);
+      }
     }
 
-    const disputeObjectId =
-      unwrapId(rawDispute?._id) || `synthetic_disp_${Date.now()}`;
-    const escrowObjectId =
-      unwrapId(rawEscrow?._id) || unwrapId(rawDispute?.escrowLockId) || "";
     const resolvedEscrowId = String(
-      rawEscrow?.escrowId || rawDispute?.escrowId || escrowId || targetKey
-    );
+      escrowId || dispute?.escrowId || targetKey
+    ).trim();
 
-    const consumerUid =
-      rawEscrow?.consumerUid || rawDispute?.initiatorUid || "usr_pioneer_consumer_01";
-    const providerUid = unwrapId(rawEscrow?.providerId) || "usr_provider_01";
-    const conflictedUids = new Set<string>(
-      [
-        consumerUid,
-        rawDispute?.initiatorUid,
-        rawEscrow?.providerId,
-        rawEscrow?.providerUid,
-        providerUid,
-      ]
-        .map((u) => String(u || "").trim())
-        .filter(Boolean)
-    );
-
-    const rawPanel: string[] =
-      Array.isArray(rawDispute?.selectedElders) && rawDispute.selectedElders.length > 0
-        ? rawDispute.selectedElders
-        : DEFAULT_ELDERS;
-    const eligibleElders = await filterEligibleVrfElders(db, rawPanel, conflictedUids);
-
-    let votesForConsumer = Number(rawDispute?.votesForConsumer ?? 0) || 0;
-    let votesForMerchant = Number(rawDispute?.votesForMerchant ?? 0) || 0;
-    const finalRuling = resolveRuling(ruling, votesForConsumer, votesForMerchant);
-    const isFavorConsumer = finalRuling === "FAVOR_CONSUMER";
-
-    const existingVotes: Array<{ elderUid: string; ruling: string; votedAt: string }> =
-      Array.isArray(rawDispute?.elderVotes) ? rawDispute.elderVotes : [];
-
-    const alreadyVoted = existingVotes.some(
-      (v) => String(v?.elderUid || "").trim() === voterUid
-    );
-
-    if (!alreadyVoted) {
-      if (isFavorConsumer) {
-        votesForConsumer += 1;
-      } else {
-        votesForMerchant += 1;
+    let escrow: any = null;
+    if (db?.escrowLock) {
+      if (isHexBson) {
+        escrow = await db.escrowLock
+          .findUnique({ where: { id: targetKey } })
+          .catch(() => null);
       }
-      existingVotes.push({
-        elderUid: voterUid,
-        ruling: finalRuling,
-        votedAt: new Date().toISOString(),
-      });
-
-      if (foundDispute?.col) {
-        const disputeFilter = /^[0-9a-fA-F]{24}$/.test(disputeObjectId)
-          ? {
-              $or: [
-                { _id: { $oid: disputeObjectId } },
+      if (!escrow) {
+        escrow = await db.escrowLock
+          .findFirst({
+            where: {
+              OR: [
                 { escrowId: resolvedEscrowId },
+                ...(dispute?.escrowLockId ? [{ id: dispute.escrowLockId }] : []),
               ],
-            }
-          : { escrowId: resolvedEscrowId };
+            },
+          })
+          .catch(() => null);
+      }
+    }
 
-        await db
-          .$runCommandRaw({
-            update: foundDispute.col,
-            updates: [
-              {
-                q: disputeFilter,
-                u: {
-                  $set: {
-                    votesForConsumer,
-                    votesForMerchant,
-                    elderVotes: existingVotes,
-                    updatedAt: { $date: new Date().toISOString() },
-                  },
-                },
-                multi: true,
-              },
-            ],
+    const targetContractId = String(
+      bodyContractId || escrow?.vaultContractId || BAZAAR_VAULT_CONTRACT_ID
+    ).trim();
+    const vaultSvc = new BazaarVaultService(targetContractId);
+    const liveVault = await vaultSvc.getVault(resolvedEscrowId).catch(() => null);
+
+    const votesForConsumer = Number(dispute?.votesForConsumer ?? 0);
+    const votesForMerchant = Number(dispute?.votesForMerchant ?? 0);
+    const finalRuling = resolveRuling(ruling, votesForConsumer, votesForMerchant);
+
+    if (enforceQuorum) {
+      const majorityVotes =
+        finalRuling === "FAVOR_CONSUMER" ? votesForConsumer : votesForMerchant;
+      if (majorityVotes < 3) {
+        return NextResponse.json(
+          {
+            success: false,
+            code: "VOTE_RECORDED_PENDING_QUORUM",
+            error: `3-of-5 Elder quorum not met for ${finalRuling} (received ${majorityVotes} votes; ${3 - majorityVotes} more needed).`,
+          },
+          { status: 202 }
+        );
+      }
+    }
+
+    const consumerAddr =
+      liveVault?.consumer ||
+      escrow?.consumerAddress ||
+      escrow?.consumer ||
+      escrow?.consumerUid ||
+      DEFAULT_CONSUMER_ADDRESS;
+    const providerAddr =
+      liveVault?.provider ||
+      escrow?.providerAddress ||
+      escrow?.provider ||
+      escrow?.providerId ||
+      DEFAULT_PROVIDER_ADDRESS;
+
+    const finalPayoutTo =
+      String(payoutToAddress || "").trim() ||
+      (finalRuling === "FAVOR_CONSUMER" ? consumerAddr : providerAddr);
+    const finalAdmin =
+      String(adminAddress || "").trim() || DEFAULT_ADMIN_ADDRESS;
+
+    const amountStroops =
+      bodyAmountStroops !== undefined && bodyAmountStroops !== null
+        ? BigInt(bodyAmountStroops)
+        : liveVault?.amount !== undefined && liveVault?.amount !== null
+          ? BigInt(liveVault.amount)
+          : toStroopsBigInt(escrow, Number(escrow?.amount ?? 0.01));
+
+    const escrowAmountPi = Number(amountStroops) / STROOPS_PER_PI;
+    const nextNonce = BigInt(
+      nonce ??
+        (dispute?.pqNonce !== undefined && dispute?.pqNonce !== null
+          ? Number(dispute.pqNonce) + 1
+          : 1)
+    );
+
+    const signer = resolveSignerKeypair(secretKey);
+    let settlementMode: "ON_CHAIN_PQ" | "LEDGER_ONLY" = "LEDGER_ONLY";
+    let txHash: string | null = null;
+    let onChainWarning: string | null = null;
+
+    if (!skipOnChain && signer) {
+      try {
+        const vaultTx = await vaultSvc.resolveDisputeWithPq(
+          {
+            contractId: targetContractId,
+            escrowId: resolvedEscrowId,
+            adminAddress: finalAdmin,
+            payoutToAddress: finalPayoutTo,
+            amountStroops,
+            nonce: nextNonce,
+          },
+          signer
+        );
+        settlementMode = "ON_CHAIN_PQ";
+        txHash = vaultTx.hash;
+      } catch (chainErr: any) {
+        onChainWarning = chainErr?.message || String(chainErr);
+        console.warn(
+          "[API_DISPUTE_RESOLVE_PQ_FALLBACK_LEDGER]:",
+          onChainWarning
+        );
+      }
+    } else if (!skipOnChain && !signer) {
+      onChainWarning =
+        "No valid Ed25519 signer secret found; settled in LEDGER_ONLY mode.";
+    }
+
+    const consumerWon = finalRuling === "FAVOR_CONSUMER";
+    const escrowStatus = consumerWon ? "REFUNDED" : "RELEASED";
+    const winningOutcome = consumerWon
+      ? "RESOLVED_CONSUMER"
+      : "RESOLVED_MERCHANT";
+
+    const loserBond = Number(dispute?.bondAmount ?? 5000);
+    const winnerCompensationMbzr = loserBond * 0.75;
+    const elderPoolTotalMbzr = loserBond * 0.25;
+    const majorityElderCount = Math.max(
+      consumerWon ? votesForConsumer : votesForMerchant,
+      1
+    );
+    const rewardPerElderMbzr = elderPoolTotalMbzr / majorityElderCount;
+    const principalMbzr = escrowAmountPi * PI_TO_MBZR;
+    const totalWinnerCreditMbzr = principalMbzr + winnerCompensationMbzr;
+
+    if (db?.disputeRecord && dispute?.id) {
+      await db.disputeRecord
+        .update({
+          where: { id: dispute.id },
+          data: {
+            status: winningOutcome,
+            pqNonce: Number(nextNonce),
+            ...(txHash ? { resolutionTxHash: txHash } : {}),
+            updatedAt: new Date(),
+          },
+        })
+        .catch(() => null);
+    }
+
+    if (db?.escrowLock && escrow?.id) {
+      await db.escrowLock
+        .update({
+          where: { id: escrow.id },
+          data: {
+            status: escrowStatus,
+            ...(txHash ? { txHash } : {}),
+            updatedAt: new Date(),
+          },
+        })
+        .catch(() => null);
+    }
+
+    if (db?.pioneerNode) {
+      const winnerUid = consumerWon
+        ? escrow?.consumerUid || consumerAddr
+        : escrow?.providerId || providerAddr;
+
+      if (winnerUid) {
+        await db.pioneerNode
+          .updateMany({
+            where: { uid: winnerUid },
+            data: { mbzrBalance: { increment: totalWinnerCreditMbzr } },
           })
           .catch(() => null);
       }
 
-      await db
-        .$runCommandRaw({
-          insert: "vote_records",
-          documents: [
-            {
-              disputeId: disputeObjectId,
-              escrowId: resolvedEscrowId,
-              voterUid,
-              ruling: finalRuling,
-              createdAt: { $date: new Date().toISOString() },
-            },
-          ],
-        })
-        .catch(() => null);
-    }
-
-    const quorumCount = isFavorConsumer ? votesForConsumer : votesForMerchant;
-    if (quorumCount < QUORUM_THRESHOLD) {
-      return NextResponse.json(
-        {
-          success: false,
-          pendingQuorum: true,
-          alreadyVoted,
-          escrowId: resolvedEscrowId,
-          disputeId: disputeObjectId,
-          ruling: finalRuling,
-          votesForConsumer,
-          votesForMerchant,
-          quorumRequired: QUORUM_THRESHOLD,
-          error: alreadyVoted
-            ? `Elder ${voterUid} already voted (${quorumCount}/${QUORUM_THRESHOLD} for ${finalRuling}).`
-            : `Vote recorded for ${voterUid}; 3-of-5 Elder quorum not yet met for ${finalRuling} (${quorumCount}/${QUORUM_THRESHOLD} votes).`,
-        },
-        { status: 409 }
-      );
-    }
-
-    const recordedVotersForRuling = existingVotes
-      .filter((v) => String(v?.ruling || "").toUpperCase() === finalRuling)
-      .map((v) => String(v?.elderUid || "").trim())
-      .filter(Boolean);
-
-    const { majorityElders, majorityCount } = await resolveMajorityElders(
-      db,
-      disputeObjectId,
-      resolvedEscrowId,
-      eligibleElders,
-      isFavorConsumer,
-      recordedVotersForRuling,
-      quorumCount
-    );
-
-    const finalEscrowStatus = isFavorConsumer ? "REFUNDED" : "RELEASED";
-    const finalDisputeStatus = isFavorConsumer
-      ? "RESOLVED_CONSUMER"
-      : "RESOLVED_MERCHANT";
-
-    const principalEscrowPi = Number(rawEscrow?.amount ?? 50);
-    const principalMbzr = principalEscrowPi * PI_TO_MBZR;
-    const totalLoserBondMbzr = Number(rawDispute?.bondAmount ?? 5000);
-    const winnerCompensationMbzr = Number((totalLoserBondMbzr * 0.75).toFixed(4));
-    const elderPoolTotalMbzr = Number((totalLoserBondMbzr * 0.25).toFixed(4));
-    const participatingMajorityElders = Math.max(1, majorityCount);
-    const rewardPerElderMbzr = Number(
-      (elderPoolTotalMbzr / participatingMajorityElders).toFixed(4)
-    );
-
-    const winnerUid = isFavorConsumer ? consumerUid : providerUid;
-
-    let txHash = `0x_vrf_schelling_${Date.now().toString(16)}`;
-    let chainSettlement: "ON_CHAIN_VERIFIED" | "LEDGER_ONLY" = "LEDGER_ONLY";
-
-    try {
-      const activeSecret =
-        secretKey ||
-        process.env.STELLAR_DEPLOYER_SECRET ||
-        process.env.OPERATOR_STELLAR_SECRET ||
-        process.env.STELLAR_VAULT_SEED;
-      const vaultMod: any = await import("@/services/bazaarVaultService").catch(
-        () => null
-      );
-      const vaultService = vaultMod?.bazaarVaultService;
-
-      if (
-        vaultService &&
-        typeof vaultService.resolveDispute === "function" &&
-        activeSecret
-      ) {
-        const signer = Keypair.fromSecret(String(activeSecret).trim());
-        const resolvedAdmin = adminAddress || signer.publicKey();
-        const resolvedPayoutTo = payoutToAddress || signer.publicKey();
-
-        const chainRes = await vaultService.resolveDispute(
-          {
-            escrowId: resolvedEscrowId,
-            adminAddress: resolvedAdmin,
-            payoutToAddress: resolvedPayoutTo,
-          },
-          signer
-        );
-        if (chainRes?.txHash || chainRes?.hash) {
-          txHash = chainRes.txHash || chainRes.hash;
-          chainSettlement = "ON_CHAIN_VERIFIED";
-        }
-      }
-    } catch (chainErr: any) {
-      console.warn(
-        "[DISPUTE_CHAIN_SETTLEMENT_FALLBACK]:",
-        chainErr?.message || chainErr
-      );
-    }
-
-    const nowIso = new Date().toISOString();
-
-    for (const col of ["dispute_records", "DisputeRecord"]) {
-      const filter = /^[0-9a-fA-F]{24}$/.test(disputeObjectId)
-        ? {
-            $or: [
-              { _id: { $oid: disputeObjectId } },
-              { escrowId: resolvedEscrowId },
-            ],
-          }
-        : { escrowId: resolvedEscrowId };
-
-      await db
-        .$runCommandRaw({
-          update: col,
-          updates: [
-            {
-              q: filter,
-              u: {
-                $set: {
-                  status: finalDisputeStatus,
-                  votesForConsumer,
-                  votesForMerchant,
-                  elderVotes: existingVotes,
-                  selectedElders: eligibleElders,
-                  reason: `Adjudicated by 5-Elder VRF Panel (${participatingMajorityElders} majority): ${finalRuling}`,
-                  updatedAt: { $date: nowIso },
-                },
-              },
-              multi: true,
-            },
-          ],
-        })
-        .catch(() => null);
-    }
-
-    if (foundEscrow?.col) {
-      const lockFilter = /^[0-9a-fA-F]{24}$/.test(escrowObjectId)
-        ? {
-            $or: [
-              { _id: { $oid: escrowObjectId } },
-              { escrowId: resolvedEscrowId },
-            ],
-          }
-        : { escrowId: resolvedEscrowId };
-
-      await db
-        .$runCommandRaw({
-          update: foundEscrow.col,
-          updates: [
-            {
-              q: lockFilter,
-              u: {
-                $set: {
-                  status: finalEscrowStatus,
-                  updatedAt: { $date: nowIso },
-                },
-              },
-              multi: true,
-            },
-          ],
-        })
-        .catch(() => null);
-    }
-
-    for (const col of ["PioneerNode", "pioneernodes"]) {
-      await db
-        .$runCommandRaw({
-          update: col,
-          updates: [
-            {
-              q: { uid: winnerUid },
-              u: { $inc: { mbzrBalance: winnerCompensationMbzr } },
-              multi: true,
-            },
-          ],
-        })
-        .catch(() => null);
-
-      for (const elderUidItem of majorityElders) {
-        if (conflictedUids.has(elderUidItem)) continue;
-        await db
-          .$runCommandRaw({
-            update: col,
-            updates: [
-              {
-                q: { uid: elderUidItem },
-                u: { $inc: { mbzrBalance: rewardPerElderMbzr } },
-                multi: true,
-              },
-            ],
+      const elders = Array.isArray(dispute?.selectedElders)
+        ? dispute.selectedElders
+        : [];
+      for (let i = 0; i < Math.min(majorityElderCount, elders.length); i++) {
+        await db.pioneerNode
+          .updateMany({
+            where: { uid: elders[i] },
+            data: { mbzrBalance: { increment: rewardPerElderMbzr } },
           })
           .catch(() => null);
       }
@@ -554,36 +320,34 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       {
         success: true,
-        validated: true,
-        txHash,
-        settlementMode: chainSettlement,
         escrowId: resolvedEscrowId,
-        disputeId: disputeObjectId,
         ruling: finalRuling,
-        winningOutcome: finalDisputeStatus,
-        escrowStatus: finalEscrowStatus,
-        votesForConsumer,
-        votesForMerchant,
-        winnerUid,
-        eligibleVrfElders: eligibleElders,
-        majorityElderUids: majorityElders,
+        winningOutcome,
+        escrowStatus,
+        settlementMode,
+        txHash,
+        ...(onChainWarning ? { onChainWarning } : {}),
+        pqAuth: {
+          nonce: nextNonce.toString(),
+          amountStroops: amountStroops.toString(),
+          payoutTo: finalPayoutTo,
+        },
         settlementLedger: {
-          principalEscrowPi,
           principalMbzr,
-          totalLoserBondMbzr,
+          totalLoserBondMbzr: loserBond,
           winnerCompensationMbzr,
-          totalWinnerCreditMbzr: principalMbzr + winnerCompensationMbzr,
+          totalWinnerCreditMbzr,
           elderPoolTotalMbzr,
-          participatingMajorityElders,
+          participatingMajorityElders: majorityElderCount,
           rewardPerElderMbzr,
         },
       },
       { status: 200 }
     );
   } catch (err: any) {
-    console.error("[API_DISPUTE_RESOLVE_CRASH]:", err);
+    console.error("[API_DISPUTE_RESOLVE_ERROR]:", err);
     return NextResponse.json(
-      { success: false, error: err?.message || "Internal error" },
+      { success: false, error: err?.message || "Internal Server Error" },
       { status: 500 }
     );
   }

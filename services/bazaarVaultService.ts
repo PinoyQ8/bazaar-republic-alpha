@@ -13,6 +13,7 @@ import {
   Address,
 } from "@stellar/stellar-sdk";
 import { VaultEscrowRecord, LockFundsParams, EscrowStatus } from "@/types/bazaar-vault";
+import { signEscrowAuthWithMlDsa65 } from "@/lib/pqEscrowAuth";
 
 export type VaultTxResponse = StellarRpc.Api.GetTransactionResponse & { hash: string };
 
@@ -212,23 +213,65 @@ export class BazaarVaultService {
     return this.executeContractCall(claimantAddress, callOp, signer);
   }
 
-  async resolveDispute(
+  async resolveDisputeWithPq(
     params: {
       escrowId: string;
       adminAddress: string;
       payoutToAddress: string;
+      amountStroops?: bigint | number | string;
+      nonce?: bigint | number | string;
+      contractId?: string;
+      pqSeed?: Uint8Array;
     },
     signer: Keypair | ((txXdr: string) => Promise<string>)
   ): Promise<VaultTxResponse> {
     const sanitizedId = params.escrowId.replace(/-/g, "_");
-    const callOp = this.contract.call(
-      "resolve_dispute",
-      nativeToScVal(sanitizedId, { type: "symbol" }),
-      Address.fromString(params.adminAddress).toScVal(),
-      Address.fromString(params.payoutToAddress).toScVal()
+    const targetContractId =
+      params.contractId ||
+      this.contract.contractId() ||
+      BAZAAR_VAULT_CONTRACT_ID;
+
+    let resolvedAmount: bigint;
+    if (params.amountStroops !== undefined && params.amountStroops !== null) {
+      resolvedAmount = BigInt(params.amountStroops);
+    } else {
+      const vaultRecord = await this.getVault(sanitizedId, params.adminAddress);
+      if (!vaultRecord) {
+        throw new Error(
+          `Cannot sign CAP-87 PQ payload: escrow ${sanitizedId} not found on-chain and amountStroops was not provided.`
+        );
+      }
+      resolvedAmount = BigInt(vaultRecord.amount);
+    }
+
+    const nonceVal = BigInt(params.nonce ?? 1);
+
+    const pqAuth = signEscrowAuthWithMlDsa65(
+      {
+        contractId: targetContractId,
+        action: "RESOLVE",
+        escrowId: sanitizedId,
+        amount: resolvedAmount,
+        nonce: nonceVal,
+      },
+      params.pqSeed
     );
 
-    return this.executeContractCall(params.adminAddress, callOp, signer);
+    try {
+      const callOp = this.contract.call(
+        "resolve_dispute_with_pq",
+        nativeToScVal(sanitizedId, { type: "symbol" }),
+        Address.fromString(params.adminAddress).toScVal(),
+        Address.fromString(params.payoutToAddress).toScVal(),
+        nativeToScVal(pqAuth.pqPublicKey, { type: "bytes" }),
+        nativeToScVal(pqAuth.pqSignature, { type: "bytes" }),
+        nativeToScVal(nonceVal, { type: "u64" })
+      );
+
+      return await this.executeContractCall(params.adminAddress, callOp, signer);
+    } finally {
+      pqAuth.zeroizeSecretKey();
+    }
   }
 
   private async getAccountSequence(sourceAddress: string): Promise<string> {

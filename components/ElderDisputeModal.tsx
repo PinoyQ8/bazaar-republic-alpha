@@ -1,5 +1,4 @@
-// Location: components/ElderDisputeModal.tsx
-'use client';
+﻿'use client';
 
 import React, { useState, useEffect } from 'react';
 import {
@@ -13,6 +12,7 @@ import {
   X,
   ExternalLink,
   Award,
+  AlertCircle,
 } from 'lucide-react';
 
 export interface ElderDisputeModalProps {
@@ -36,6 +36,19 @@ export interface ElderDisputeModalProps {
   onVoteSuccess?: () => void;
 }
 
+interface ResolveApiResult {
+  success?: boolean;
+  pendingQuorum?: boolean;
+  code?: string;
+  error?: string;
+  message?: string;
+  escrowId?: string;
+  ruling?: string;
+  escrowStatus?: string;
+  settlementMode?: 'ON_CHAIN_PQ' | 'LEDGER_ONLY' | string;
+  txHash?: string | null;
+}
+
 export default function ElderDisputeModal({
   isOpen,
   onClose,
@@ -45,30 +58,33 @@ export default function ElderDisputeModal({
   const [selectedDecision, setSelectedDecision] = useState<'CONSUMER' | 'MERCHANT' | null>(null);
   const [isSigning, setIsSigning] = useState<boolean>(false);
   const [voteSubmitted, setVoteSubmitted] = useState<boolean>(false);
+  const [pendingQuorumMsg, setPendingQuorumMsg] = useState<string | null>(null);
+  const [resolveResult, setResolveResult] = useState<ResolveApiResult | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
-
-  const activeDisputeKey = disputeData?.escrowId || disputeData?.id || '';
 
   useEffect(() => {
     if (isOpen) {
       setSelectedDecision(null);
       setIsSigning(false);
       setVoteSubmitted(false);
+      setPendingQuorumMsg(null);
+      setResolveResult(null);
       setSubmitError(null);
     }
-  }, [isOpen, activeDisputeKey]);
+  }, [isOpen, disputeData?.id, disputeData?.escrowId]);
 
   if (!isOpen) return null;
 
+  const safeDisputeId = disputeData?.id || disputeData?.escrowId || 'ESC_DISP_901';
   const safeEscrowId = disputeData?.escrowId || disputeData?.id || 'ESC_DISP_901';
   const safeConsumer = disputeData?.consumerUid || 'usr_pioneer_consumer_01';
   const safeProvider =
-    disputeData?.providerName || 'GAU5Y5UWUQ5ETIEI5HWVJR7VDMXUETTSKQ4UKOIIGIW6GVIMCR354UJ3';
+    disputeData?.providerName || 'GA7UMIANNCXSZK5NQ7GCAWL3BP3GOBGVRHLSRYY5WI2KZG4SRFLZSARW';
   const rawEscrowAmount = disputeData?.escrowAmount ?? disputeData?.amount ?? 50.0;
   const safeEscrowAmount = Number(rawEscrowAmount) || 0;
   const safeBondAmount = Number(disputeData?.bondAmount ?? 5000) || 5000;
   const safeServiceDesc =
-    disputeData?.serviceDescription || 'Protocol 28 Verified Vault Settlement';
+    disputeData?.serviceDescription || 'Protocol 30 ML-DSA-65 Vault Settlement';
   const safeClaim =
     disputeData?.consumerClaim || 'SLA verification failed; non-responsive provider node.';
   const safeZkHash =
@@ -78,7 +94,6 @@ export default function ElderDisputeModal({
   const safeQuorumTotal =
     Number(disputeData?.quorumTotal ?? 5) > 0 ? Number(disputeData?.quorumTotal) : 5;
 
-  // Dynamic majority count across 3-2, 4-1, and 5-0 splits
   const projectedMajorityCount =
     selectedDecision === 'CONSUMER'
       ? Math.max(3, safeVotesConsumer + 1)
@@ -90,56 +105,67 @@ export default function ElderDisputeModal({
   const estYieldPerElder = elderPool25Pct / Math.max(1, projectedMajorityCount);
 
   const handleExecuteVote = async () => {
-  if (!selectedDecision || isSigning || voteSubmitted) return;
-  setIsSigning(true);
-  setSubmitError(null);
+    if (!selectedDecision) return;
+    setIsSigning(true);
+    setSubmitError(null);
+    setPendingQuorumMsg(null);
 
-  try {
-    const elderUid =
-      typeof window !== 'undefined'
-        ? window.localStorage.getItem('mesh_pioneer_uid') || 'usr_elder_1'
-        : 'usr_elder_1';
+    try {
+      const elderUid =
+        typeof window !== 'undefined'
+          ? window.localStorage.getItem('mesh_pioneer_uid') || 'usr_elder_1'
+          : 'usr_elder_1';
 
-    const res = await fetch('/api/escrow/dispute/resolve', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        disputeId: safeEscrowId,
-        elderUid,
-        ruling: selectedDecision === 'CONSUMER' ? 'FAVOR_CONSUMER' : 'FAVOR_MERCHANT',
-      }),
-    });
+      const res = await fetch('/api/escrow/dispute/resolve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          disputeId: safeDisputeId,
+          escrowId: safeEscrowId,
+          elderUid,
+          ruling: selectedDecision === 'CONSUMER' ? 'FAVOR_CONSUMER' : 'FAVOR_MERCHANT',
+        }),
+      });
 
-    const data = await res.json().catch(() => ({}));
-    const isQuorumPending =
-      res.status === 409 ||
-      res.status === 202 ||
-      Boolean(data?.pendingQuorum || data?.alreadyVoted);
+      const payload: ResolveApiResult = await res.json().catch(() => ({}));
 
-    if (!res.ok && !isQuorumPending) {
-      throw new Error(data?.error || 'Dispute settlement failed.');
+      if (
+        res.status === 202 ||
+        payload?.pendingQuorum ||
+        payload?.code === 'VOTE_RECORDED_PENDING_QUORUM'
+      ) {
+        setPendingQuorumMsg(
+          payload?.error ||
+            payload?.message ||
+            'Vote recorded; awaiting 3-of-5 Elder quorum.'
+        );
+        if (onVoteSuccess) onVoteSuccess();
+        return;
+      }
+
+      if (!res.ok || payload?.success === false) {
+        const message =
+          payload?.error ||
+          payload?.message ||
+          `Dispute settlement failed (${res.status}).`;
+        throw new Error(message);
+      }
+
+      setResolveResult(payload);
+      setVoteSubmitted(true);
+      if (onVoteSuccess) onVoteSuccess();
+    } catch (err: any) {
+      const message = err?.message || 'Dispute settlement failed.';
+      setSubmitError(message);
+      console.error('[ELDER_VOTE_ERROR]:', err);
+    } finally {
+      setIsSigning(false);
     }
-
-    if (isQuorumPending && !res.ok) {
-      setSubmitError(
-        data?.error || 'Vote registered—awaiting 3-of-5 Elder quorum for adjudicator validation.'
-      );
-    }
-
-    setVoteSubmitted(true);
-    if (onVoteSuccess) onVoteSuccess();
-  } catch (err: any) {
-    console.error('[ELDER_VOTE_ERROR]:', err);
-    setSubmitError(err?.message || 'Unable to submit adjudicator vote.');
-  } finally {
-    setIsSigning(false);
-  }
-};
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-neutral-950/80 backdrop-blur-md">
       <div className="bg-neutral-900 border border-neutral-800 rounded-3xl w-full max-w-md p-4 sm:p-5 space-y-4 shadow-2xl relative max-h-[90vh] overflow-y-auto font-mono">
-        {/* HEADER */}
         <div className="flex justify-between items-start pt-1">
           <div>
             <div className="flex items-center gap-1.5 text-[10px] font-bold text-amber-400 bg-amber-950/80 border border-amber-800/80 px-2 py-0.5 rounded-md uppercase tracking-wider w-fit">
@@ -158,7 +184,6 @@ export default function ElderDisputeModal({
           </button>
         </div>
 
-        {/* FINANCIAL SUMMARY */}
         <div className="bg-neutral-950 border border-neutral-800/80 p-3 rounded-2xl grid grid-cols-3 gap-2 text-[10px]">
           <div>
             <span className="text-neutral-500 text-[9px] block">Escrow Amount</span>
@@ -182,7 +207,6 @@ export default function ElderDisputeModal({
           </div>
         </div>
 
-        {/* EVIDENCE ACCORDION */}
         <div className="space-y-2 text-xs">
           <div className="bg-neutral-950/60 border border-neutral-800/60 p-2.5 rounded-xl space-y-1">
             <span className="text-[9px] text-neutral-500 uppercase block">
@@ -218,7 +242,6 @@ export default function ElderDisputeModal({
           </div>
         </div>
 
-        {/* QUORUM PROGRESS */}
         <div className="bg-neutral-950 border border-neutral-800 p-2.5 rounded-xl space-y-1.5 text-[10px]">
           <div className="flex justify-between text-neutral-400">
             <span>Elder Council Quorum</span>
@@ -229,30 +252,44 @@ export default function ElderDisputeModal({
           <div className="w-full bg-neutral-800 h-1.5 rounded-full overflow-hidden flex">
             <div
               className="bg-rose-500 h-full"
-              style={{ width: `${Math.min(100, (safeVotesConsumer / safeQuorumTotal) * 100)}%` }}
+              style={{
+                width: `${Math.min(100, (safeVotesConsumer / safeQuorumTotal) * 100)}%`,
+              }}
             />
             <div
               className="bg-emerald-500 h-full"
-              style={{ width: `${Math.min(100, (safeVotesMerchant / safeQuorumTotal) * 100)}%` }}
+              style={{
+                width: `${Math.min(100, (safeVotesMerchant / safeQuorumTotal) * 100)}%`,
+              }}
             />
           </div>
         </div>
 
-        {/* DECISION MATRIX */}
         {!voteSubmitted ? (
           <div className="space-y-2.5">
             {submitError && (
-              <div className="p-2 rounded-xl bg-rose-950/50 border border-rose-800/70 text-[10px] text-rose-300">
-                {submitError}
+              <div className="p-2.5 bg-rose-950/50 border border-rose-800/80 rounded-xl text-[10px] text-rose-300 flex items-start gap-1.5">
+                <AlertCircle size={13} className="shrink-0 mt-0.5 text-rose-400" />
+                <span>{submitError}</span>
+              </div>
+            )}
+
+            {pendingQuorumMsg && (
+              <div className="p-2.5 bg-amber-950/50 border border-amber-800/80 rounded-xl text-[10px] text-amber-200 flex items-start gap-1.5">
+                <AlertCircle size={13} className="shrink-0 mt-0.5 text-amber-400" />
+                <span>{pendingQuorumMsg}</span>
               </div>
             )}
 
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
-                disabled={isSigning || voteSubmitted}
-                onClick={() => setSelectedDecision('CONSUMER')}
-                className={`p-2.5 rounded-xl border text-left transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+                onClick={() => {
+                  setSelectedDecision('CONSUMER');
+                  setSubmitError(null);
+                  setPendingQuorumMsg(null);
+                }}
+                className={`p-2.5 rounded-xl border text-left transition cursor-pointer ${
                   selectedDecision === 'CONSUMER'
                     ? 'bg-rose-950 border-rose-500 text-rose-300 ring-1 ring-rose-500'
                     : 'bg-neutral-950 border-neutral-800 text-neutral-400'
@@ -265,9 +302,12 @@ export default function ElderDisputeModal({
 
               <button
                 type="button"
-                disabled={isSigning || voteSubmitted}
-                onClick={() => setSelectedDecision('MERCHANT')}
-                className={`p-2.5 rounded-xl border text-left transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+                onClick={() => {
+                  setSelectedDecision('MERCHANT');
+                  setSubmitError(null);
+                  setPendingQuorumMsg(null);
+                }}
+                className={`p-2.5 rounded-xl border text-left transition cursor-pointer ${
                   selectedDecision === 'MERCHANT'
                     ? 'bg-emerald-950 border-emerald-500 text-emerald-300 ring-1 ring-emerald-500'
                     : 'bg-neutral-950 border-neutral-800 text-neutral-400'
@@ -282,11 +322,9 @@ export default function ElderDisputeModal({
             <button
               type="button"
               onClick={handleExecuteVote}
-              disabled={!selectedDecision || isSigning || voteSubmitted}
+              disabled={!selectedDecision || isSigning}
               className={`w-full py-2.5 rounded-xl font-bold text-xs uppercase flex items-center justify-center gap-1.5 transition ${
-                voteSubmitted
-                  ? 'bg-emerald-950 border border-emerald-800 text-emerald-400 cursor-not-allowed'
-                  : isSigning
+                isSigning
                   ? 'bg-cyan-950 border border-cyan-800 text-cyan-400 cursor-wait'
                   : !selectedDecision
                   ? 'bg-neutral-800 text-neutral-500 cursor-not-allowed'
@@ -298,23 +336,24 @@ export default function ElderDisputeModal({
               ) : (
                 <Lock size={14} />
               )}
-              {voteSubmitted
-                ? 'Vote Locked'
-                : isSigning
-                ? 'Submitting Vote...'
-                : 'Submit Adjudication Vote'}
+              {isSigning ? 'Submitting Vote...' : 'Submit Adjudication Vote'}
             </button>
           </div>
         ) : (
           <div className="bg-emerald-950/60 border border-emerald-800 p-3 rounded-xl space-y-2 text-xs">
             <div className="flex items-center gap-1.5 text-emerald-400 font-bold">
-              <CheckCircle2 size={16} /> Vote Recorded Successfully
+              <CheckCircle2 size={16} /> Dispute Resolved
             </div>
             <p className="text-[10px] text-neutral-300">
               Ruling submitted for{' '}
-              <span className="text-cyan-300 font-bold">{safeEscrowId}</span> under the 75/25
-              Schelling distribution rule.
+              <span className="text-cyan-300 font-bold">{resolveResult?.escrowId || safeEscrowId}</span>{' '}
+              ({resolveResult?.settlementMode || 'ON_CHAIN_PQ'}) under the 75/25 Schelling distribution rule.
             </p>
+            {resolveResult?.txHash && (
+              <div className="text-[9px] text-emerald-300 bg-neutral-950 p-1.5 rounded-lg border border-emerald-900/70 truncate">
+                Tx: {resolveResult.txHash}
+              </div>
+            )}
             <button
               type="button"
               onClick={onClose}
