@@ -3,8 +3,14 @@
 
 import { createContext, useContext, useState, ReactNode, useMemo, useEffect } from "react";
 import * as StellarSdk from "@stellar/stellar-sdk";
+import { isFounderSubject, normalizeTierLevel } from "@/app/lib/governance/tierRbac";
 
-export type NodeTier = "CITIZEN" | "NOVICE" | "ACADEMY_CORE" | "MESH_GUARDIAN" | "BAZAAR_FOUNDER";
+export type NodeTier =
+  | "CITIZEN"
+  | "NOVICE"
+  | "ACADEMY_CORE"
+  | "MESH_GUARDIAN"
+  | "BAZAAR_FOUNDER";
 export type NodeStatus = "SYNCING" | "ACTIVE" | "FROZEN" | "SUSPENDED";
 
 export interface PioneerState {
@@ -28,42 +34,50 @@ export interface AuthContextType {
   executeStakePayment: (amount: number) => Promise<void>;
   isHydrated: boolean;
   accessToken: string | null;
+  hasActiveRole: boolean;
+  isFounder: boolean;
 }
 
+const FALLBACK_PIONEER: PioneerState = {
+  username: undefined,
+  uid: undefined,
+  publicKey: undefined,
+  tier: "CITIZEN",
+  status: "SYNCING",
+  role: "NONE",
+  trustScore: 0,
+  isAuthenticated: false,
+  isHydrated: false,
+  accessToken: null,
+};
+
 const FALLBACK_AUTH: AuthContextType = {
-  pioneer: {
-    username: undefined,
-    uid: undefined,
-    publicKey: undefined,
-    tier: "CITIZEN",
-    status: "SYNCING",
-    role: "CITIZEN",
-    trustScore: 0,
-    isAuthenticated: false,
-    isHydrated: false,
-    accessToken: null,
-  },
+  pioneer: FALLBACK_PIONEER,
   setPioneer: () => {},
   login: () => {},
   logout: () => {},
   executeStakePayment: async () => {},
   isHydrated: false,
   accessToken: null,
+  hasActiveRole: false,
+  isFounder: false,
 };
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const [pioneer, setPioneer] = useState<PioneerState>(FALLBACK_AUTH.pioneer);
+  const [pioneer, setPioneer] = useState<PioneerState>(FALLBACK_PIONEER);
 
-  // ðŸ›¡ï¸ UNIFIED HYDRATION ENGINE
+  // 🛡️ UNIFIED HYDRATION ENGINE
   useEffect(() => {
     try {
       if (typeof window === "undefined") return;
 
       const cachedUser = localStorage.getItem("pi_auth_user");
-      const meshUid = localStorage.getItem("mesh_pioneer_uid") || localStorage.getItem("BZR_PIONEER_UID");
-      const meshUser = localStorage.getItem("mesh_pioneer_id") || localStorage.getItem("BZR_PIONEER_USER");
+      const meshUid =
+        localStorage.getItem("mesh_pioneer_uid") || localStorage.getItem("BZR_PIONEER_UID");
+      const meshUser =
+        localStorage.getItem("mesh_pioneer_id") || localStorage.getItem("BZR_PIONEER_USER");
       const sessionActive = localStorage.getItem("mesh_session_active") === "true";
       const genesisCleared = localStorage.getItem("mesh_genesis_cleared") === "true";
       const storedToken = localStorage.getItem("pi_access_token");
@@ -83,7 +97,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           accessToken: parsed.accessToken || storedToken || "CACHED_SESSION_TOKEN",
         });
       } else if (sessionActive || genesisCleared || meshUid) {
-        // ðŸ›¡ï¸ RECONSTRUCT FROM MESH GENESIS MATRIX
+        // 🛡️ RECONSTRUCT FROM MESH GENESIS MATRIX
         const reconstructed: PioneerState = {
           username: meshUser || "PinoyQ8",
           uid: meshUid || "5f747bc9-1302-4135-a40d-af7880174f16",
@@ -141,16 +155,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       localStorage.removeItem("BZR_PIONEER_UID");
       localStorage.removeItem("BZR_PIONEER_USER");
     }
-    setPioneer({ ...FALLBACK_AUTH.pioneer, isHydrated: true });
+    setPioneer({ ...FALLBACK_PIONEER, isHydrated: true });
   };
 
   const executeStakePayment = async (amount: number): Promise<void> => {
     try {
-       const targetContractId = (
-  process.env.NEXT_PUBLIC_STAKE_CONTRACT_ID ||
-  process.env.NEXT_PUBLIC_BAZAAR_VAULT_CONTRACT_ID ||
-  "CAQMHSA6M2LSDJIHDLPCFJMXC2DQNTNZHV6QMWD3IR6FW3FLR4J7EGEV"
-).trim();
+      const targetContractId = (
+        process.env.NEXT_PUBLIC_STAKE_CONTRACT_ID ||
+        process.env.NEXT_PUBLIC_BAZAAR_VAULT_CONTRACT_ID ||
+        "CAQMHSA6M2LSDJIHDLPCFJMXC2DQNTNZHV6QMWD3IR6FW3FLR4J7EGEV"
+      ).trim();
 
       const targetMethod = (
         process.env.NEXT_PUBLIC_STAKE_METHOD || "lock_funds"
@@ -243,10 +257,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         throw new Error(`Simulation failed: ${simulatedTx.error}`);
       }
 
-      // 1. Assemble simulated transaction (footprints & Soroban data)
       const assembledTx = StellarSdk.rpc.assembleTransaction(tx, simulatedTx).build();
 
-      // 2. Resolve a browser wallet signer safely from window if present
       const walletProvider =
         typeof window !== "undefined"
           ? (window as any).freighterApi || (window as any).stellar || (window as any).piWallet
@@ -277,13 +289,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       const signedTx = StellarSdk.TransactionBuilder.fromXDR(signedXdr, networkPassphrase);
 
-      // 3. Submit transaction to Pi Testnet RPC
       const sendRes = await server.sendTransaction(signedTx);
       if (sendRes.status === "ERROR") {
         throw new Error(`Transaction submission rejected: ${JSON.stringify(sendRes.errorResult)}`);
       }
 
-      // 4. Poll getTransaction until confirmed on-chain
       let txStatus = await server.getTransaction(sendRes.hash);
       let attempts = 0;
       const maxAttempts = 20;
@@ -298,10 +308,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
 
       if (txStatus.status !== StellarSdk.rpc.Api.GetTransactionStatus.SUCCESS) {
-        throw new Error(`Transaction ${sendRes.hash} did not succeed (status: ${txStatus.status}).`);
+        throw new Error(
+          `Transaction ${sendRes.hash} did not succeed (status: ${txStatus.status}).`
+        );
       }
 
-      // 5. Commit confirmed tier & trustScore only after on-chain success
       setPioneer((prev) => {
         const newState: PioneerState = {
           ...prev,
@@ -319,8 +330,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const contextValue = useMemo(
-    () => ({
+  const contextValue = useMemo(() => {
+    const normalizedRole = (pioneer.role || "").trim().toUpperCase();
+    const hasActiveRole = Boolean(
+      pioneer.isAuthenticated &&
+        normalizedRole &&
+        normalizedRole !== "NONE" &&
+        normalizedRole !== "GUEST"
+    );
+    const founder = isFounderSubject({
+      role: pioneer.role || pioneer.tier,
+    });
+    // Ensure tier stays a valid NodeTier string
+    void normalizeTierLevel(pioneer.tier);
+
+    return {
       pioneer,
       setPioneer,
       login,
@@ -328,9 +352,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       executeStakePayment,
       isHydrated: pioneer.isHydrated,
       accessToken: pioneer.accessToken,
-    }),
-    [pioneer, setPioneer, login, logout, executeStakePayment]
-  );
+      hasActiveRole,
+      isFounder: founder,
+    };
+  }, [pioneer, setPioneer, login, logout, executeStakePayment]);
 
   return <AuthContext.Provider value={contextValue}>{children}</AuthContext.Provider>;
 };
