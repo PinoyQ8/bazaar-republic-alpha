@@ -121,13 +121,14 @@ export function getMeshServerEnv(options?: {
   const piApiBaseUrl = isMainnet
     ? (
         process.env.PI_MAINNET_API_URL ||
+        process.env.PI_API_URL ||
         process.env.NEXT_PUBLIC_PI_API_URL ||
         "https://api.minepi.com/v2"
       ).trim()
     : (
         process.env.PI_TESTNET_API_URL ||
-        process.env.NEXT_PUBLIC_PI_API_URL ||
-        "https://api.testnet.minepi.com/v2"
+        process.env.PI_API_URL ||
+        "https://api.minepi.com/v2"
       ).trim();
 
   const networkLabel = isMainnet

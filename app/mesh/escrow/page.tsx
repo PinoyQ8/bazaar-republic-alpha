@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import {
   ShieldCheck,
@@ -42,6 +42,13 @@ export interface EscrowVaultItem {
   zkProofHash?: string;
 }
 
+export interface VaultLookupCacheEntry {
+  found: boolean;
+  status: number;
+  data: Record<string, unknown> | null;
+  fetchedAt: number;
+}
+
 type StatusFilter = 'ALL' | 'LOCKED' | 'DISPUTED' | 'RELEASED' | 'REFUNDED';
 
 export default function MeshEscrowPage() {
@@ -61,6 +68,15 @@ export default function MeshEscrowPage() {
   const [vaults, setVaults] = useState<EscrowVaultItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
+
+  // Per-escrowId /api/vault cache + in-flight deduplication
+  const [vaultCache, setVaultCache] = useState<Map<string, VaultLookupCacheEntry>>(() => new Map());
+  const vaultCacheRef = useRef<Map<string, VaultLookupCacheEntry>>(vaultCache);
+  vaultCacheRef.current = vaultCache;
+
+  const inFlightVaultRequestsRef = useRef<
+    Map<string, Promise<VaultLookupCacheEntry>>
+  >(new Map());
 
   // Form State
   const [providerAddress, setProviderAddress] = useState('');
@@ -108,39 +124,118 @@ export default function MeshEscrowPage() {
     [effectiveTier, isFrozen, hasPassport, hasActiveRole]
   );
 
-  // 1. Fetch Active Escrow Vaults from Backend
-  const fetchEscrows = useCallback(async () => {
-    setLoading(true);
-    setFetchError(null);
-    try {
-      const res = await fetch('/api/escrow/list', { cache: 'no-store' });
-      if (!res.ok) throw new Error('Failed to synchronize escrow ledger.');
-      const data = await res.json();
-
-      if (data.escrows && Array.isArray(data.escrows) && data.escrows.length > 0) {
-        setVaults(data.escrows);
-      } else {
-        setVaults([
-          {
-            id: 'MBZR_ESCROW_CANARY_01',
-            escrowId: 'MBZR_ESCROW_CANARY_01',
-            provider: 'GAU5Y5UWUQ5ETIEI5HWVJR7VDMXUETTSKQ4UKOIIGIW6GVIMCR354UJ3',
-            consumer: pioneer?.uid || 'pioneer_session',
-            amount: 50.0,
-            token: 'PI',
-            status: 'LOCKED',
-            timelockRemainingSeconds: 172800,
-            serviceDescription: 'E-Network DePIN Node Provisioning',
-            createdAt: new Date().toISOString(),
-          },
-        ]);
+  const fetchVaultLookup = useCallback(
+    async (
+      rawEscrowId: string,
+      options?: { force?: boolean }
+    ): Promise<VaultLookupCacheEntry> => {
+      const escrowId = rawEscrowId.trim();
+      if (!escrowId) {
+        return { found: false, status: 400, data: null, fetchedAt: Date.now() };
       }
-    } catch (err: any) {
-      setFetchError(err?.message || 'Ledger synchronization failure.');
-    } finally {
-      setLoading(false);
+
+      if (!options?.force) {
+        const cached = vaultCacheRef.current.get(escrowId);
+        if (cached) {
+          return cached;
+        }
+
+        const existingRequest = inFlightVaultRequestsRef.current.get(escrowId);
+        if (existingRequest) {
+          return existingRequest;
+        }
+      }
+
+      const promise = (async (): Promise<VaultLookupCacheEntry> => {
+        try {
+          const res = await fetch(
+            `/api/vault?escrowId=${encodeURIComponent(escrowId)}`,
+            { cache: 'no-store' }
+          );
+
+          let data: Record<string, unknown> | null = null;
+          if (res.ok) {
+            data = await res.json();
+          }
+
+          const entry: VaultLookupCacheEntry = {
+            found: res.ok,
+            status: res.status,
+            data,
+            fetchedAt: Date.now(),
+          };
+
+          setVaultCache((prev) => {
+            const next = new Map(prev);
+            next.set(escrowId, entry);
+            return next;
+          });
+
+          return entry;
+        } catch {
+          return { found: false, status: 500, data: null, fetchedAt: Date.now() };
+        } finally {
+          inFlightVaultRequestsRef.current.delete(escrowId);
+        }
+      })();
+
+      inFlightVaultRequestsRef.current.set(escrowId, promise);
+      return promise;
+    },
+    []
+  );
+
+  const invalidateVaultCache = useCallback((escrowId?: string) => {
+    if (escrowId) {
+      setVaultCache((prev) => {
+        const next = new Map(prev);
+        next.delete(escrowId.trim());
+        return next;
+      });
+      return;
     }
-  }, [pioneer?.uid]);
+    setVaultCache(new Map());
+  }, []);
+
+  // 1. Fetch Active Escrow Vaults from Backend
+  const fetchEscrows = useCallback(
+    async (options?: { clearVaultCache?: boolean }) => {
+      if (options?.clearVaultCache) {
+        invalidateVaultCache();
+      }
+      setLoading(true);
+      setFetchError(null);
+      try {
+        const res = await fetch('/api/escrow/list', { cache: 'no-store' });
+        if (!res.ok) throw new Error('Failed to synchronize escrow ledger.');
+        const data = await res.json();
+
+        if (data.escrows && Array.isArray(data.escrows) && data.escrows.length > 0) {
+          setVaults(data.escrows);
+        } else {
+          setVaults([
+            {
+              id: 'MBZR_ESCROW_CANARY_01',
+              escrowId: 'MBZR_ESCROW_CANARY_01',
+              provider: 'GAU5Y5UWUQ5ETIEI5HWVJR7VDMXUETTSKQ4UKOIIGIW6GVIMCR354UJ3',
+              consumer: pioneer?.uid || 'pioneer_session',
+              amount: 50.0,
+              token: 'PI',
+              status: 'LOCKED',
+              timelockRemainingSeconds: 172800,
+              serviceDescription: 'E-Network DePIN Node Provisioning',
+              createdAt: new Date().toISOString(),
+            },
+          ]);
+        }
+      } catch (err: any) {
+        setFetchError(err?.message || 'Ledger synchronization failure.');
+      } finally {
+        setLoading(false);
+      }
+    },
+    [pioneer?.uid, invalidateVaultCache]
+  );
 
   useEffect(() => {
     fetchEscrows();
@@ -185,7 +280,7 @@ export default function MeshEscrowPage() {
       setProviderAddress('');
       setDescription('');
       setActiveTab('vaults');
-      await fetchEscrows();
+      await fetchEscrows({ clearVaultCache: true });
     } catch (err: any) {
       setFormError(err?.message || 'Vault creation aborted.');
     } finally {
@@ -216,6 +311,40 @@ export default function MeshEscrowPage() {
       return true;
     });
   }, [vaults, statusFilter, searchQuery]);
+
+  // Warm /api/vault cache only for visible escrowIds not yet cached
+  useEffect(() => {
+    if (activeTab !== 'vaults') return;
+
+    const missingIds = Array.from(
+      new Set(
+        filteredVaults
+          .map((v) => (v.escrowId || v.id || '').trim())
+          .filter((id) => Boolean(id) && !vaultCacheRef.current.has(id))
+      )
+    );
+
+    if (missingIds.length === 0) return;
+
+    let cancelled = false;
+    const concurrency = 4;
+    let cursor = 0;
+
+    async function runWorker() {
+      while (!cancelled && cursor < missingIds.length) {
+        const nextId = missingIds[cursor++];
+        await fetchVaultLookup(nextId);
+      }
+    }
+
+    Promise.all(
+      Array.from({ length: Math.min(concurrency, missingIds.length) }, runWorker)
+    );
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, filteredVaults, fetchVaultLookup]);
 
   const handleOpenDisputeReview = (vault: EscrowVaultItem) => {
     setSelectedDisputeVault(vault);
@@ -291,7 +420,7 @@ export default function MeshEscrowPage() {
           <LivePiCheckout
             amount={1.0}
             memo="Bazaar Republic Escrow Settlement Test"
-            onSuccess={() => fetchEscrows()}
+            onSuccess={() => fetchEscrows({ clearVaultCache: true })}
           />
 
           {/* HERO & TABS */}
@@ -307,8 +436,9 @@ export default function MeshEscrowPage() {
               </div>
               <button
                 type="button"
-                onClick={fetchEscrows}
+                onClick={() => fetchEscrows({ clearVaultCache: true })}
                 disabled={loading}
+                title="Refresh ledger and vault lookups"
                 className="p-1.5 text-neutral-400 hover:text-white bg-neutral-950 border border-neutral-800 rounded-xl cursor-pointer"
               >
                 <RefreshCw
@@ -349,7 +479,11 @@ export default function MeshEscrowPage() {
                       : 'text-neutral-500 hover:text-amber-300'
                 }`}
               >
-                {executeAccess.allowed ? <Plus size={14} /> : <Lock size={13} className="text-amber-400" />}
+                {executeAccess.allowed ? (
+                  <Plus size={14} />
+                ) : (
+                  <Lock size={13} className="text-amber-400" />
+                )}
                 Lock New Vault
               </button>
             </div>
@@ -418,12 +552,19 @@ export default function MeshEscrowPage() {
                   )}
                 </div>
               ) : (
-                filteredVaults.map((vault, idx) => (
-                  <EscrowCard
-                    key={`${vault.id || vault.escrowId || 'vault'}-${idx}`}
-                    initialEscrowId={vault.escrowId || vault.id}
-                  />
-                ))
+                filteredVaults.map((vault) => {
+                  const escrowKey = (vault.escrowId || vault.id).trim();
+                  return (
+                    <EscrowCard
+                      key={escrowKey}
+                      initialEscrowId={escrowKey}
+                      cachedVault={vaultCache.get(escrowKey)}
+                      onRequestVaultLookup={(force) =>
+                        fetchVaultLookup(escrowKey, { force })
+                      }
+                    />
+                  );
+                })
               )}
             </div>
           )}
@@ -628,7 +769,7 @@ export default function MeshEscrowPage() {
               votesForMerchant: 1,
               quorumTotal: 5,
             }}
-            onVoteSuccess={fetchEscrows}
+            onVoteSuccess={() => fetchEscrows({ clearVaultCache: true })}
           />
         )}
       </div>

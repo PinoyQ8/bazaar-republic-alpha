@@ -9,6 +9,9 @@ import { prisma } from "@/lib/prisma";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
+const STROOPS_PER_PI = 10_000_000;
+const DEFAULT_DURATION_SECS = 172_800; // 48 hours
+
 function isValidAddress(value: unknown): value is string {
   if (typeof value !== "string") return false;
   const trimmed = value.trim();
@@ -54,13 +57,102 @@ function parsePositiveAmount(raw: unknown): bigint | string | number | null {
   return null;
 }
 
+function computeAmountPi(rawAmount: unknown): number {
+  if (typeof rawAmount === "bigint") {
+    return Number(rawAmount) / STROOPS_PER_PI;
+  }
+  if (typeof rawAmount === "number") {
+    return rawAmount >= 1_000_000 ? rawAmount / STROOPS_PER_PI : rawAmount;
+  }
+  if (typeof rawAmount === "string") {
+    const trimmed = rawAmount.trim();
+    if (/^\d+$/.test(trimmed)) {
+      return Number(BigInt(trimmed)) / STROOPS_PER_PI;
+    }
+    const parsed = Number(trimmed);
+    if (Number.isFinite(parsed)) {
+      return parsed >= 1_000_000 ? parsed / STROOPS_PER_PI : parsed;
+    }
+  }
+  return 0;
+}
+
+async function syncEscrowLockRecord(params: {
+  db: any;
+  existingRecord: any | null;
+  escrowId: string;
+  status: "LOCKED" | "RELEASED" | "REFUNDED";
+  txHash: string;
+  consumerUid?: string;
+  providerId?: string;
+  amountPi?: number;
+  durationSecs?: unknown;
+  description?: string;
+}): Promise<{ dbSynced: boolean; dbSyncWarning?: string }> {
+  const { db, existingRecord, escrowId, status, txHash } = params;
+  if (!db?.escrowLock) {
+    return {
+      dbSynced: false,
+      dbSyncWarning: "PRISMA_ESCROW_LOCK_MODEL_UNAVAILABLE",
+    };
+  }
+
+  const parsedDuration = Number(params.durationSecs);
+  const effectiveDuration =
+    Number.isFinite(parsedDuration) && parsedDuration > 0
+      ? parsedDuration
+      : DEFAULT_DURATION_SECS;
+  const timelockExpiresAt = new Date(Date.now() + effectiveDuration * 1000);
+  const now = new Date();
+
+  try {
+    if (existingRecord?.id) {
+      await db.escrowLock.update({
+        where: { id: existingRecord.id },
+        data: {
+          status,
+          ...(typeof params.amountPi === "number" && params.amountPi > 0
+            ? { amount: params.amountPi }
+            : {}),
+          ...(status === "LOCKED" ? { timelockExpiresAt } : {}),
+          txHash,
+          updatedAt: now,
+        },
+      });
+      return { dbSynced: true };
+    }
+
+    await db.escrowLock.create({
+      data: {
+        escrowId,
+        consumerUid: params.consumerUid || "UNKNOWN_CONSUMER",
+        providerId: params.providerId || "UNKNOWN_PROVIDER",
+        amount: typeof params.amountPi === "number" && params.amountPi > 0 ? params.amountPi : 0,
+        status,
+        timelockExpiresAt,
+        serviceDescription:
+          params.description || `Project Bazaar Vault Escrow (${escrowId})`,
+        txHash,
+        createdAt: now,
+        updatedAt: now,
+      },
+    });
+    return { dbSynced: true };
+  } catch (err: any) {
+    const warning = err?.message || "Failed to sync EscrowLock record";
+    console.warn("[API_VAULT_ESCROW_LOCK_SYNC_WARN]:", warning);
+    return { dbSynced: false, dbSyncWarning: warning };
+  }
+}
+
 export async function OPTIONS() {
   return new NextResponse(null, {
     status: 204,
     headers: {
       Allow: "GET, POST, OPTIONS",
       "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type, Authorization, x-pioneer-uid",
+      "Access-Control-Allow-Headers":
+        "Content-Type, Authorization, x-pioneer-uid",
       "Access-Control-Allow-Origin": "*",
     },
   });
@@ -144,6 +236,7 @@ export async function POST(req: NextRequest) {
       amount,
       durationSecs,
       pioneerUid,
+      description,
       secretKey,
     } = body || {};
 
@@ -163,7 +256,9 @@ export async function POST(req: NextRequest) {
     }
 
     const normalizedAction = String(action || "").trim().toUpperCase();
-    const normalizedEscrowId = String(escrowId || "").trim().replace(/-/g, "_");
+    const normalizedEscrowId = String(escrowId || "")
+      .trim()
+      .replace(/-/g, "_");
 
     if (!normalizedAction || !normalizedEscrowId) {
       return NextResponse.json(
@@ -188,7 +283,6 @@ export async function POST(req: NextRequest) {
       pioneerUid || req.headers.get("x-pioneer-uid") || ""
     ).trim();
 
-    // Check freeze/sanction status if pioneerNode exists for callerUid or consumerAddress
     if (db?.pioneerNode) {
       const node = await db.pioneerNode
         .findFirst({
@@ -271,33 +365,46 @@ export async function POST(req: NextRequest) {
           );
         }
 
+        const trimmedConsumer = consumerAddress.trim();
+        const trimmedProvider = providerAddress.trim();
+
         txResponse = await bazaarVaultService.lockFunds(
           {
             escrowId: normalizedEscrowId,
-            consumerAddress: consumerAddress.trim(),
-            providerAddress: providerAddress.trim(),
+            consumerAddress: trimmedConsumer,
+            providerAddress: trimmedProvider,
             amount: validAmount,
             ...(durationSecs !== undefined ? { durationSecs } : {}),
           },
           signer
         );
 
-        const txHash = String(txResponse?.hash || "").trim();
+        const txHash = String(txResponse?.hash || txResponse?.txHash || "").trim();
         if (!txHash) {
           throw new Error("On-chain LOCK succeeded without a transaction hash.");
         }
 
-        if (db?.escrowLock && dbEscrow?.id) {
-          await db.escrowLock
-            .update({
-              where: { id: dbEscrow.id },
-              data: { status: "LOCKED", txHash, updatedAt: new Date() },
-            })
-            .catch(() => null);
-        }
+        const syncResult = await syncEscrowLockRecord({
+          db,
+          existingRecord: dbEscrow,
+          escrowId: normalizedEscrowId,
+          status: "LOCKED",
+          txHash,
+          consumerUid: callerUid || trimmedConsumer,
+          providerId: trimmedProvider,
+          amountPi: computeAmountPi(validAmount),
+          durationSecs,
+          description,
+        });
 
         return NextResponse.json(
-          { success: true, txHash, status: "LOCKED", result: txResponse },
+          {
+            success: true,
+            txHash,
+            status: "LOCKED",
+            ...syncResult,
+            result: txResponse,
+          },
           { status: 200 }
         );
       }
@@ -386,30 +493,34 @@ export async function POST(req: NextRequest) {
                 signer
               );
 
-        const txHash = String(txResponse?.hash || "").trim();
+        const txHash = String(txResponse?.hash || txResponse?.txHash || "").trim();
         if (!txHash) {
           throw new Error(
             `On-chain ${normalizedAction} succeeded without a transaction hash.`
           );
         }
 
-        const nextDbStatus =
+        const nextDbStatus: "RELEASED" | "REFUNDED" =
           normalizedAction === "RELEASE" ? "RELEASED" : "REFUNDED";
 
-        if (db?.escrowLock && dbEscrow?.id) {
-          await db.escrowLock
-            .update({
-              where: { id: dbEscrow.id },
-              data: { status: nextDbStatus, txHash, updatedAt: new Date() },
-            })
-            .catch(() => null);
-        }
+        const syncResult = await syncEscrowLockRecord({
+          db,
+          existingRecord: dbEscrow,
+          escrowId: normalizedEscrowId,
+          status: nextDbStatus,
+          txHash,
+          consumerUid: callerUid || expectedConsumer || requestedCaller,
+          providerId: String(liveVault.provider || dbEscrow?.providerId || "UNKNOWN_PROVIDER"),
+          amountPi: computeAmountPi(liveVault.amount),
+          description,
+        });
 
         return NextResponse.json(
           {
             success: true,
             txHash,
             status: nextDbStatus,
+            ...syncResult,
             result: txResponse,
           },
           { status: 200 }

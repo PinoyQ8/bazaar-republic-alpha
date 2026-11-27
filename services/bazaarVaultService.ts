@@ -49,6 +49,9 @@ export const PI_BASE_FEE = "1000000"; // 0.1 Test-Pi inclusion buffer
 const SIMULATION_FALLBACK_ACCOUNT =
   "GAU5Y5UWUQ5ETIEI5HWVJR7VDMXUETTSKQ4UKOIIGIW6GVIMCR354UJ3";
 
+const MISSING_VAULT_ERROR_RE =
+  /not found|missing|uninitialized|does not exist|Error\(Storage,\s*MissingValue\)|Error\(Contract,\s*#1\)/i;
+
 export class BazaarVaultService {
   private rpcServer: StellarRpc.Server;
   private horizonServer: Horizon.Server;
@@ -124,7 +127,7 @@ export class BazaarVaultService {
 
   async getPiAccount(accountId: string): Promise<Horizon.AccountResponse> {
     this.assertValidStellarAddress(accountId, "account");
-    return this.horizonServer.loadAccount(accountId);
+    return this.horizonServer.loadAccount(accountId.trim());
   }
 
   private parseEscrowRecord(raw: any): VaultEscrowRecord {
@@ -170,7 +173,7 @@ export class BazaarVaultService {
     callerAddress?: string
   ): Promise<VaultEscrowRecord | null> {
     const sanitizedId = this.normalizeAndValidateId(escrowId);
-    const address = callerAddress || SIMULATION_FALLBACK_ACCOUNT;
+    const address = (callerAddress || SIMULATION_FALLBACK_ACCOUNT).trim();
     this.assertValidStellarAddress(address, "caller");
 
     const dummyAccount = new Account(address, "0");
@@ -198,11 +201,12 @@ export class BazaarVaultService {
 
     if (StellarRpc.Api.isSimulationError(simRes)) {
       const errMsg = String((simRes as any).error || "");
-      // Treat missing/uninitialized entry simulation errors as not found; rethrow unexpected host/auth errors
-      if (/not found|missing|uninitialized|does not exist/i.test(errMsg) || !errMsg) {
+      if (MISSING_VAULT_ERROR_RE.test(errMsg) || !errMsg) {
         return null;
       }
-      throw new Error(`[VAULT-RPC] Simulation error for vault '${sanitizedId}': ${errMsg}`);
+      throw new Error(
+        `[VAULT-RPC] Simulation error for vault '${sanitizedId}': ${errMsg}`
+      );
     }
 
     if (!simRes.result?.retval) {
@@ -226,16 +230,18 @@ export class BazaarVaultService {
       "durationSecs"
     );
     const tokenContract = String(params.tokenContract || SAC_TOKEN_CONTRACT).trim();
+    const consumerAddress = String(params.consumerAddress || "").trim();
+    const providerAddress = String(params.providerAddress || "").trim();
 
     this.assertValidStellarAddress(tokenContract, "tokenContract");
-    this.assertValidStellarAddress(params.consumerAddress, "consumerAddress");
-    this.assertValidStellarAddress(params.providerAddress, "providerAddress");
+    this.assertValidStellarAddress(consumerAddress, "consumerAddress");
+    this.assertValidStellarAddress(providerAddress, "providerAddress");
 
-    if (params.consumerAddress.trim() === params.providerAddress.trim()) {
+    if (consumerAddress === providerAddress) {
       throw new Error("[VAULT-GUARD] consumerAddress and providerAddress must be distinct.");
     }
 
-    const existing = await this.getVault(sanitizedId, params.consumerAddress);
+    const existing = await this.getVault(sanitizedId, consumerAddress);
     if (existing) {
       throw new Error(
         `[VAULT-GUARD] Escrow '${sanitizedId}' already exists on-chain with status '${existing.status}'.`
@@ -246,15 +252,16 @@ export class BazaarVaultService {
       "lock_funds",
       nativeToScVal(sanitizedId, { type: "symbol" }),
       Address.fromString(tokenContract).toScVal(),
-      Address.fromString(params.consumerAddress.trim()).toScVal(),
-      Address.fromString(params.providerAddress.trim()).toScVal(),
+      Address.fromString(consumerAddress).toScVal(),
+      Address.fromString(providerAddress).toScVal(),
       nativeToScVal(amountVal, { type: "i128" }),
       nativeToScVal(durationVal, { type: "u64" })
     );
 
-    const txSource =
+    const txSource = String(
       sourceAccountOverride ||
-      (signer instanceof Keypair ? signer.publicKey() : params.consumerAddress.trim());
+        (signer instanceof Keypair ? signer.publicKey() : consumerAddress)
+    ).trim();
     this.assertValidStellarAddress(txSource, "transaction source");
 
     return this.executeContractCall(txSource, callOp, signer);
@@ -266,16 +273,17 @@ export class BazaarVaultService {
     signer: Keypair | ((txXdr: string) => Promise<string>)
   ): Promise<VaultTxResponse> {
     const sanitizedId = this.normalizeAndValidateId(escrowId);
-    this.assertValidStellarAddress(callerAddress, "callerAddress");
-    await this.assertEscrowInStatus(sanitizedId, callerAddress, ["Locked"], "releaseFunds");
+    const trimmedCaller = String(callerAddress || "").trim();
+    this.assertValidStellarAddress(trimmedCaller, "callerAddress");
+    await this.assertEscrowInStatus(sanitizedId, trimmedCaller, ["Locked"], "releaseFunds");
 
     const callOp = this.contract.call(
       "release_funds",
       nativeToScVal(sanitizedId, { type: "symbol" }),
-      Address.fromString(callerAddress.trim()).toScVal()
+      Address.fromString(trimmedCaller).toScVal()
     );
 
-    return this.executeContractCall(callerAddress.trim(), callOp, signer);
+    return this.executeContractCall(trimmedCaller, callOp, signer);
   }
 
   async refundFunds(
@@ -284,16 +292,17 @@ export class BazaarVaultService {
     signer: Keypair | ((txXdr: string) => Promise<string>)
   ): Promise<VaultTxResponse> {
     const sanitizedId = this.normalizeAndValidateId(escrowId);
-    this.assertValidStellarAddress(initiatorAddress, "initiatorAddress");
-    await this.assertEscrowInStatus(sanitizedId, initiatorAddress, ["Locked"], "refundFunds");
+    const trimmedInitiator = String(initiatorAddress || "").trim();
+    this.assertValidStellarAddress(trimmedInitiator, "initiatorAddress");
+    await this.assertEscrowInStatus(sanitizedId, trimmedInitiator, ["Locked"], "refundFunds");
 
     const callOp = this.contract.call(
       "refund_funds",
       nativeToScVal(sanitizedId, { type: "symbol" }),
-      Address.fromString(initiatorAddress.trim()).toScVal()
+      Address.fromString(trimmedInitiator).toScVal()
     );
 
-    return this.executeContractCall(initiatorAddress.trim(), callOp, signer);
+    return this.executeContractCall(trimmedInitiator, callOp, signer);
   }
 
   async disputeEscrow(
@@ -302,16 +311,17 @@ export class BazaarVaultService {
     signer: Keypair | ((txXdr: string) => Promise<string>)
   ): Promise<VaultTxResponse> {
     const sanitizedId = this.normalizeAndValidateId(escrowId);
-    this.assertValidStellarAddress(claimantAddress, "claimantAddress");
-    await this.assertEscrowInStatus(sanitizedId, claimantAddress, ["Locked"], "disputeEscrow");
+    const trimmedClaimant = String(claimantAddress || "").trim();
+    this.assertValidStellarAddress(trimmedClaimant, "claimantAddress");
+    await this.assertEscrowInStatus(sanitizedId, trimmedClaimant, ["Locked"], "disputeEscrow");
 
     const callOp = this.contract.call(
       "dispute_escrow",
       nativeToScVal(sanitizedId, { type: "symbol" }),
-      Address.fromString(claimantAddress.trim()).toScVal()
+      Address.fromString(trimmedClaimant).toScVal()
     );
 
-    return this.executeContractCall(claimantAddress.trim(), callOp, signer);
+    return this.executeContractCall(trimmedClaimant, callOp, signer);
   }
 
   async resolveDisputeWithPq(
@@ -327,11 +337,20 @@ export class BazaarVaultService {
     signer: Keypair | ((txXdr: string) => Promise<string>)
   ): Promise<VaultTxResponse> {
     const sanitizedId = this.normalizeAndValidateId(params.escrowId);
-    this.assertValidStellarAddress(params.adminAddress, "adminAddress");
-    this.assertValidStellarAddress(params.payoutToAddress, "payoutToAddress");
+    const adminAddress = String(params.adminAddress || "").trim();
+    const payoutToAddress = String(params.payoutToAddress || "").trim();
 
-    if (params.nonce === undefined || params.nonce === null || String(params.nonce).trim() === "") {
-      throw new Error("[VAULT-GUARD] Explicit non-zero nonce is required for resolveDisputeWithPq.");
+    this.assertValidStellarAddress(adminAddress, "adminAddress");
+    this.assertValidStellarAddress(payoutToAddress, "payoutToAddress");
+
+    if (
+      params.nonce === undefined ||
+      params.nonce === null ||
+      String(params.nonce).trim() === ""
+    ) {
+      throw new Error(
+        "[VAULT-GUARD] Explicit non-zero nonce is required for resolveDisputeWithPq."
+      );
     }
     const nonceVal = this.parsePositiveBigInt(params.nonce, "nonce");
 
@@ -348,7 +367,7 @@ export class BazaarVaultService {
 
     const vaultRecord = await this.assertEscrowInStatus(
       sanitizedId,
-      params.adminAddress,
+      adminAddress,
       ["Disputed", "Locked"],
       "resolveDisputeWithPq"
     );
@@ -362,7 +381,10 @@ export class BazaarVaultService {
         );
       }
     } else {
-      resolvedAmount = this.parsePositiveBigInt(BigInt(vaultRecord.amount), "on-chain vault amount");
+      resolvedAmount = this.parsePositiveBigInt(
+        BigInt(vaultRecord.amount),
+        "on-chain vault amount"
+      );
     }
 
     const pqAuth = signEscrowAuthWithMlDsa65(
@@ -380,20 +402,21 @@ export class BazaarVaultService {
       const callOp = this.contract.call(
         "resolve_dispute_with_pq",
         nativeToScVal(sanitizedId, { type: "symbol" }),
-        Address.fromString(params.adminAddress.trim()).toScVal(),
-        Address.fromString(params.payoutToAddress.trim()).toScVal(),
+        Address.fromString(adminAddress).toScVal(),
+        Address.fromString(payoutToAddress).toScVal(),
         nativeToScVal(pqAuth.pqPublicKey, { type: "bytes" }),
         nativeToScVal(pqAuth.pqSignature, { type: "bytes" }),
         nativeToScVal(nonceVal, { type: "u64" })
       );
 
-      return await this.executeContractCall(params.adminAddress.trim(), callOp, signer);
+      return await this.executeContractCall(adminAddress, callOp, signer);
     } finally {
       pqAuth.zeroizeSecretKey();
     }
   }
 
   private async getAccountSequence(sourceAddress: string): Promise<string> {
+    const trimmedAddress = sourceAddress.trim();
     const horizonBase = (
       process.env.PI_HORIZON_URL ||
       process.env.NEXT_PUBLIC_PI_HORIZON_URL ||
@@ -402,7 +425,7 @@ export class BazaarVaultService {
 
     // 1. Direct REST fetch to Pi Horizon
     try {
-      const res = await fetch(`${horizonBase}/accounts/${sourceAddress}`);
+      const res = await fetch(`${horizonBase}/accounts/${trimmedAddress}`);
       if (res.ok) {
         const data = (await res.json()) as any;
         if (data?.sequence) return String(data.sequence);
@@ -411,17 +434,17 @@ export class BazaarVaultService {
 
     // 2. Fallback to Horizon SDK
     try {
-      const horizonAcc = await this.horizonServer.loadAccount(sourceAddress);
+      const horizonAcc = await this.horizonServer.loadAccount(trimmedAddress);
       return horizonAcc.sequenceNumber();
     } catch {}
 
     // 3. Fallback to Soroban RPC
     try {
-      const rpcAcc = await this.rpcServer.getAccount(sourceAddress);
+      const rpcAcc = await this.rpcServer.getAccount(trimmedAddress);
       return rpcAcc.sequenceNumber();
     } catch (err: any) {
       throw new Error(
-        `Failed to load account sequence for ${sourceAddress}: ${err?.message || err}`
+        `Failed to load account sequence for ${trimmedAddress}: ${err?.message || err}`
       );
     }
   }
@@ -451,8 +474,9 @@ export class BazaarVaultService {
     operation: xdr.Operation,
     signer: Keypair | ((txXdr: string) => Promise<string>)
   ): Promise<VaultTxResponse> {
-    const sequence = await this.getAccountSequence(sourceAddress);
-    const account = new Account(sourceAddress, sequence);
+    const trimmedSource = sourceAddress.trim();
+    const sequence = await this.getAccountSequence(trimmedSource);
+    const account = new Account(trimmedSource, sequence);
 
     const tx = new TransactionBuilder(account, {
       fee: PI_BASE_FEE,
