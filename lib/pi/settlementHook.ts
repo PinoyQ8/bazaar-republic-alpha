@@ -46,16 +46,39 @@ export interface SettlePiPaymentInput {
   rawPayment?: Record<string, unknown>;
 }
 
+function isUniqueConstraintError(err: unknown): boolean {
+  const e = err as { code?: string; message?: string };
+  return (
+    e?.code === "P2002" ||
+    /unique constraint|duplicate key/i.test(String(e?.message || ""))
+  );
+}
+
 export async function settleConfirmedPiPayment(input: SettlePiPaymentInput) {
-  const numericAmount =
+  const paymentId = String(input.paymentId || "").trim();
+  const txid = String(input.txid || "").trim();
+
+  if (!paymentId || !txid) {
+    throw new Error("[SETTLEMENT_HOOK] Both paymentId and txid are required.");
+  }
+
+  const rawAmountNum =
     typeof input.amount === "number"
       ? input.amount
-      : typeof input.amount === "string" && Number.isFinite(Number(input.amount))
-      ? Number(input.amount)
-      : 0;
+      : typeof input.amount === "string" && input.amount.trim() !== ""
+      ? Number(input.amount.trim())
+      : NaN;
 
+  if (!Number.isFinite(rawAmountNum) || rawAmountNum <= 0) {
+    throw new Error(
+      `[SETTLEMENT_HOOK] Invalid payment amount: ${String(input.amount)}`
+    );
+  }
+
+  const numericAmount = rawAmountNum;
   const prisma = getSettlementPrisma();
-  const payerUid = input.pioneerUid?.trim() || "pioneer_unverified";
+  const cleanPioneerUid = input.pioneerUid?.trim() || null;
+  const payerUid = cleanPioneerUid || "pioneer_unverified";
   const merchantUid =
     input.merchantUid?.trim() ||
     process.env.PI_MERCHANT_UID?.trim() ||
@@ -65,19 +88,42 @@ export async function settleConfirmedPiPayment(input: SettlePiPaymentInput) {
   let escrowUpdated = false;
   let ledgerRecorded = false;
   let auditRecorded = false;
+  let nodeFrozen = false;
+  const warnings: string[] = [];
 
-  if (prisma?.payment?.upsert && input.pioneerUid?.trim()) {
+  if (!prisma) {
+    warnings.push("PRISMA_CLIENT_UNAVAILABLE");
+  }
+
+  // Optional sanction/freeze guard when pioneerNode model is present
+  if (cleanPioneerUid && prisma?.pioneerNode?.findUnique) {
+    try {
+      const node = await prisma.pioneerNode.findUnique({
+        where: { uid: cleanPioneerUid },
+      });
+      if (node?.isFrozen || String(node?.status || "").toUpperCase() === "FROZEN") {
+        nodeFrozen = true;
+        warnings.push(`NODE_FROZEN:${cleanPioneerUid}`);
+      }
+    } catch (err) {
+      warnings.push(
+        `NODE_SANCTION_CHECK_FAILED:${(err as Error)?.message || "unknown"}`
+      );
+    }
+  }
+
+  if (prisma?.payment?.upsert && cleanPioneerUid) {
     try {
       await prisma.payment.upsert({
-        where: { paymentId: input.paymentId },
+        where: { paymentId },
         update: {
-          txid: input.txid,
-          amount: numericAmount > 0 ? numericAmount : undefined,
+          txid,
+          amount: numericAmount,
           status: "COMPLETED",
         },
         create: {
-          paymentId: input.paymentId,
-          txid: input.txid,
+          paymentId,
+          txid,
           payerUid,
           merchantUid,
           amount: numericAmount,
@@ -86,22 +132,38 @@ export async function settleConfirmedPiPayment(input: SettlePiPaymentInput) {
       });
       paymentRecorded = true;
     } catch (err) {
+      const msg = (err as Error)?.message || String(err);
       console.warn("[SETTLEMENT_HOOK] Payment upsert skipped/failed:", err);
+      warnings.push(`PAYMENT_UPSERT_FAILED:${msg}`);
     }
+  } else if (prisma?.payment?.upsert && !cleanPioneerUid) {
+    warnings.push("MISSING_PIONEER_UID_FOR_PAYMENT_UPSERT");
   }
 
-  if (input.escrowId && prisma?.escrowLock?.updateMany) {
+  const cleanEscrowId = input.escrowId?.trim() || null;
+  if (cleanEscrowId && prisma?.escrowLock?.updateMany) {
     try {
-      await prisma.escrowLock.updateMany({
-        where: { escrowId: input.escrowId },
+      const updateResult = await prisma.escrowLock.updateMany({
+        where: {
+          escrowId: cleanEscrowId,
+          status: { in: ["PENDING_ONCHAIN", "LOCKED"] },
+        },
         data: {
-          paymentId: input.paymentId,
-          txid: input.txid,
+          paymentId,
+          txid,
         },
       });
-      escrowUpdated = true;
+      if (typeof updateResult?.count === "number" && updateResult.count === 0) {
+        warnings.push(
+          `ESCROW_NOT_ELIGIBLE_OR_MISSING:${cleanEscrowId}`
+        );
+      } else {
+        escrowUpdated = true;
+      }
     } catch (err) {
+      const msg = (err as Error)?.message || String(err);
       console.warn("[SETTLEMENT_HOOK] EscrowLock update skipped/failed:", err);
+      warnings.push(`ESCROW_UPDATE_FAILED:${msg}`);
     }
   }
 
@@ -109,28 +171,35 @@ export async function settleConfirmedPiPayment(input: SettlePiPaymentInput) {
     try {
       const existing = await prisma.meshLedger.findFirst({
         where: {
-          OR: [{ txSignature: input.txid }, { txHash: input.txid }],
+          OR: [{ txSignature: txid }, { txHash: txid }],
         },
       });
 
       if (!existing) {
         await prisma.meshLedger.create({
           data: {
-            txSignature: input.txid,
-            txHash: input.txid,
+            txSignature: txid,
+            txHash: txid,
             txType: "SERVICE_SETTLEMENT",
-            fromUid: input.pioneerUid?.trim() || null,
+            fromUid: cleanPioneerUid,
             toUid: merchantUid,
             piAmount: numericAmount,
             amount: numericAmount,
             status: "CONFIRMED",
-            description: `[${input.realm}/${input.network}] Pi payment ${input.paymentId} settled`,
+            description: `[${input.realm}/${input.network}] Pi payment ${paymentId} settled`,
           },
         });
       }
       ledgerRecorded = true;
     } catch (err) {
-      console.warn("[SETTLEMENT_HOOK] MeshLedger write skipped/failed:", err);
+      if (isUniqueConstraintError(err)) {
+        // Concurrent settlement for the same txid already inserted the ledger entry
+        ledgerRecorded = true;
+      } else {
+        const msg = (err as Error)?.message || String(err);
+        console.warn("[SETTLEMENT_HOOK] MeshLedger write skipped/failed:", err);
+        warnings.push(`MESH_LEDGER_FAILED:${msg}`);
+      }
     }
   }
 
@@ -139,30 +208,36 @@ export async function settleConfirmedPiPayment(input: SettlePiPaymentInput) {
       await prisma.auditLog.create({
         data: {
           action: "PI_PAYMENT_SETTLED",
-          nodeId: input.pioneerUid?.trim() || input.realm,
+          nodeId: cleanPioneerUid || input.realm,
           payload: JSON.stringify({
-            paymentId: input.paymentId,
-            txid: input.txid,
+            paymentId,
+            txid,
             network: input.network,
             realm: input.realm,
-            escrowId: input.escrowId ?? null,
+            escrowId: cleanEscrowId,
             amount: numericAmount,
+            nodeFrozen,
           }),
         },
       });
       auditRecorded = true;
     } catch (err) {
+      const msg = (err as Error)?.message || String(err);
       console.warn("[SETTLEMENT_HOOK] AuditLog write skipped/failed:", err);
+      warnings.push(`AUDIT_LOG_FAILED:${msg}`);
     }
   }
 
   return {
     settledAt: new Date().toISOString(),
-    paymentId: input.paymentId,
-    txid: input.txid,
+    paymentId,
+    txid,
     network: input.network,
     realm: input.realm,
-    escrowId: input.escrowId ?? null,
+    escrowId: cleanEscrowId,
+    nodeFrozen,
+    partialFailure: warnings.length > 0,
+    warnings,
     persistence: {
       paymentRecorded,
       escrowUpdated,
