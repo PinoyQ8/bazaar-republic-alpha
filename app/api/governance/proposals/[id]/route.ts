@@ -1,9 +1,10 @@
-// Location: app/api/governance/proposals/[id]/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import type { GovernanceChamber, VotingStage } from "@prisma/client";
-type GovernanceChamberKey = GovernanceChamber;
+import type { VotingStage } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { verifyVoterEligibility } from "@/lib/governance/voterEligibility";
+import {
+  verifyVoterEligibility,
+  type PioneerGovernanceProfile,
+} from "@/lib/governance/voterEligibility";
 import {
   evaluateChamberQuorumAndApproval,
   normalizeGovernanceChamber,
@@ -11,15 +12,24 @@ import {
 
 export const dynamic = "force-dynamic";
 
-// GET: Fetch individual proposal telemetry & ballots by ID
+type NormalizedVoteChoice = "YES" | "NO" | "ABSTAIN";
+
+function normalizeDecision(raw: unknown): NormalizedVoteChoice | null {
+  const val = String(raw || "").trim().toUpperCase();
+  if (val === "YES" || val === "FOR" || val === "APPROVE") return "YES";
+  if (val === "NO" || val === "AGAINST" || val === "REJECT") return "NO";
+  if (val === "ABSTAIN") return "ABSTAIN";
+  return null;
+}
+
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await params;
-
-    if (!id?.trim()) {
+    const proposalId = id?.trim();
+    if (!proposalId) {
       return NextResponse.json(
         { success: false, error: "MISSING_PROPOSAL_ID" },
         { status: 400 }
@@ -27,65 +37,56 @@ export async function GET(
     }
 
     const proposal = await prisma.internalProposal.findUnique({
-      where: { id: id.trim() },
-      include: {
-        votes: true,
-      },
+      where: { id: proposalId },
+      include: { votes: true },
     });
 
     if (!proposal) {
       return NextResponse.json(
-        { success: false, error: `Proposal [${id}] not found.` },
+        { success: false, error: `Proposal [${proposalId}] not found.` },
         { status: 404 }
       );
     }
 
     return NextResponse.json({ success: true, proposal }, { status: 200 });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message =
+      error instanceof Error ? error.message : "Failed to fetch proposal.";
     console.error("[PROPOSAL_GET_ERROR]:", error);
     return NextResponse.json(
-      { success: false, error: error.message || "Failed to fetch proposal." },
+      { success: false, error: message },
       { status: 500 }
     );
   }
 }
 
-// POST: Cast stage-gated vote & evaluate Stage 1 >= 80% promotion atomically
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await params;
-    const body = await req.json();
-    const voterUid = String(body?.voterUid || "").trim();
-    const normalizedDecision = String(body?.decision || "")
-      .trim()
-      .toUpperCase();
+    const proposalId = id?.trim();
+    const body = await req.json().catch(() => ({}));
 
-    if (!id?.trim() || !voterUid || !normalizedDecision) {
+    const voterUid = String(
+      body?.voterUid || body?.pioneer_id || body?.uid || ""
+    ).trim();
+    const decision = normalizeDecision(
+      body?.decision ?? body?.choice ?? body?.vote_decision
+    );
+
+    if (!proposalId || !voterUid || !decision) {
       return NextResponse.json(
         {
           success: false,
-          error: "MALFORMED_PAYLOAD: Missing id, voterUid, or decision.",
+          error:
+            "INVALID_VOTE_PAYLOAD: proposal id, voterUid, and decision required.",
         },
         { status: 400 }
       );
     }
 
-    if (!["YES", "NO", "ABSTAIN"].includes(normalizedDecision)) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "INVALID_DECISION: Must be YES, NO, or ABSTAIN.",
-        },
-        { status: 400 }
-      );
-    }
-
-    const proposalId = id.trim();
-
-    // 1. Verify Voter Node & Server-Side Tier Qualification
     const voterNode = await prisma.pioneerNode.findUnique({
       where: { uid: voterUid },
     });
@@ -94,57 +95,71 @@ export async function POST(
       return NextResponse.json(
         {
           success: false,
-          error: "UNAUTHORIZED: Voter node not found in ledger.",
+          error: `VOTER_NOT_FOUND: Pioneer node [${voterUid}] does not exist.`,
         },
         { status: 403 }
       );
     }
 
-    const academyLogs = await prisma.academyLog.findMany({
-      where: { pioneerUid: voterNode.uid, status: "COMPLETED" },
-      select: { moduleKey: true },
-    });
+    const voterRecord = voterNode as unknown as {
+      uid: string;
+      tier?: string | null;
+      status?: string | null;
+      isFrozen?: boolean | null;
+      trustScore?: number | null;
+      assignedChamber?: string | null;
+      assignedRole?: string | null;
+      role?: string | null;
+      stakedPi?: number | null;
+      uptimeShield?: number | null;
+      completedModules?: string[] | null;
+      isGenesisCohort?: boolean | null;
+    };
 
-    const eligibility = verifyVoterEligibility({
-      uid: voterNode.uid,
-      tier: String(voterNode.tier),
-      status: String(voterNode.status),
-      isFrozen: Boolean(voterNode.isFrozen),
-      trustScore: Number(voterNode.trustScore ?? 0),
-      assignedChamber: voterNode.assignedChamber,
-      assignedRole: (voterNode as any).assignedRole ?? null,
-      stakedPi: Number(voterNode.stakedPi ?? 0),
-      uptimeShield: Number(voterNode.uptimeShield ?? 0),
-      completedModules: academyLogs.map((l) => l.moduleKey),
-    });
+    const profile: PioneerGovernanceProfile = {
+      uid: voterRecord.uid,
+      tier: String(voterRecord.tier || "CITIZEN"),
+      status: String(voterRecord.status || "ACTIVE"),
+      isFrozen: Boolean(voterRecord.isFrozen),
+      trustScore: Number(voterRecord.trustScore ?? 100),
+      assignedChamber: voterRecord.assignedChamber ?? null,
+      assignedRole: voterRecord.assignedRole ?? voterRecord.role ?? null,
+      stakedPi: Number(voterRecord.stakedPi ?? 0),
+      uptimeShield: Number(voterRecord.uptimeShield ?? 100),
+      completedModules: Array.isArray(voterRecord.completedModules)
+        ? voterRecord.completedModules
+        : [],
+      isGenesisCohort: Boolean(voterRecord.isGenesisCohort),
+    };
 
+    const eligibility = verifyVoterEligibility(profile);
     if (!eligibility.eligible || !eligibility.chamber) {
       return NextResponse.json(
         {
           success: false,
           error:
             eligibility.reason ||
-            "VOTER_INELIGIBLE: Tier or Academy qualification failed.",
+            "VOTER_INELIGIBLE: Node is unverified, frozen, or below tier standing.",
         },
         { status: 403 }
       );
     }
 
-    // 2. Verify Proposal Exists, Is Not Expired, and Is in an Open Voting Stage
     const proposal = await prisma.internalProposal.findUnique({
       where: { id: proposalId },
     });
 
     if (!proposal) {
       return NextResponse.json(
-        { success: false, error: `Proposal [${proposalId}] does not exist.` },
+        { success: false, error: `Proposal [${proposalId}] not found.` },
         { status: 404 }
       );
     }
 
-    if (proposal.expiresAt && new Date(proposal.expiresAt) < new Date()) {
+    const now = new Date();
+    if (proposal.expiresAt && now > proposal.expiresAt) {
       return NextResponse.json(
-        { success: false, error: "BALLOT_EXPIRED: Voting window has closed." },
+        { success: false, error: "TIME_LOCK_ENFORCED: Voting window expired." },
         { status: 422 }
       );
     }
@@ -156,9 +171,9 @@ export async function POST(
       return NextResponse.json(
         {
           success: false,
-          error: `Proposal is closed or not open for stage voting (Status: ${proposal.status}).`,
+          error: `STAGE_LOCKED: Proposal status [${proposal.status}] is not open for standard voting.`,
         },
-        { status: 422 }
+        { status: 409 }
       );
     }
 
@@ -166,38 +181,123 @@ export async function POST(
       ? "PRIMARY_TIER"
       : "GLOBAL_OTHER_TIERS";
 
-    // Stage 1: Only originating tier group may vote until >= 80% approval is reached
-    if (isPrimaryStage && eligibility.chamber !== proposal.originTier) {
+    const originChamber = normalizeGovernanceChamber(
+      proposal.originTier || proposal.assignedChamber
+    );
+    const voterChamber = normalizeGovernanceChamber(eligibility.chamber);
+
+    if (isPrimaryStage && voterChamber !== originChamber) {
       return NextResponse.json(
         {
           success: false,
-          error: `STAGE_1_PRIMARY_TIER_ONLY: Voting is restricted to originating tier [${proposal.originTier}] until >= 80% approval unlocks Stage 2 global voting.`,
+          error: `STAGE_1_PRIMARY_TIER_ONLY: Only [${originChamber}] nodes may vote in Stage 1.`,
         },
         { status: 403 }
       );
     }
 
-    // Stage 2: Global voting opens to the remaining tier groups
-    if (isGlobalStage && eligibility.chamber === proposal.originTier) {
+    if (isGlobalStage && voterChamber === originChamber) {
       return NextResponse.json(
         {
           success: false,
-          error: `STAGE_2_OTHER_TIERS_ONLY: Originating tier [${proposal.originTier}] already completed Stage 1 ratification.`,
+          error: `STAGE_2_OTHER_TIERS_ONLY: [${originChamber}] already completed Stage 1 primary voting.`,
         },
         { status: 403 }
       );
     }
 
-    // 3. Replay Shield per (proposalId, voterId, voteStage)
-    const existingVote = await prisma.voteRecordModel.findFirst({
-      where: {
-        proposalId,
-        voterId: voterNode.uid,
-        voteStage: currentStage,
-      },
+    const isYes = decision === "YES";
+    const isNo = decision === "NO";
+
+    const txResult = await prisma.$transaction(async (tx) => {
+      const existingVote = await tx.voteRecord.findFirst({
+        where: {
+          proposalId,
+          voterUid: voterRecord.uid,
+          voteStage: currentStage,
+        },
+      });
+
+      if (existingVote) {
+        return { duplicate: true as const };
+      }
+
+      const vote = await tx.voteRecord.create({
+        data: {
+          proposalId,
+          voterId: voterRecord.uid,
+          voterUid: voterRecord.uid,
+          decision,
+          voteStage: currentStage,
+          voterTier: voterChamber,
+          weight: eligibility.weightMultiplier,
+        },
+      });
+
+      const tallied = await tx.internalProposal.update({
+        where: { id: proposalId },
+        data: {
+          ...(isPrimaryStage && isYes && { primaryVotesFor: { increment: 1 } }),
+          ...(isPrimaryStage && isNo && { primaryVotesAgainst: { increment: 1 } }),
+          ...(!isPrimaryStage && isYes && { globalVotesFor: { increment: 1 } }),
+          ...(!isPrimaryStage && isNo && { globalVotesAgainst: { increment: 1 } }),
+          ...(isYes && { votesFor: { increment: 1 } }),
+          ...(isNo && { votesAgainst: { increment: 1 } }),
+        },
+      });
+
+      let quorumEvaluation: ReturnType<
+        typeof evaluateChamberQuorumAndApproval
+      > | null = null;
+      let unlockedGlobalVoting = false;
+      let finalProposal = tallied;
+
+      if (isPrimaryStage) {
+        const decisivePrimary =
+          tallied.primaryVotesFor + tallied.primaryVotesAgainst;
+        const activePoolCount = await tx.pioneerNode.count({
+          where: {
+            status: "ACTIVE",
+            isFrozen: false,
+            assignedChamber: originChamber,
+          },
+        });
+
+        const evaluated = evaluateChamberQuorumAndApproval({
+          chamber: originChamber,
+          votesCast: decisivePrimary,
+          votesFor: tallied.primaryVotesFor,
+          activePoolCount,
+        });
+
+        quorumEvaluation = evaluated;
+        unlockedGlobalVoting = Boolean(evaluated.passed);
+
+        finalProposal = await tx.internalProposal.update({
+          where: { id: proposalId },
+          data: {
+            primaryApprovalPct: evaluated.approvalPct,
+            primaryQuorumMet: evaluated.quorumMet,
+            ...(unlockedGlobalVoting && {
+              status: "GLOBAL_ACTIVE",
+              votingStage: "GLOBAL_OTHER_TIERS",
+              primaryPassedAt: now,
+              globalVotingUnlockedAt: now,
+            }),
+          },
+        });
+      }
+
+      return {
+        duplicate: false as const,
+        vote,
+        proposal: finalProposal,
+        quorumEvaluation,
+        unlockedGlobalVoting,
+      };
     });
 
-    if (existingVote) {
+    if (txResult.duplicate) {
       return NextResponse.json(
         {
           success: false,
@@ -207,170 +307,22 @@ export async function POST(
       );
     }
 
-    // 4. Atomic State Transition + Stage 1 Quorum & >= 80% Gate Evaluation
-    const isYes = normalizedDecision === "YES";
-    const isNo = normalizedDecision === "NO";
-
-    const { newVote, updatedProposal, unlockedGlobalVoting, quorumEval } =
-      await prisma.$transaction(async (tx) => {
-        const vote = await tx.voteRecordModel.create({
-          data: {
-            proposalId,
-            voterId: voterNode.uid,
-            voterUid: voterNode.uid,
-            decision: normalizedDecision as "YES" | "NO" | "ABSTAIN",
-            voteStage: currentStage,
-            voterTier: eligibility.chamber!,
-            weight: eligibility.weightMultiplier,
-          },
-        });
-
-        const tallied = await tx.internalProposal.update({
-          where: { id: proposalId },
-          data: {
-            ...(isPrimaryStage && isYes && { primaryVotesFor: { increment: 1 } }),
-            ...(isPrimaryStage && isNo && { primaryVotesAgainst: { increment: 1 } }),
-            ...(!isPrimaryStage && isYes && { globalVotesFor: { increment: 1 } }),
-            ...(!isPrimaryStage && isNo && { globalVotesAgainst: { increment: 1 } }),
-            ...(isYes && { votesFor: { increment: 1 } }),
-            ...(isNo && { votesAgainst: { increment: 1 } }),
-          },
-        });
-
-        if (isPrimaryStage) {
-          const decisivePrimary =
-            tallied.primaryVotesFor + tallied.primaryVotesAgainst;
-
-          const activeEligibleCount = await tx.pioneerNode.count({
-            where: {
-              status: "ACTIVE",
-              isFrozen: false,
-              assignedChamber: proposal.originTier,
-            },
-          });
-
-          const primaryChamber = normalizeGovernanceChamber(
-            proposal.assignedChamber || proposal.originTier
-          );
-
-          const evalResult = evaluateChamberQuorumAndApproval({
-            chamber: primaryChamber,
-            votesCast: decisivePrimary,
-            votesFor: tallied.primaryVotesFor,
-            activePoolCount: activeEligibleCount,
-          });
-
-          const shouldUnlockGlobal = evalResult.passed;
-          const now = new Date();
-
-          const promoted = await tx.internalProposal.update({
-            where: { id: proposalId },
-            data: {
-              primaryApprovalPct: evalResult.approvalPct,
-              primaryQuorumMet: evalResult.quorumMet,
-              ...(shouldUnlockGlobal && {
-                status: "GLOBAL_ACTIVE",
-                votingStage: "GLOBAL_OTHER_TIERS",
-                primaryPassedAt: now,
-                globalVotingUnlockedAt: now,
-              }),
-            },
-          });
-
-          return {
-            newVote: vote,
-            updatedProposal: promoted,
-            unlockedGlobalVoting: shouldUnlockGlobal,
-            quorumEval: evalResult,
-          };
-        }
-
-        const allVotesAfter = await tx.voteRecordModel.findMany({
-          where: { proposalId },
-        });
-
-        const allChambers: GovernanceChamberKey[] = [
-          "FOUNDER",
-          "GENESIS",
-          "MERCHANT",
-          "SERVICE_PROVIDER",
-          "CITIZEN",
-        ];
-
-        const primaryChamber = normalizeGovernanceChamber(proposal.originTier);
-
-        const chamberPassFlags = await Promise.all(
-          allChambers.map(async (chamber) => {
-            const isOrigin = chamber === primaryChamber;
-            const activePoolCount = await tx.pioneerNode.count({
-              where: {
-                assignedChamber: chamber,
-                status: "ACTIVE",
-                isFrozen: false,
-              },
-            });
-
-            const stageVotes = allVotesAfter.filter(
-              (v) =>
-                normalizeGovernanceChamber(v.voterTier) === chamber &&
-                v.voteStage ===
-                  (isOrigin ? "PRIMARY_TIER" : "GLOBAL_OTHER_TIERS")
-            );
-
-            const cVotesFor = stageVotes.filter((v) => v.decision === "YES").length;
-            const cVotesAgainst = stageVotes.filter(
-              (v) => v.decision === "NO"
-            ).length;
-
-            const evaluation = evaluateChamberQuorumAndApproval({
-              chamber,
-              votesCast: cVotesFor + cVotesAgainst,
-              votesFor: cVotesFor,
-              activePoolCount,
-            });
-
-            return isOrigin
-              ? Boolean(tallied.primaryPassedAt) || evaluation.passed
-              : evaluation.passed;
-          })
-        );
-
-        const passedChamberCount = chamberPassFlags.filter(Boolean).length;
-        const globalRatified = passedChamberCount >= 4;
-
-        let finalStage2Proposal = tallied;
-        if (globalRatified && tallied.status === "GLOBAL_ACTIVE") {
-          finalStage2Proposal = await tx.internalProposal.update({
-            where: { id: proposalId },
-            data: {
-              status: "PASSED",
-            },
-          });
-        }
-
-        return {
-          newVote: vote,
-          updatedProposal: finalStage2Proposal,
-          unlockedGlobalVoting: false,
-          quorumEval: null,
-        };
-      });
-
     return NextResponse.json(
       {
         success: true,
         stage: currentStage,
-        voterChamber: eligibility.chamber,
+        voterChamber,
         weightMultiplier: eligibility.weightMultiplier,
-        unlockedGlobalVoting,
-        ...(quorumEval && { quorumEvaluation: quorumEval }),
-        vote: newVote,
-        proposal: updatedProposal,
+        unlockedGlobalVoting: txResult.unlockedGlobalVoting,
+        quorumEvaluation: txResult.quorumEvaluation,
+        vote: txResult.vote,
+        proposal: txResult.proposal,
       },
       { status: 201 }
     );
-  } catch (error: any) {
-    if (error?.code === "P2002") {
+  } catch (error: unknown) {
+    const errObj = error as { code?: string; message?: string };
+    if (errObj?.code === "P2002") {
       return NextResponse.json(
         {
           success: false,
@@ -383,7 +335,10 @@ export async function POST(
 
     console.error("[PROPOSAL_VOTE_ERROR]:", error);
     return NextResponse.json(
-      { success: false, error: error.message || "Failed to record vote." },
+      {
+        success: false,
+        error: errObj?.message || "Failed to record vote.",
+      },
       { status: 500 }
     );
   }
