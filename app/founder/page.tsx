@@ -1,5 +1,4 @@
-// Location: app/founder/page.tsx
-"use client";
+﻿"use client";
 
 import React, { useMemo } from "react";
 import { Crown, Lock, ShieldAlert } from "lucide-react";
@@ -10,6 +9,7 @@ import {
   normalizeTierLevel,
 } from "@/app/lib/governance/tierRbac";
 import HeirSuccessionPanel from "@/components/HeirSuccessionPanel";
+import FounderAccountSettingsCard from "@/components/founder/FounderAccountSettingsCard";
 
 export default function FounderPage() {
   const { pioneer, hasActiveRole, isFounder } = useAuth();
@@ -79,6 +79,8 @@ export default function FounderPage() {
           sovereign heir succession continuity.
         </p>
       </div>
+
+      <FounderAccountSettingsCard />
 
       <HeirSuccessionPanel
         founderAddress={

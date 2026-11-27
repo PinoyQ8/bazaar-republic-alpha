@@ -1,8 +1,8 @@
-// Location: app/governance/page.tsx
-import React from "react";
-import { prisma } from "@/lib/prisma";
+﻿import React from "react";
 import { Vote } from "lucide-react";
-import GovernanceProposalFeed from "@/components/governance/GovernanceProposalFeed";
+import { prisma } from "@/lib/prisma";
+import { normalizeTierLevel } from "@/app/lib/governance/tierRbac";
+import GovernanceWorkspaceClient from "@/components/governance/GovernanceWorkspaceClient";
 import type {
   GovernanceProposalRecord,
   GovernanceProposalStatus,
@@ -23,7 +23,7 @@ async function fetchGovernanceState(): Promise<{
     const [rawProposals, activePioneers] = await Promise.all([
       prisma.internalProposal.findMany({
         orderBy: { createdAt: "desc" },
-        take: 20,
+        take: 25,
       }),
       prisma.pioneerNode.count({
         where: { status: "ACTIVE" },
@@ -58,36 +58,39 @@ async function fetchGovernanceState(): Promise<{
       createdAt: p.createdAt.toISOString(),
     }));
 
-    return {
-      proposals,
-      activePioneers,
-    };
+    return { proposals, activePioneers };
   } catch (err) {
     console.error("[GOVERNANCE_DATA_FAULT]:", err);
-    return {
-      proposals: [],
-      activePioneers: 0,
-    };
+    return { proposals: [], activePioneers: 0 };
   }
 }
 
-export default async function GovernanceMasterPage(props: GovernancePageProps) {
+export default async function GovernancePage(props: GovernancePageProps) {
   if (props.params) await props.params;
   const resolvedSearch = props.searchParams ? await props.searchParams : {};
 
   const queryUid =
     typeof resolvedSearch.uid === "string" ? resolvedSearch.uid.trim() : "";
+  const queryTier =
+    typeof resolvedSearch.tier === "string" ? resolvedSearch.tier : undefined;
 
-  let initialUid = queryUid;
-  let initialIsFounder = queryUid.toLowerCase().includes("founder");
+  let resolvedTier = normalizeTierLevel(queryTier ?? 1);
+  let isFounder = queryUid.toLowerCase().includes("founder");
+  let isFrozen = false;
 
   if (queryUid) {
     const pioneer = await (prisma as any).pioneerNode
       ?.findUnique?.({ where: { uid: queryUid } })
       .catch(() => null);
     if (pioneer) {
-      initialIsFounder =
-        initialIsFounder || String(pioneer.tier) === "BAZAAR_FOUNDER";
+      resolvedTier = normalizeTierLevel(queryTier ?? pioneer.tier ?? 1);
+      isFounder =
+        isFounder ||
+        String(pioneer.tier || "").toUpperCase() === "BAZAAR_FOUNDER" ||
+        String(pioneer.role || "").toUpperCase().includes("FOUNDER");
+      isFrozen = ["FROZEN", "QUARANTINED", "SUSPENDED"].includes(
+        String(pioneer.status || "").toUpperCase()
+      );
     }
   }
 
@@ -95,7 +98,6 @@ export default async function GovernanceMasterPage(props: GovernancePageProps) {
 
   return (
     <main className="w-full max-w-[384px] mx-auto min-h-dvh bg-slate-950 text-slate-100 p-4 pb-24 font-mono flex flex-col gap-4">
-      {/* Header */}
       <header className="border-b border-slate-800 pb-3 flex justify-between items-center">
         <div>
           <div className="text-[10px] text-cyan-400 font-bold uppercase tracking-widest flex items-center gap-1.5">
@@ -115,39 +117,15 @@ export default async function GovernanceMasterPage(props: GovernancePageProps) {
         </div>
       </header>
 
-      {/* Quorum & Constitutional Guardrail Overview */}
-      <section className="p-3.5 bg-slate-900/60 border border-slate-800 rounded-xl flex flex-col gap-2">
-        <div className="flex justify-between items-center text-[10px] uppercase font-bold text-slate-400">
-          <span>Constitutional Rules</span>
-          <span className="text-cyan-400">5-Chamber Grid</span>
-        </div>
-        <div className="grid grid-cols-2 gap-2 text-xs pt-1">
-          <div className="p-2 bg-slate-950 border border-slate-800/80 rounded-lg">
-            <span className="text-[9px] text-slate-500 block">
-              Chamber Ratification
-            </span>
-            <span className="font-bold text-slate-200">≥ 80% / 20% Cap</span>
-          </div>
-          <div className="p-2 bg-slate-950 border border-slate-800/80 rounded-lg">
-            <span className="text-[9px] text-slate-500 block">
-              Elder VRF / Hold SLA
-            </span>
-            <span className="font-bold text-amber-400">3/5 Elders • 72h Hold</span>
-          </div>
-        </div>
-      </section>
-
-      {/* Interactive Proposal Queue with ELDER_REVIEW & HOLD_AND_MODIFY Actions */}
-      <GovernanceProposalFeed
+      <GovernanceWorkspaceClient
         initialProposals={proposals}
-        currentUid={initialUid}
-        isFounder={initialIsFounder}
+        currentUid={queryUid}
+        governanceTier={resolvedTier}
+        isFounder={isFounder}
+        hasPassport={Boolean(queryUid) || resolvedTier > 1 || isFounder}
+        isFrozen={isFrozen}
+        hasRole={Boolean(queryUid) || resolvedTier > 1 || isFounder}
       />
-
-      {/* Footer */}
-      <footer className="mt-auto text-center text-[9px] text-slate-600 font-mono tracking-widest pt-4">
-        BAZAAR REPUBLIC // TRI-STATE MESH ADJUDICATOR
-      </footer>
     </main>
   );
 }
