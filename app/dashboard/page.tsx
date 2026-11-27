@@ -15,6 +15,7 @@ import {
   Sliders,
 } from "lucide-react";
 import StakingPoolCard from "@/app/dashboard/components/StakingPoolCard";
+import FounderAccountSettingsCard from "@/components/founder/FounderAccountSettingsCard";
 import StakingPoolEpochLedger from "@/components/staking/StakingPoolEpochLedger";
 import {
   canAccessDashboardSection,
@@ -319,6 +320,8 @@ export default function DashboardPage({
 
       <StakingPoolEpochLedger poolId="GENESIS_LP_1000_PI" pioneerUid={activePioneerUid || undefined} />
 
+      {canShowPreviewBar && <FounderAccountSettingsCard />}
+
       {/* Tier 5 Genesis / Elder Protocol Clearance Card */}
       <div
         className={`rounded-xl border p-3 text-[11px] flex items-center justify-between gap-2 ${
@@ -391,3 +394,4 @@ export default function DashboardPage({
     </div>
   );
 }
+
