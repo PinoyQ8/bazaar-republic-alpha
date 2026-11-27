@@ -74,7 +74,7 @@ function buildInstanceKey(contractId: string): xdr.LedgerKey {
     new xdr.LedgerKeyContractData({
       contract: Address.fromString(contractId).toScAddress(),
       key: xdr.ScVal.scvLedgerKeyContractInstance(),
-      durability: xdr.ContractDataDurability.persistent(),
+      durability: (xdr.ContractDataDurability as any).persistent(),
     })
   );
 }
@@ -121,24 +121,33 @@ async function runTtlKeeper() {
     const readOnlyFootprint: xdr.LedgerKey[] = [instanceKey];
 
     if (entries.length > 0 && entries[0].val) {
-      try {
-        const entryVal: any = entries[0].val;
-        const ledgerEntryData =
-          typeof entryVal === "string" || Buffer.isBuffer(entryVal)
-            ? xdr.LedgerEntryData.fromXDR(entryVal as any, "base64")
-            : (entryVal as xdr.LedgerEntryData);
-        const contractData = ledgerEntryData.contractData();
-        const instance = contractData.val().instance();
-        const wasmHash = instance.executable().wasmHash();
-        if (wasmHash) {
-          readOnlyFootprint.push(
-            xdr.LedgerKey.contractCode(
-              new xdr.LedgerKeyContractCode({ hash: wasmHash })
-            )
-          );
-        }
-      } catch {}
+  try {
+    const entryVal: unknown = entries[0].val;
+    const ledgerEntryData: unknown =
+      typeof entryVal === "string" || Buffer.isBuffer(entryVal)
+        ? xdr.LedgerEntryData.fromXDR(entryVal as any, "base64")
+        : entryVal;
+
+    const contractDataFn = (ledgerEntryData as any)?.contractData;
+    if (typeof contractDataFn === "function") {
+      const contractData = contractDataFn.call(ledgerEntryData);
+      const instance = contractData?.val?.()?.instance?.();
+      const executable = instance?.executable?.();
+      const wasmHash =
+        executable?.switch?.()?.name === "contractExecutableWasm"
+          ? executable.wasmHash?.()
+          : undefined;
+
+      if (wasmHash) {
+        readOnlyFootprint.push(
+          xdr.LedgerKey.contractCode(
+            new xdr.LedgerKeyContractCode({ hash: wasmHash })
+          )
+        );
+      }
     }
+  } catch {}
+}
 
     const sorobanData = new SorobanDataBuilder()
       .setReadOnly(readOnlyFootprint)

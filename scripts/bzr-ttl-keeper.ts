@@ -122,31 +122,34 @@ async function checkAndExtendTTL(): Promise<void> {
       minRemainingTtl = remaining;
     }
 
-    if (entry.val) {
-      try {
-        const entryVal: any = entry.val;
-        const ledgerEntryData =
-          typeof entryVal === "string" || Buffer.isBuffer(entryVal)
-            ? xdr.LedgerEntryData.fromXDR(entryVal as any, "base64")
-            : (entryVal as xdr.LedgerEntryData);
+   if (entry.val) {
+  try {
+    const entryVal: unknown = entry.val;
+    const ledgerEntryData: unknown =
+      typeof entryVal === "string" || Buffer.isBuffer(entryVal)
+        ? xdr.LedgerEntryData.fromXDR(entryVal as any, "base64")
+        : entryVal;
 
-        const instance = ledgerEntryData.contractData().val().instance();
-        const executable = instance.executable();
-        if (executable.switch().name === "contractExecutableWasm") {
-          const wasmHash = executable.wasmHash();
-          if (wasmHash) {
-            readOnlyFootprint.push(
-              xdr.LedgerKey.contractCode(
-                new xdr.LedgerKeyContractCode({ hash: wasmHash })
-              )
-            );
-          }
+    const contractDataFn = (ledgerEntryData as any)?.contractData;
+    if (typeof contractDataFn === "function") {
+      const instance = contractDataFn.call(ledgerEntryData)?.val?.()?.instance?.();
+      const executable = instance?.executable?.();
+      if (executable?.switch?.()?.name === "contractExecutableWasm") {
+        const wasmHash = executable.wasmHash?.();
+        if (wasmHash) {
+          readOnlyFootprint.push(
+            xdr.LedgerKey.contractCode(
+              new xdr.LedgerKeyContractCode({ hash: wasmHash })
+            )
+          );
         }
-      } catch {
+      }
+    }
+  } catch {
         // Ignore non-WASM or pre-decoded entries
       }
     }
-  }
+  } // <-- Closes `for (const entry of entries)` (opened on line 118)
 
   console.log(
     `🔍 [KEEPER] Vault Remaining TTL: ${
@@ -174,9 +177,9 @@ async function checkAndExtendTTL(): Promise<void> {
         .setTimeout(30)
         .build();
 
-      const preparedTx = await server.prepareTransaction(rawTx, NETWORK_PASSPHRASE);
-      const txToSign = TransactionBuilder.fromXDR(preparedTx.toXDR(), NETWORK_PASSPHRASE);
-      txToSign.sign(keeperKey);
+      const preparedTx = await server.prepareTransaction(rawTx);
+const txToSign = TransactionBuilder.fromXDR(preparedTx.toXDR(), NETWORK_PASSPHRASE);
+txToSign.sign(keeperKey);
 
       const sendRes = await server.sendTransaction(txToSign);
       if (sendRes.status === "ERROR") {
