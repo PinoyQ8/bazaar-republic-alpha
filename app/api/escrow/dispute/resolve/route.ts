@@ -10,6 +10,7 @@ export const dynamic = "force-dynamic";
 
 const PI_TO_MBZR = 1000;
 const STROOPS_PER_PI = 10_000_000;
+const STROOPS_PER_PI_BIGINT = 10_000_000n;
 
 const DEFAULT_CONSUMER_ADDRESS =
   "GAU5Y5UWUQ5ETIEI5HWVJR7VDMXUETTSKQ4UKOIIGIW6GVIMCR354UJ3";
@@ -20,10 +21,9 @@ const DEFAULT_ADMIN_ADDRESS =
   process.env.NEXT_PUBLIC_STELLAR_ADMIN_ADDRESS ||
   DEFAULT_CONSUMER_ADDRESS;
 
-function resolveSignerKeypair(secretKeyOverride?: unknown): Keypair | null {
+function resolveServerSignerKeypair(): Keypair | null {
   const rawSecret = String(
-    secretKeyOverride ||
-      process.env.STELLAR_DEPLOYER_SECRET ||
+    process.env.STELLAR_DEPLOYER_SECRET ||
       process.env.OPERATOR_STELLAR_SECRET ||
       process.env.STELLAR_VAULT_SEED ||
       ""
@@ -74,10 +74,35 @@ function toStroopsBigInt(escrow: any, escrowAmountPi: number): bigint {
     return BigInt(escrow.amountStroops);
   }
   const num = Number(escrowAmountPi ?? 0);
+  if (!Number.isFinite(num) || num <= 0) {
+    return 0n;
+  }
   if (Number.isInteger(num) && num >= STROOPS_PER_PI) {
     return BigInt(num);
   }
   return BigInt(Math.round(num * STROOPS_PER_PI));
+}
+
+function parsePositiveBigInt(raw: unknown, label: string): bigint {
+  if (
+    typeof raw === "number" &&
+    (!Number.isFinite(raw) || !Number.isInteger(raw))
+  ) {
+    throw new Error(`${label} must be a finite integer.`);
+  }
+  const parsed = BigInt(raw as bigint | number | string);
+  if (parsed <= 0n) {
+    throw new Error(`${label} must be greater than 0.`);
+  }
+  return parsed;
+}
+
+function isNodeSanctionedOrFrozen(node: any): boolean {
+  if (!node) return false;
+  const status = String(node.status || "").toUpperCase();
+  return Boolean(
+    node.isFrozen || status === "FROZEN" || status === "SUSPENDED"
+  );
 }
 
 export async function POST(req: NextRequest) {
@@ -96,6 +121,21 @@ export async function POST(req: NextRequest) {
       skipOnChain = false,
       enforceQuorum = false,
     } = body || {};
+
+    if (
+      secretKey !== undefined &&
+      secretKey !== null &&
+      String(secretKey).trim() !== ""
+    ) {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            "Supplying raw secretKey in the HTTP request body is forbidden. Configure server signer env variables instead.",
+        },
+        { status: 400 }
+      );
+    }
 
     const targetKey = String(disputeId || escrowId || "").trim();
     if (!targetKey) {
@@ -122,7 +162,7 @@ export async function POST(req: NextRequest) {
               OR: [
                 ...(isHexBson ? [{ id: targetKey }] : []),
                 { escrowId: targetKey },
-                { escrowLockId: targetKey },
+                ...(isHexBson ? [{ escrowLockId: targetKey }] : []),
               ],
             },
           })
@@ -158,12 +198,74 @@ export async function POST(req: NextRequest) {
     const targetContractId = String(
       bodyContractId || escrow?.vaultContractId || BAZAAR_VAULT_CONTRACT_ID
     ).trim();
+
+    if (!StrKey.isValidContract(targetContractId)) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `Invalid target contractId: ${targetContractId}`,
+        },
+        { status: 400 }
+      );
+    }
+
     const vaultSvc = new BazaarVaultService(targetContractId);
-    const liveVault = await vaultSvc.getVault(resolvedEscrowId).catch(() => null);
+    const liveVault = await vaultSvc
+      .getVault(resolvedEscrowId)
+      .catch(() => null);
+
+    // 1. Reject finalized or non-disputed escrow/dispute states
+    const currentDisputeStatus = String(dispute?.status || "").toUpperCase();
+    const onChainStatus = String(liveVault?.status || "").toUpperCase();
+    const dbEscrowStatus = String(escrow?.status || "").toUpperCase();
+    const finalizedStatuses = [
+      "RELEASED",
+      "REFUNDED",
+      "RESOLVED_CONSUMER",
+      "RESOLVED_MERCHANT",
+    ];
+
+    if (
+      finalizedStatuses.includes(currentDisputeStatus) ||
+      finalizedStatuses.includes(onChainStatus) ||
+      finalizedStatuses.includes(dbEscrowStatus)
+    ) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `Escrow '${resolvedEscrowId}' is already finalized (onChain=${onChainStatus || "N/A"}, db=${dbEscrowStatus || "N/A"}, dispute=${currentDisputeStatus || "N/A"}).`,
+        },
+        { status: 409 }
+      );
+    }
+
+    if (!skipOnChain && liveVault && onChainStatus !== "DISPUTED") {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `On-chain escrow '${resolvedEscrowId}' is in status '${liveVault.status}' (must be DISPUTED for PQ dispute resolution).`,
+        },
+        { status: 409 }
+      );
+    }
+
+    if (dbEscrowStatus && !["DISPUTED", "LOCKED"].includes(dbEscrowStatus)) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `Database escrow '${resolvedEscrowId}' is in non-resolvable status '${dbEscrowStatus}' (expected DISPUTED or LOCKED).`,
+        },
+        { status: 409 }
+      );
+    }
 
     const votesForConsumer = Number(dispute?.votesForConsumer ?? 0);
     const votesForMerchant = Number(dispute?.votesForMerchant ?? 0);
-    const finalRuling = resolveRuling(ruling, votesForConsumer, votesForMerchant);
+    const finalRuling = resolveRuling(
+      ruling,
+      votesForConsumer,
+      votesForMerchant
+    );
 
     if (enforceQuorum) {
       const majorityVotes =
@@ -193,33 +295,159 @@ export async function POST(req: NextRequest) {
       escrow?.providerId ||
       DEFAULT_PROVIDER_ADDRESS;
 
+    const consumerWon = finalRuling === "FAVOR_CONSUMER";
+    const expectedRulingRecipient = consumerWon ? consumerAddr : providerAddr;
     const finalPayoutTo =
-      String(payoutToAddress || "").trim() ||
-      (finalRuling === "FAVOR_CONSUMER" ? consumerAddr : providerAddr);
+      String(payoutToAddress || "").trim() || expectedRulingRecipient;
     const finalAdmin =
       String(adminAddress || "").trim() || DEFAULT_ADMIN_ADDRESS;
 
-    const amountStroops =
-      bodyAmountStroops !== undefined && bodyAmountStroops !== null
-        ? BigInt(bodyAmountStroops)
-        : liveVault?.amount !== undefined && liveVault?.amount !== null
-          ? BigInt(liveVault.amount)
-          : toStroopsBigInt(escrow, Number(escrow?.amount ?? 0.01));
+    if (!StrKey.isValidEd25519PublicKey(finalAdmin)) {
+      return NextResponse.json(
+        { success: false, error: "Invalid adminAddress Stellar public key." },
+        { status: 400 }
+      );
+    }
 
-    const escrowAmountPi = Number(amountStroops) / STROOPS_PER_PI;
-    const nextNonce = BigInt(
-      nonce ??
-        (dispute?.pqNonce !== undefined && dispute?.pqNonce !== null
-          ? Number(dispute.pqNonce) + 1
-          : 1)
-    );
+    if (!StrKey.isValidEd25519PublicKey(finalPayoutTo)) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Invalid payoutToAddress Stellar public key.",
+        },
+        { status: 400 }
+      );
+    }
 
-    const signer = resolveSignerKeypair(secretKey);
+    if (
+      StrKey.isValidEd25519PublicKey(expectedRulingRecipient) &&
+      finalPayoutTo !== expectedRulingRecipient
+    ) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `payoutToAddress (${finalPayoutTo}) does not match expected ${finalRuling} recipient (${expectedRulingRecipient}).`,
+        },
+        { status: 400 }
+      );
+    }
+
+    // 2. Sanction / Freeze guard on payout recipient before executing settlement
+    const winnerUid = consumerWon
+      ? escrow?.consumerUid || consumerAddr
+      : escrow?.providerId || providerAddr;
+
+    if (db?.pioneerNode) {
+      const winnerNode = await db.pioneerNode
+        .findFirst({
+          where: {
+            OR: [
+              ...(winnerUid ? [{ uid: winnerUid }] : []),
+              { walletAddress: finalPayoutTo },
+            ],
+          },
+        })
+        .catch(() => null);
+
+      if (isNodeSanctionedOrFrozen(winnerNode)) {
+        const blockedStatus = String(winnerNode?.status || "FROZEN").toUpperCase();
+        return NextResponse.json(
+          {
+            success: false,
+            error: `Settlement blocked: payout recipient node (${winnerUid || finalPayoutTo}) is ${blockedStatus}.`,
+          },
+          { status: 403 }
+        );
+      }
+    }
+
+    let amountStroops: bigint;
+    try {
+      amountStroops =
+        bodyAmountStroops !== undefined && bodyAmountStroops !== null
+          ? parsePositiveBigInt(bodyAmountStroops, "amountStroops")
+          : liveVault?.amount !== undefined && liveVault?.amount !== null
+            ? parsePositiveBigInt(liveVault.amount, "liveVault.amount")
+            : parsePositiveBigInt(
+                toStroopsBigInt(escrow, Number(escrow?.amount ?? 0.01)),
+                "escrow amount"
+              );
+    } catch (amountErr: any) {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            amountErr?.message || "Escrow amountStroops must be greater than 0.",
+        },
+        { status: 400 }
+      );
+    }
+
+    if (
+      liveVault?.amount !== undefined &&
+      liveVault?.amount !== null &&
+      BigInt(liveVault.amount) > 0n &&
+      amountStroops !== BigInt(liveVault.amount)
+    ) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `amountStroops (${amountStroops}) does not match live on-chain vault amount (${liveVault.amount}).`,
+        },
+        { status: 400 }
+      );
+    }
+
+    const escrowAmountPi =
+      Number(amountStroops / STROOPS_PER_PI_BIGINT) +
+      Number(amountStroops % STROOPS_PER_PI_BIGINT) / STROOPS_PER_PI;
+
+    let nextNonce: bigint;
+    try {
+      const rawNonce =
+        nonce !== undefined && nonce !== null && String(nonce).trim() !== ""
+          ? nonce
+          : dispute?.pqNonce !== undefined && dispute?.pqNonce !== null
+            ? Number(dispute.pqNonce) + 1
+            : 1;
+      nextNonce = parsePositiveBigInt(rawNonce, "nonce");
+    } catch (nonceErr: any) {
+      return NextResponse.json(
+        { success: false, error: nonceErr?.message || "Invalid PQ nonce." },
+        { status: 400 }
+      );
+    }
+
+    if (
+      dispute?.pqNonce !== undefined &&
+      dispute?.pqNonce !== null &&
+      nextNonce <= BigInt(dispute.pqNonce)
+    ) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `Nonce (${nextNonce}) must be greater than last recorded dispute pqNonce (${dispute.pqNonce}).`,
+        },
+        { status: 409 }
+      );
+    }
+
+    const signer = resolveServerSignerKeypair();
     let settlementMode: "ON_CHAIN_PQ" | "LEDGER_ONLY" = "LEDGER_ONLY";
     let txHash: string | null = null;
-    let onChainWarning: string | null = null;
 
-    if (!skipOnChain && signer) {
+    if (!skipOnChain) {
+      if (!signer) {
+        return NextResponse.json(
+          {
+            success: false,
+            error:
+              "Server Ed25519 signer secret is not configured; refusing silent LEDGER_ONLY fallback while skipOnChain is false.",
+          },
+          { status: 503 }
+        );
+      }
+
       try {
         const vaultTx = await vaultSvc.resolveDisputeWithPq(
           {
@@ -235,18 +463,18 @@ export async function POST(req: NextRequest) {
         settlementMode = "ON_CHAIN_PQ";
         txHash = vaultTx.hash;
       } catch (chainErr: any) {
-        onChainWarning = chainErr?.message || String(chainErr);
-        console.warn(
-          "[API_DISPUTE_RESOLVE_PQ_FALLBACK_LEDGER]:",
-          onChainWarning
+        const chainMessage = chainErr?.message || String(chainErr);
+        console.error("[API_DISPUTE_RESOLVE_PQ_FAILED]:", chainMessage);
+        return NextResponse.json(
+          {
+            success: false,
+            error: `On-chain PQ dispute resolution failed: ${chainMessage}`,
+          },
+          { status: 502 }
         );
       }
-    } else if (!skipOnChain && !signer) {
-      onChainWarning =
-        "No valid Ed25519 signer secret found; settled in LEDGER_ONLY mode.";
     }
 
-    const consumerWon = finalRuling === "FAVOR_CONSUMER";
     const escrowStatus = consumerWon ? "REFUNDED" : "RELEASED";
     const winningOutcome = consumerWon
       ? "RESOLVED_CONSUMER"
@@ -291,10 +519,6 @@ export async function POST(req: NextRequest) {
     }
 
     if (db?.pioneerNode) {
-      const winnerUid = consumerWon
-        ? escrow?.consumerUid || consumerAddr
-        : escrow?.providerId || providerAddr;
-
       if (winnerUid) {
         await db.pioneerNode
           .updateMany({
@@ -308,9 +532,18 @@ export async function POST(req: NextRequest) {
         ? dispute.selectedElders
         : [];
       for (let i = 0; i < Math.min(majorityElderCount, elders.length); i++) {
+        const elderUid = elders[i];
+        const elderNode = await db.pioneerNode
+          .findFirst({ where: { uid: elderUid } })
+          .catch(() => null);
+
+        if (isNodeSanctionedOrFrozen(elderNode)) {
+          continue;
+        }
+
         await db.pioneerNode
           .updateMany({
-            where: { uid: elders[i] },
+            where: { uid: elderUid },
             data: { mbzrBalance: { increment: rewardPerElderMbzr } },
           })
           .catch(() => null);
@@ -326,7 +559,6 @@ export async function POST(req: NextRequest) {
         escrowStatus,
         settlementMode,
         txHash,
-        ...(onChainWarning ? { onChainWarning } : {}),
         pqAuth: {
           nonce: nextNonce.toString(),
           amountStroops: amountStroops.toString(),

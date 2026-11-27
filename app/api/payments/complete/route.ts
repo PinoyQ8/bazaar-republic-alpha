@@ -6,6 +6,8 @@ import {
 } from "@/lib/pi/piPlatform";
 import { settleConfirmedPiPayment } from "@/lib/pi/settlementHook";
 
+export const dynamic = "force-dynamic";
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
@@ -13,9 +15,13 @@ export async function POST(req: NextRequest) {
       typeof body?.paymentId === "string" ? body.paymentId.trim() : "";
     const txid = typeof body?.txid === "string" ? body.txid.trim() : "";
     const escrowId =
-      typeof body?.escrowId === "string" ? body.escrowId.trim() : null;
+      typeof body?.escrowId === "string" && body.escrowId.trim()
+        ? body.escrowId.trim()
+        : null;
     const pioneerUid =
-      typeof body?.pioneerUid === "string" ? body.pioneerUid.trim() : null;
+      typeof body?.pioneerUid === "string" && body.pioneerUid.trim()
+        ? body.pioneerUid.trim()
+        : null;
 
     if (!paymentId || !txid) {
       return NextResponse.json(
@@ -74,6 +80,14 @@ export async function POST(req: NextRequest) {
         ? (completed.data.payment as Record<string, unknown>)
         : completed.data;
 
+    const rawAmount =
+      typeof paymentObj?.amount === "number" ||
+      typeof paymentObj?.amount === "string"
+        ? paymentObj.amount
+        : typeof body?.amount === "number" || typeof body?.amount === "string"
+        ? body.amount
+        : null;
+
     const settlement = await settleConfirmedPiPayment({
       paymentId,
       txid,
@@ -81,13 +95,42 @@ export async function POST(req: NextRequest) {
       realm: env.realm,
       escrowId,
       pioneerUid,
-      amount:
-        typeof paymentObj?.amount === "number" ||
-        typeof paymentObj?.amount === "string"
-          ? paymentObj.amount
-          : null,
+      amount: rawAmount,
       rawPayment: paymentObj,
     });
+
+    if (settlement.nodeFrozen) {
+      return NextResponse.json(
+        {
+          success: false,
+          network: env.network,
+          realm: env.realm,
+          networkLabel: env.networkLabel,
+          txid,
+          error: "Settlement blocked: Pioneer node is frozen.",
+          settlement,
+          payment: completed.data,
+        },
+        { status: 403 }
+      );
+    }
+
+    if (settlement.partialFailure) {
+      return NextResponse.json(
+        {
+          success: false,
+          network: env.network,
+          realm: env.realm,
+          networkLabel: env.networkLabel,
+          txid,
+          error:
+            "Payment completed with Pi Platform, but settlement persistence encountered partial failure.",
+          settlement,
+          payment: completed.data,
+        },
+        { status: 502 }
+      );
+    }
 
     return NextResponse.json({
       success: true,
@@ -101,6 +144,7 @@ export async function POST(req: NextRequest) {
   } catch (err: unknown) {
     const message =
       err instanceof Error ? err.message : "Payment completion error.";
+    console.error("[API_PAYMENTS_COMPLETE_ERROR]:", message);
     return NextResponse.json(
       { success: false, error: message },
       { status: 500 }

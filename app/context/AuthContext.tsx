@@ -73,6 +73,30 @@ const FALLBACK_AUTH: AuthContextType = {
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+function assertSignedTxMatchesPrepared(
+  preparedTx: StellarSdk.Transaction | StellarSdk.FeeBumpTransaction,
+  signedTx: StellarSdk.Transaction | StellarSdk.FeeBumpTransaction
+): void {
+  const preparedInner =
+    preparedTx instanceof StellarSdk.FeeBumpTransaction
+      ? preparedTx.innerTransaction
+      : preparedTx;
+  const signedInner =
+    signedTx instanceof StellarSdk.FeeBumpTransaction
+      ? signedTx.innerTransaction
+      : signedTx;
+
+  if (signedInner.source !== preparedInner.source) {
+    throw new Error("[MESH-AUTH] Signed transaction source does not match prepared source.");
+  }
+  if (signedInner.sequence !== preparedInner.sequence) {
+    throw new Error("[MESH-AUTH] Signed transaction sequence does not match prepared sequence.");
+  }
+  if (signedInner.operations.length !== preparedInner.operations.length) {
+    throw new Error("[MESH-AUTH] Signed transaction operation count mismatch.");
+  }
+}
+
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [pioneer, setPioneer] = useState<PioneerState>(FALLBACK_PIONEER);
 
@@ -151,6 +175,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const executeStakePayment = useCallback(
     async (amount: number): Promise<void> => {
       try {
+        if (pioneer.status === "FROZEN" || pioneer.status === "SUSPENDED") {
+          throw new Error(
+            `MESH-SCAN: Pioneer account status is ${pioneer.status}. Staking is blocked.`
+          );
+        }
+
         const targetContractId = (
           process.env.NEXT_PUBLIC_STAKE_CONTRACT_ID ||
           process.env.NEXT_PUBLIC_BAZAAR_VAULT_CONTRACT_ID ||
@@ -191,6 +221,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           throw new Error("MESH-SCAN: Stake amount must be greater than zero.");
         }
 
+        const stroopsAmount = BigInt(Math.round(amount * 10_000_000));
+        if (stroopsAmount <= 0n) {
+          throw new Error(
+            "MESH-SCAN: Stake amount is too small after stroop conversion (must be >= 0.0000001)."
+          );
+        }
+
         const rpcUrl = (
           process.env.NEXT_PUBLIC_PI_RPC_URL ||
           process.env.NEXT_PUBLIC_SOROBAN_RPC_URL ||
@@ -208,7 +245,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
         const account = await server.getAccount(userPublicKey);
         const contract = new StellarSdk.Contract(targetContractId);
-        const stroopsAmount = BigInt(Math.round(amount * 10_000_000));
 
         let invokeOperation: StellarSdk.xdr.Operation;
 
@@ -279,6 +315,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }
 
         const signedTx = StellarSdk.TransactionBuilder.fromXDR(signedXdr, networkPassphrase);
+        assertSignedTxMatchesPrepared(assembledTx, signedTx);
 
         const sendRes = await server.sendTransaction(signedTx);
         if (sendRes.status === "ERROR") {
@@ -321,7 +358,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         throw error;
       }
     },
-    [pioneer?.publicKey]
+    [pioneer?.publicKey, pioneer?.status, pioneer?.isAuthenticated]
   );
 
   const contextValue = useMemo(() => {

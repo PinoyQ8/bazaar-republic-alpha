@@ -2,6 +2,7 @@ import {
   Account,
   Contract,
   Keypair,
+  StrKey,
   TransactionBuilder,
   Transaction,
   FeeBumpTransaction,
@@ -52,20 +53,77 @@ export class BazaarVaultService {
   private rpcServer: StellarRpc.Server;
   private horizonServer: Horizon.Server;
   private contract: Contract;
+  private networkPassphrase: string;
 
   constructor(
     contractId: string = BAZAAR_VAULT_CONTRACT_ID,
     rpcUrl: string = SOROBAN_RPC_URL,
-    horizonUrl: string = PI_HORIZON_URL
+    horizonUrl: string = PI_HORIZON_URL,
+    networkPassphrase: string = NETWORK_PASSPHRASE
   ) {
+    this.assertValidStellarAddress(contractId, "vault contract");
     this.rpcServer = new StellarRpc.Server(rpcUrl, {
       allowHttp: rpcUrl.startsWith("http://"),
     });
     this.horizonServer = new Horizon.Server(horizonUrl);
     this.contract = new Contract(contractId);
+    this.networkPassphrase = networkPassphrase;
+  }
+
+  private normalizeAndValidateId(escrowId: string): string {
+    const trimmed = String(escrowId || "").trim();
+    if (!trimmed) {
+      throw new Error("[VAULT-GUARD] escrowId is required.");
+    }
+    return trimmed.replace(/-/g, "_");
+  }
+
+  private assertPositiveBigInt(value: bigint, label: string): void {
+    if (value <= 0n) {
+      throw new Error(`[VAULT-GUARD] ${label} must be greater than 0.`);
+    }
+  }
+
+  private parsePositiveBigInt(raw: bigint | number | string, label: string): bigint {
+    if (typeof raw === "number" && (!Number.isFinite(raw) || !Number.isInteger(raw))) {
+      throw new Error(`[VAULT-GUARD] ${label} must be a finite integer.`);
+    }
+    const parsed = BigInt(raw);
+    this.assertPositiveBigInt(parsed, label);
+    return parsed;
+  }
+
+  private assertValidStellarAddress(address: string, label: string): void {
+    const trimmed = String(address || "").trim();
+    if (!StrKey.isValidEd25519PublicKey(trimmed) && !StrKey.isValidContract(trimmed)) {
+      throw new Error(`[VAULT-GUARD] Invalid ${label} address: ${address}`);
+    }
+  }
+
+  private async assertEscrowInStatus(
+    sanitizedId: string,
+    callerAddress: string,
+    allowedStatuses: string[],
+    actionLabel: string
+  ): Promise<VaultEscrowRecord> {
+    const vault = await this.getVault(sanitizedId, callerAddress);
+    if (!vault) {
+      throw new Error(
+        `[VAULT-GUARD] Cannot ${actionLabel}: escrow '${sanitizedId}' not found on-chain.`
+      );
+    }
+    const normalized = String(vault.status || "").toUpperCase();
+    const allowedUpper = allowedStatuses.map((s) => s.toUpperCase());
+    if (!allowedUpper.includes(normalized)) {
+      throw new Error(
+        `[VAULT-GUARD] Cannot ${actionLabel}: escrow '${sanitizedId}' has status '${vault.status}' (expected ${allowedStatuses.join(" or ")}).`
+      );
+    }
+    return vault;
   }
 
   async getPiAccount(accountId: string): Promise<Horizon.AccountResponse> {
+    this.assertValidStellarAddress(accountId, "account");
     return this.horizonServer.loadAccount(accountId);
   }
 
@@ -111,34 +169,49 @@ export class BazaarVaultService {
     escrowId: string,
     callerAddress?: string
   ): Promise<VaultEscrowRecord | null> {
-    try {
-      const address = callerAddress || SIMULATION_FALLBACK_ACCOUNT;
-      const dummyAccount = new Account(address, "0");
-      const sanitizedId = escrowId.replace(/-/g, "_");
+    const sanitizedId = this.normalizeAndValidateId(escrowId);
+    const address = callerAddress || SIMULATION_FALLBACK_ACCOUNT;
+    this.assertValidStellarAddress(address, "caller");
 
-      const tx = new TransactionBuilder(dummyAccount, {
-        fee: PI_BASE_FEE,
-        networkPassphrase: NETWORK_PASSPHRASE,
-      })
-        .addOperation(
-          this.contract.call(
-            "get_vault",
-            nativeToScVal(sanitizedId, { type: "symbol" })
-          )
+    const dummyAccount = new Account(address, "0");
+    const tx = new TransactionBuilder(dummyAccount, {
+      fee: PI_BASE_FEE,
+      networkPassphrase: this.networkPassphrase,
+    })
+      .addOperation(
+        this.contract.call(
+          "get_vault",
+          nativeToScVal(sanitizedId, { type: "symbol" })
         )
-        .setTimeout(30)
-        .build();
+      )
+      .setTimeout(30)
+      .build();
 
-      const simRes = await this.rpcServer.simulateTransaction(tx);
-      if (StellarRpc.Api.isSimulationError(simRes) || !simRes.result?.retval) {
+    let simRes: StellarRpc.Api.SimulateTransactionResponse;
+    try {
+      simRes = await this.rpcServer.simulateTransaction(tx);
+    } catch (err: any) {
+      throw new Error(
+        `[VAULT-RPC] Failed to query vault '${sanitizedId}': ${err?.message || err}`
+      );
+    }
+
+    if (StellarRpc.Api.isSimulationError(simRes)) {
+      const errMsg = String((simRes as any).error || "");
+      // Treat missing/uninitialized entry simulation errors as not found; rethrow unexpected host/auth errors
+      if (/not found|missing|uninitialized|does not exist/i.test(errMsg) || !errMsg) {
         return null;
       }
+      throw new Error(`[VAULT-RPC] Simulation error for vault '${sanitizedId}': ${errMsg}`);
+    }
 
-      const raw = scValToNative(simRes.result.retval);
-      return this.parseEscrowRecord(raw);
-    } catch {
+    if (!simRes.result?.retval) {
       return null;
     }
+
+    const raw = scValToNative(simRes.result.retval);
+    if (!raw) return null;
+    return this.parseEscrowRecord(raw);
   }
 
   async lockFunds(
@@ -146,24 +219,43 @@ export class BazaarVaultService {
     signer: Keypair | ((txXdr: string) => Promise<string>),
     sourceAccountOverride?: string
   ): Promise<VaultTxResponse> {
-    const amountVal = BigInt(params.amount);
-    const durationVal = BigInt(params.durationSecs || 172800);
-    const tokenContract = params.tokenContract || SAC_TOKEN_CONTRACT;
-    const sanitizedId = params.escrowId.replace(/-/g, "_");
+    const sanitizedId = this.normalizeAndValidateId(params.escrowId);
+    const amountVal = this.parsePositiveBigInt(params.amount, "amount");
+    const durationVal = this.parsePositiveBigInt(
+      params.durationSecs ?? 172800,
+      "durationSecs"
+    );
+    const tokenContract = String(params.tokenContract || SAC_TOKEN_CONTRACT).trim();
+
+    this.assertValidStellarAddress(tokenContract, "tokenContract");
+    this.assertValidStellarAddress(params.consumerAddress, "consumerAddress");
+    this.assertValidStellarAddress(params.providerAddress, "providerAddress");
+
+    if (params.consumerAddress.trim() === params.providerAddress.trim()) {
+      throw new Error("[VAULT-GUARD] consumerAddress and providerAddress must be distinct.");
+    }
+
+    const existing = await this.getVault(sanitizedId, params.consumerAddress);
+    if (existing) {
+      throw new Error(
+        `[VAULT-GUARD] Escrow '${sanitizedId}' already exists on-chain with status '${existing.status}'.`
+      );
+    }
 
     const callOp = this.contract.call(
       "lock_funds",
       nativeToScVal(sanitizedId, { type: "symbol" }),
       Address.fromString(tokenContract).toScVal(),
-      Address.fromString(params.consumerAddress).toScVal(),
-      Address.fromString(params.providerAddress).toScVal(),
+      Address.fromString(params.consumerAddress.trim()).toScVal(),
+      Address.fromString(params.providerAddress.trim()).toScVal(),
       nativeToScVal(amountVal, { type: "i128" }),
       nativeToScVal(durationVal, { type: "u64" })
     );
 
     const txSource =
       sourceAccountOverride ||
-      (signer instanceof Keypair ? signer.publicKey() : params.consumerAddress);
+      (signer instanceof Keypair ? signer.publicKey() : params.consumerAddress.trim());
+    this.assertValidStellarAddress(txSource, "transaction source");
 
     return this.executeContractCall(txSource, callOp, signer);
   }
@@ -173,14 +265,17 @@ export class BazaarVaultService {
     callerAddress: string,
     signer: Keypair | ((txXdr: string) => Promise<string>)
   ): Promise<VaultTxResponse> {
-    const sanitizedId = escrowId.replace(/-/g, "_");
+    const sanitizedId = this.normalizeAndValidateId(escrowId);
+    this.assertValidStellarAddress(callerAddress, "callerAddress");
+    await this.assertEscrowInStatus(sanitizedId, callerAddress, ["Locked"], "releaseFunds");
+
     const callOp = this.contract.call(
       "release_funds",
       nativeToScVal(sanitizedId, { type: "symbol" }),
-      Address.fromString(callerAddress).toScVal()
+      Address.fromString(callerAddress.trim()).toScVal()
     );
 
-    return this.executeContractCall(callerAddress, callOp, signer);
+    return this.executeContractCall(callerAddress.trim(), callOp, signer);
   }
 
   async refundFunds(
@@ -188,14 +283,17 @@ export class BazaarVaultService {
     initiatorAddress: string,
     signer: Keypair | ((txXdr: string) => Promise<string>)
   ): Promise<VaultTxResponse> {
-    const sanitizedId = escrowId.replace(/-/g, "_");
+    const sanitizedId = this.normalizeAndValidateId(escrowId);
+    this.assertValidStellarAddress(initiatorAddress, "initiatorAddress");
+    await this.assertEscrowInStatus(sanitizedId, initiatorAddress, ["Locked"], "refundFunds");
+
     const callOp = this.contract.call(
       "refund_funds",
       nativeToScVal(sanitizedId, { type: "symbol" }),
-      Address.fromString(initiatorAddress).toScVal()
+      Address.fromString(initiatorAddress.trim()).toScVal()
     );
 
-    return this.executeContractCall(initiatorAddress, callOp, signer);
+    return this.executeContractCall(initiatorAddress.trim(), callOp, signer);
   }
 
   async disputeEscrow(
@@ -203,14 +301,17 @@ export class BazaarVaultService {
     claimantAddress: string,
     signer: Keypair | ((txXdr: string) => Promise<string>)
   ): Promise<VaultTxResponse> {
-    const sanitizedId = escrowId.replace(/-/g, "_");
+    const sanitizedId = this.normalizeAndValidateId(escrowId);
+    this.assertValidStellarAddress(claimantAddress, "claimantAddress");
+    await this.assertEscrowInStatus(sanitizedId, claimantAddress, ["Locked"], "disputeEscrow");
+
     const callOp = this.contract.call(
       "dispute_escrow",
       nativeToScVal(sanitizedId, { type: "symbol" }),
-      Address.fromString(claimantAddress).toScVal()
+      Address.fromString(claimantAddress.trim()).toScVal()
     );
 
-    return this.executeContractCall(claimantAddress, callOp, signer);
+    return this.executeContractCall(claimantAddress.trim(), callOp, signer);
   }
 
   async resolveDisputeWithPq(
@@ -219,32 +320,50 @@ export class BazaarVaultService {
       adminAddress: string;
       payoutToAddress: string;
       amountStroops?: bigint | number | string;
-      nonce?: bigint | number | string;
+      nonce: bigint | number | string;
       contractId?: string;
       pqSeed?: Uint8Array;
     },
     signer: Keypair | ((txXdr: string) => Promise<string>)
   ): Promise<VaultTxResponse> {
-    const sanitizedId = params.escrowId.replace(/-/g, "_");
-    const targetContractId =
-      params.contractId ||
-      this.contract.contractId() ||
-      BAZAAR_VAULT_CONTRACT_ID;
+    const sanitizedId = this.normalizeAndValidateId(params.escrowId);
+    this.assertValidStellarAddress(params.adminAddress, "adminAddress");
+    this.assertValidStellarAddress(params.payoutToAddress, "payoutToAddress");
+
+    if (params.nonce === undefined || params.nonce === null || String(params.nonce).trim() === "") {
+      throw new Error("[VAULT-GUARD] Explicit non-zero nonce is required for resolveDisputeWithPq.");
+    }
+    const nonceVal = this.parsePositiveBigInt(params.nonce, "nonce");
+
+    const targetContractId = String(
+      params.contractId || this.contract.contractId() || BAZAAR_VAULT_CONTRACT_ID
+    ).trim();
+    this.assertValidStellarAddress(targetContractId, "targetContractId");
+
+    if (targetContractId !== this.contract.contractId()) {
+      throw new Error(
+        `[VAULT-GUARD] targetContractId (${targetContractId}) does not match service contract (${this.contract.contractId()}).`
+      );
+    }
+
+    const vaultRecord = await this.assertEscrowInStatus(
+      sanitizedId,
+      params.adminAddress,
+      ["Disputed", "Locked"],
+      "resolveDisputeWithPq"
+    );
 
     let resolvedAmount: bigint;
     if (params.amountStroops !== undefined && params.amountStroops !== null) {
-      resolvedAmount = BigInt(params.amountStroops);
-    } else {
-      const vaultRecord = await this.getVault(sanitizedId, params.adminAddress);
-      if (!vaultRecord) {
+      resolvedAmount = this.parsePositiveBigInt(params.amountStroops, "amountStroops");
+      if (vaultRecord.amount > 0n && resolvedAmount !== BigInt(vaultRecord.amount)) {
         throw new Error(
-          `Cannot sign CAP-87 PQ payload: escrow ${sanitizedId} not found on-chain and amountStroops was not provided.`
+          `[VAULT-GUARD] amountStroops (${resolvedAmount}) does not match on-chain vault amount (${vaultRecord.amount}).`
         );
       }
-      resolvedAmount = BigInt(vaultRecord.amount);
+    } else {
+      resolvedAmount = this.parsePositiveBigInt(BigInt(vaultRecord.amount), "on-chain vault amount");
     }
-
-    const nonceVal = BigInt(params.nonce ?? 1);
 
     const pqAuth = signEscrowAuthWithMlDsa65(
       {
@@ -261,14 +380,14 @@ export class BazaarVaultService {
       const callOp = this.contract.call(
         "resolve_dispute_with_pq",
         nativeToScVal(sanitizedId, { type: "symbol" }),
-        Address.fromString(params.adminAddress).toScVal(),
-        Address.fromString(params.payoutToAddress).toScVal(),
+        Address.fromString(params.adminAddress.trim()).toScVal(),
+        Address.fromString(params.payoutToAddress.trim()).toScVal(),
         nativeToScVal(pqAuth.pqPublicKey, { type: "bytes" }),
         nativeToScVal(pqAuth.pqSignature, { type: "bytes" }),
         nativeToScVal(nonceVal, { type: "u64" })
       );
 
-      return await this.executeContractCall(params.adminAddress, callOp, signer);
+      return await this.executeContractCall(params.adminAddress.trim(), callOp, signer);
     } finally {
       pqAuth.zeroizeSecretKey();
     }
@@ -307,6 +426,26 @@ export class BazaarVaultService {
     }
   }
 
+  private assertSignedTxMatchesPrepared(
+    preparedTx: Transaction | FeeBumpTransaction,
+    signedTx: Transaction | FeeBumpTransaction
+  ): void {
+    const preparedInner =
+      preparedTx instanceof FeeBumpTransaction ? preparedTx.innerTransaction : preparedTx;
+    const signedInner =
+      signedTx instanceof FeeBumpTransaction ? signedTx.innerTransaction : signedTx;
+
+    if (signedInner.source !== preparedInner.source) {
+      throw new Error("[VAULT-GUARD] Signed transaction source does not match prepared source.");
+    }
+    if (signedInner.sequence !== preparedInner.sequence) {
+      throw new Error("[VAULT-GUARD] Signed transaction sequence does not match prepared sequence.");
+    }
+    if (signedInner.operations.length !== preparedInner.operations.length) {
+      throw new Error("[VAULT-GUARD] Signed transaction operation count mismatch.");
+    }
+  }
+
   private async executeContractCall(
     sourceAddress: string,
     operation: xdr.Operation,
@@ -317,7 +456,7 @@ export class BazaarVaultService {
 
     const tx = new TransactionBuilder(account, {
       fee: PI_BASE_FEE,
-      networkPassphrase: NETWORK_PASSPHRASE,
+      networkPassphrase: this.networkPassphrase,
     })
       .addOperation(operation)
       .setTimeout(60)
@@ -331,7 +470,8 @@ export class BazaarVaultService {
       signedTx = preparedTx;
     } else {
       const signedXdr = await signer(preparedTx.toXDR());
-      signedTx = TransactionBuilder.fromXDR(signedXdr, NETWORK_PASSPHRASE);
+      signedTx = TransactionBuilder.fromXDR(signedXdr, this.networkPassphrase);
+      this.assertSignedTxMatchesPrepared(preparedTx, signedTx);
     }
 
     const sendRes = await this.rpcServer.sendTransaction(signedTx);

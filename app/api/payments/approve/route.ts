@@ -5,6 +5,8 @@ import {
   fetchAndAssertPiPaymentNetwork,
 } from "@/lib/pi/piPlatform";
 
+export const dynamic = "force-dynamic";
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
@@ -73,6 +75,7 @@ export async function POST(req: NextRequest) {
   } catch (err: unknown) {
     const message =
       err instanceof Error ? err.message : "Payment approval error.";
+    console.error("[API_PAYMENTS_APPROVE_ERROR]:", message);
     return NextResponse.json(
       { success: false, error: message },
       { status: 500 }
