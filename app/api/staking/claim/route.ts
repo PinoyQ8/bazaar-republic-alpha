@@ -7,7 +7,6 @@ import {
   StakePositionRecord,
 } from "@/app/lib/db/liquidityPoolSeed";
 import {
-  computeStakerEpochRewardMbzrSubunits,
   format7Decimals,
   mbzrSubunitsToPiStroops,
 } from "@/app/lib/economics/liquidityPoolMath";
@@ -16,6 +15,17 @@ interface ClaimRequestBody {
   stakeId?: string;
   pioneerUid?: string;
   claimAll?: boolean;
+}
+
+interface ClaimedPositionSummary {
+  stakeId: string;
+  claimedNowMbzrSubunits: string;
+  claimedNowMbzrFormatted: string;
+  cumulativeClaimedMbzrSubunits: string;
+  cumulativeClaimedMbzrFormatted: string;
+  lastClaimedEpoch: number;
+  piEquivalentStroops: string;
+  piEquivalentFormatted: string;
 }
 
 export async function POST(req: NextRequest) {
@@ -48,7 +58,7 @@ export async function POST(req: NextRequest) {
     if (stakeId) query.stakeId = stakeId;
     if (pioneerUid) query.pioneerUid = pioneerUid;
 
-    const targetStakes = await stakesCol.find(query).toArray();
+    const targetStakes = (await stakesCol.find(query).toArray()) as StakePositionRecord[];
     if (targetStakes.length === 0) {
       return NextResponse.json(
         { success: false, error: "No matching StakePosition found." },
@@ -56,42 +66,30 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Pull settled epochs after each stake's lastClaimedEpoch for pro-rata real-fee share
-    const settledEpochs = await epochsCol
-      .find({ poolId: LIQUIDITY_POOL_ID, status: "SETTLED" })
-      .sort({ epochNumber: 1 })
-      .toArray();
+    const latestSettledEpoch = await epochsCol.findOne(
+      { poolId: LIQUIDITY_POOL_ID, status: "SETTLED" },
+      { sort: { epochNumber: -1 } }
+    );
+    const latestSettledEpochNum =
+      typeof latestSettledEpoch?.epochNumber === "number"
+        ? latestSettledEpoch.epochNumber
+        : 0;
 
     const now = new Date();
     let totalClaimedThisCallSubunits = 0n;
-    const claimedPositions: Array<{
-      stakeId: string;
-      claimedNowMbzrSubunits: string;
-      claimedNowMbzrFormatted: string;
-      cumulativeClaimedMbzrSubunits: string;
-      piEquivalentStroops: string;
-    }> = [];
+    const claimedPositions: ClaimedPositionSummary[] = [];
 
     for (const st of targetStakes) {
-      let pendingSubunits = safeBigInt(st.accruedMbzrSubunits);
-      const stWeight = safeBigInt(st.effectiveWeightUnits);
-      const lastEpoch = typeof st.lastClaimedEpoch === "number" ? st.lastClaimedEpoch : 0;
-
-      for (const ep of settledEpochs) {
-        const epNum = typeof ep.epochNumber === "number" ? ep.epochNumber : 0;
-        if (epNum > lastEpoch && st.status === "ACTIVE") {
-          const epPool70 = safeBigInt(ep.stakerPool70MbzrSubunits);
-          const epTotalWeight = safeBigInt(ep.totalPoolEffectiveWeight);
-          pendingSubunits += computeStakerEpochRewardMbzrSubunits(
-            stWeight,
-            epTotalWeight,
-            epPool70
-          );
-        }
-      }
-
+      const accruedSubunits = safeBigInt(st.accruedMbzrSubunits);
+      const claimableSubunits = accruedSubunits > 0n ? accruedSubunits : 0n;
       const prevClaimed = safeBigInt(st.claimedMbzrSubunits);
-      const nextClaimed = prevClaimed + pendingSubunits;
+      const nextClaimed = prevClaimed + claimableSubunits;
+
+      const prevLastEpoch = typeof st.lastClaimedEpoch === "number" ? st.lastClaimedEpoch : 0;
+      const nextLastClaimedEpoch =
+        claimableSubunits > 0n && latestSettledEpochNum > prevLastEpoch
+          ? latestSettledEpochNum
+          : prevLastEpoch;
 
       await stakesCol.updateOne(
         { stakeId: st.stakeId },
@@ -99,30 +97,38 @@ export async function POST(req: NextRequest) {
           $set: {
             accruedMbzrSubunits: "0",
             claimedMbzrSubunits: nextClaimed.toString(),
-            lastClaimedEpoch: pool.currentEpochNumber,
+            lastClaimedEpoch: nextLastClaimedEpoch,
             updatedAt: now,
           },
         }
       );
 
-      totalClaimedThisCallSubunits += pendingSubunits;
+      const piEquivalentStroops = mbzrSubunitsToPiStroops(claimableSubunits);
+      totalClaimedThisCallSubunits += claimableSubunits;
+
       claimedPositions.push({
         stakeId: st.stakeId,
-        claimedNowMbzrSubunits: pendingSubunits.toString(),
-        claimedNowMbzrFormatted: format7Decimals(pendingSubunits),
+        claimedNowMbzrSubunits: claimableSubunits.toString(),
+        claimedNowMbzrFormatted: format7Decimals(claimableSubunits),
         cumulativeClaimedMbzrSubunits: nextClaimed.toString(),
-        piEquivalentStroops: mbzrSubunitsToPiStroops(pendingSubunits).toString(),
+        cumulativeClaimedMbzrFormatted: format7Decimals(nextClaimed),
+        lastClaimedEpoch: nextLastClaimedEpoch,
+        piEquivalentStroops: piEquivalentStroops.toString(),
+        piEquivalentFormatted: format7Decimals(piEquivalentStroops),
       });
     }
+
+    const totalPiEquivalentStroops = mbzrSubunitsToPiStroops(totalClaimedThisCallSubunits);
 
     return NextResponse.json({
       success: true,
       poolId: LIQUIDITY_POOL_ID,
-      epochNumber: pool.currentEpochNumber,
+      currentEpochNumber: pool.currentEpochNumber,
+      latestSettledEpochNumber: latestSettledEpochNum,
       totalClaimedMbzrSubunits: totalClaimedThisCallSubunits.toString(),
       totalClaimedMbzrFormatted: format7Decimals(totalClaimedThisCallSubunits),
-      piEquivalentStroops: mbzrSubunitsToPiStroops(totalClaimedThisCallSubunits).toString(),
-      piEquivalentFormatted: format7Decimals(mbzrSubunitsToPiStroops(totalClaimedThisCallSubunits)),
+      piEquivalentStroops: totalPiEquivalentStroops.toString(),
+      piEquivalentFormatted: format7Decimals(totalPiEquivalentStroops),
       claimedPositions,
     });
   } catch (err: unknown) {
