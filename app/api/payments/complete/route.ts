@@ -8,6 +8,14 @@ import { settleConfirmedPiPayment } from "@/lib/pi/settlementHook";
 
 export const dynamic = "force-dynamic";
 
+const HARD_PERSISTENCE_WARNING_PREFIXES = [
+  "PRISMA_CLIENT_UNAVAILABLE",
+  "PAYMENT_UPSERT_FAILED:",
+  "ESCROW_UPDATE_FAILED:",
+  "MESH_LEDGER_FAILED:",
+  "AUDIT_LOG_FAILED:",
+];
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
@@ -18,9 +26,15 @@ export async function POST(req: NextRequest) {
       typeof body?.escrowId === "string" && body.escrowId.trim()
         ? body.escrowId.trim()
         : null;
-    const pioneerUid =
+    const rawUid =
       typeof body?.pioneerUid === "string" && body.pioneerUid.trim()
         ? body.pioneerUid.trim()
+        : typeof body?.uid === "string" && body.uid.trim()
+        ? body.uid.trim()
+        : null;
+    const merchantUid =
+      typeof body?.merchantUid === "string" && body.merchantUid.trim()
+        ? body.merchantUid.trim()
         : null;
 
     if (!paymentId || !txid) {
@@ -94,12 +108,19 @@ export async function POST(req: NextRequest) {
       network: env.network,
       realm: env.realm,
       escrowId,
-      pioneerUid,
+      pioneerUid: rawUid,
+      merchantUid,
       amount: rawAmount,
       rawPayment: paymentObj,
     });
 
     if (settlement.nodeFrozen) {
+      console.warn("[API_PAYMENTS_COMPLETE] Settlement blocked for frozen node:", {
+        paymentId,
+        txid,
+        pioneerUid: rawUid,
+        warnings: settlement.warnings,
+      });
       return NextResponse.json(
         {
           success: false,
@@ -115,7 +136,17 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (settlement.partialFailure) {
+    const hasHardPersistenceFailure = settlement.warnings.some((w) =>
+      HARD_PERSISTENCE_WARNING_PREFIXES.some((prefix) => w.startsWith(prefix))
+    );
+
+    if (hasHardPersistenceFailure) {
+      console.warn("[API_PAYMENTS_COMPLETE] Partial settlement failure:", {
+        paymentId,
+        txid,
+        escrowId,
+        warnings: settlement.warnings,
+      });
       return NextResponse.json(
         {
           success: false,

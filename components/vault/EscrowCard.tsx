@@ -1,46 +1,85 @@
 ﻿// Location: components/vault/EscrowCard.tsx
 'use client';
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useBazaarVault } from '@/hooks/useBazaarVault';
 import { EscrowStatus } from '@/types/bazaar-vault';
 import { RefreshCw, Search } from 'lucide-react';
 
-interface EscrowCardProps {
+export interface VaultLookupCacheEntry {
+  found: boolean;
+  status: number;
+  data: Record<string, unknown> | null;
+  fetchedAt: number;
+}
+
+export interface EscrowCardProps {
   initialEscrowId?: string;
   defaultTokenContract?: string;
+  cachedVault?: VaultLookupCacheEntry;
+  onRequestVaultLookup?: (force?: boolean) => Promise<VaultLookupCacheEntry>;
 }
 
 export function EscrowCard({
   initialEscrowId = 'MBZR_ESCROW_CANARY_01',
-  defaultTokenContract = process.env.NEXT_PUBLIC_PI_TOKEN_CONTRACT || 'CDG6ZM2SHXIHD5HZ2E62B7D76RY5DUHDNQVPSHRVDNN7W4EW47FXLEXQ',
+  defaultTokenContract = process.env.NEXT_PUBLIC_PI_TOKEN_CONTRACT ||
+    'CDG6ZM2SHXIHD5HZ2E62B7D76RY5DUHDNQVPSHRVDNN7W4EW47FXLEXQ',
+  cachedVault,
+  onRequestVaultLookup,
 }: EscrowCardProps) {
   const [escrowId, setEscrowId] = useState(initialEscrowId);
   const [verifying, setVerifying] = useState(false);
   const [verifyStatus, setVerifyStatus] = useState<string | null>(null);
 
   const vault = useBazaarVault();
-  const { escrow, loading, error, txHash, releaseFunds, disputeEscrow, refundFunds } = vault;
-  
+  const { escrow, loading, error, txHash, disputeEscrow, refundFunds } = vault;
+
   // Resilient sync function selector
   const syncVault = useMemo(() => {
     return vault.fetchVault || vault.fetchEscrow;
   }, [vault.fetchVault, vault.fetchEscrow]);
 
+  // Keep input aligned when parent swaps initialEscrowId
   useEffect(() => {
     if (initialEscrowId) {
       setEscrowId(initialEscrowId);
     }
   }, [initialEscrowId]);
 
+  // Only sync when not already present in parent's per-escrowId cache
   useEffect(() => {
-    if (escrowId && escrowId.trim() !== '' && typeof syncVault === 'function') {
-      syncVault(escrowId);
-    }
-  }, [escrowId, syncVault]);
+    const targetId = (initialEscrowId || escrowId || '').trim();
+    if (!targetId) return;
 
-  const formatAddress = (addr?: string) => (addr ? `${addr.slice(0, 4)}...${addr.slice(-4)}` : 'N/A');
-  
+    if (cachedVault) {
+      return;
+    }
+
+    if (onRequestVaultLookup) {
+      void onRequestVaultLookup(false);
+      return;
+    }
+
+    if (typeof syncVault === 'function') {
+      void syncVault(targetId);
+    }
+  }, [initialEscrowId, cachedVault, onRequestVaultLookup]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleManualSync = async (force = true) => {
+    const targetId = escrowId.trim();
+    if (!targetId) return;
+
+    if (onRequestVaultLookup) {
+      await onRequestVaultLookup(force);
+    }
+    if (typeof syncVault === 'function') {
+      await syncVault(targetId);
+    }
+  };
+
+  const formatAddress = (addr?: string) =>
+    addr ? `${addr.slice(0, 4)}...${addr.slice(-4)}` : 'N/A';
+
   const formatAmount = (val?: bigint | string | number) => {
     if (val === undefined || val === null) return '0.00';
     const num = Number(val);
@@ -63,7 +102,7 @@ export function EscrowCard({
   const getStatusBadge = (status?: EscrowStatus) => {
     switch (status) {
       case 'Locked':
-        return isExpired 
+        return isExpired
           ? 'bg-orange-500/10 text-orange-400 border border-orange-500/30'
           : 'bg-amber-500/10 text-amber-400 border border-amber-500/30';
       case 'Released':
@@ -86,7 +125,8 @@ export function EscrowCard({
       const mockProof = {
         escrowId,
         tokenContract: defaultTokenContract,
-        proofHash: 'a1b2c3d4e5f67890123456789abcdef0123456789abcdef0123456789abcdef0',
+        proofHash:
+          'a1b2c3d4e5f67890123456789abcdef0123456789abcdef0123456789abcdef0',
         providerSignature: 'SIG_BZR_VERIFIED_NODE_77',
         consumerAddress: escrow.consumer,
         protocolNonce: Date.now(),
@@ -101,16 +141,20 @@ export function EscrowCard({
       const contentType = res.headers.get('content-type') || '';
       if (!contentType.includes('application/json')) {
         const text = await res.text();
-        throw new Error(`Server returned non-JSON response (${res.status}): ${text.slice(0, 60)}`);
+        throw new Error(
+          `Server returned non-JSON response (${res.status}): ${text.slice(0, 60)}`
+        );
       }
 
       const data = await res.json();
-      if (!data.success) throw new Error(data.error || 'Verification settlement failed');
-
-      setVerifyStatus(`Settled on-chain: ${data.txHash ? data.txHash.slice(0, 10) : 'SUCCESS'}...`);
-      if (typeof syncVault === 'function') {
-        await syncVault(escrowId);
+      if (!data.success) {
+        throw new Error(data.error || 'Verification settlement failed');
       }
+
+      setVerifyStatus(
+        `Settled on-chain: ${data.txHash ? data.txHash.slice(0, 10) : 'SUCCESS'}...`
+      );
+      await handleManualSync(true);
     } catch (err: any) {
       setVerifyStatus(`Error: ${err.message}`);
     } finally {
@@ -118,13 +162,19 @@ export function EscrowCard({
     }
   };
 
+  const isOffChainOrMissingVault =
+    !escrow && !loading && cachedVault && !cachedVault.found;
+
   return (
     <div className="w-full max-w-[384px] mx-auto rounded-2xl bg-zinc-950 border border-zinc-800/80 p-3.5 font-mono text-xs text-zinc-200 shadow-2xl space-y-3.5 box-border overflow-hidden">
-      
       {/* Header */}
       <div className="flex items-center justify-between border-b border-zinc-800/60 pb-2.5">
         <div className="flex items-center space-x-2">
-          <div className={`h-2 w-2 rounded-full ${escrow?.status === 'Disputed' ? 'bg-rose-500' : 'bg-emerald-500'} animate-pulse`} />
+          <div
+            className={`h-2 w-2 rounded-full ${
+              escrow?.status === 'Disputed' ? 'bg-rose-500' : 'bg-emerald-500'
+            } animate-pulse`}
+          />
           <span className="font-semibold text-zinc-100 uppercase tracking-wider text-[11px]">
             BAZAAR-REPUBLIC // ESCROW VAULT
           </span>
@@ -133,9 +183,18 @@ export function EscrowCard({
       </div>
 
       {/* S23 Viewport Constrained Query Bar */}
-      <form onSubmit={(e) => { e.preventDefault(); if (syncVault) syncVault(escrowId); }} className="flex items-center gap-1.5 w-full">
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          void handleManualSync(true);
+        }}
+        className="flex items-center gap-1.5 w-full"
+      >
         <div className="relative flex-1 min-w-0">
-          <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-500" />
+          <Search
+            size={13}
+            className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-500"
+          />
           <input
             type="text"
             value={escrowId}
@@ -149,7 +208,11 @@ export function EscrowCard({
           disabled={loading || verifying}
           className="shrink-0 px-3.5 py-2 bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-slate-950 font-bold text-xs rounded-lg flex items-center justify-center gap-1 transition cursor-pointer disabled:opacity-50 whitespace-nowrap shadow-md shadow-amber-500/10 disabled:cursor-not-allowed"
         >
-          {loading ? <RefreshCw size={12} className="animate-spin" /> : <span>SYNC</span>}
+          {loading ? (
+            <RefreshCw size={12} className="animate-spin" />
+          ) : (
+            <span>SYNC</span>
+          )}
         </button>
       </form>
 
@@ -177,7 +240,11 @@ export function EscrowCard({
         <div className="space-y-3 bg-zinc-900/50 rounded-xl p-3 border border-zinc-800/40">
           <div className="flex justify-between items-center">
             <span className="text-zinc-500">STATUS</span>
-            <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${getStatusBadge(escrow.status)}`}>
+            <span
+              className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${getStatusBadge(
+                escrow.status
+              )}`}
+            >
               {escrow.status} {isExpired && escrow.status === 'Locked' ? '(EXPIRED)' : ''}
             </span>
           </div>
@@ -185,25 +252,37 @@ export function EscrowCard({
           <div className="flex justify-between items-center">
             <span className="text-zinc-500">LOCKED AMOUNT</span>
             <span className="text-sm font-bold text-amber-400">
-              {formatAmount(escrow.amount)} <span className="text-[10px] text-zinc-400">PI</span>
+              {formatAmount(escrow.amount)}{' '}
+              <span className="text-[10px] text-zinc-400">PI</span>
             </span>
           </div>
 
           <div className="flex justify-between items-center text-[11px]">
             <span className="text-zinc-500">CONSUMER</span>
-            <span className="text-zinc-300" title={escrow.consumer}>{formatAddress(escrow.consumer)}</span>
+            <span className="text-zinc-300" title={escrow.consumer}>
+              {formatAddress(escrow.consumer)}
+            </span>
           </div>
 
           <div className="flex justify-between items-center text-[11px]">
             <span className="text-zinc-500">PROVIDER</span>
-            <span className="text-zinc-300" title={escrow.provider}>{formatAddress(escrow.provider)}</span>
+            <span className="text-zinc-300" title={escrow.provider}>
+              {formatAddress(escrow.provider)}
+            </span>
           </div>
 
           <div className="flex justify-between items-center text-[11px]">
             <span className="text-zinc-500">TIMELOCK</span>
-            <span className={isExpired ? "text-orange-400 font-semibold" : "text-zinc-400"}>
+            <span
+              className={
+                isExpired ? 'text-orange-400 font-semibold' : 'text-zinc-400'
+              }
+            >
               {expirationEpochSeconds
-                ? new Date(expirationEpochSeconds * 1000).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })
+                ? new Date(expirationEpochSeconds * 1000).toLocaleString([], {
+                    dateStyle: 'short',
+                    timeStyle: 'short',
+                  })
                 : 'Protocol Default (48h)'}
             </span>
           </div>
@@ -237,8 +316,8 @@ export function EscrowCard({
                   onClick={() => refundFunds(escrowId)}
                   disabled={loading || verifying || !isExpired}
                   className={`w-full py-2 border rounded-lg font-semibold transition text-[11px] ${
-                    isExpired 
-                      ? 'bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border-blue-500/30 cursor-pointer' 
+                    isExpired
+                      ? 'bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border-blue-500/30 cursor-pointer'
                       : 'bg-zinc-800/50 text-zinc-600 border-zinc-800 cursor-not-allowed'
                   }`}
                 >
@@ -255,15 +334,19 @@ export function EscrowCard({
                 Escrow In DAO Arbitration
               </span>
               <span className="text-[10px] text-zinc-400 mt-0.5 block">
-                Settlement & Clawbacks frozen pending 5-Elder VRF adjudication[cite: 1].
+                Settlement & Clawbacks frozen pending 5-Elder VRF adjudication.
               </span>
             </div>
           )}
         </div>
       ) : (
         !loading && (
-          <div className="text-center py-5 text-zinc-600 text-[11px]">
-            No active escrow record found. Enter an ID to synchronize.
+          <div className="text-center py-5 text-zinc-500 text-[11px] space-y-1">
+            <div>
+              {isOffChainOrMissingVault
+                ? 'No live on-chain vault found (cached status).'
+                : 'No active escrow record found. Enter an ID to synchronize.'}
+            </div>
           </div>
         )
       )}
