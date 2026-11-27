@@ -1,5 +1,5 @@
 // Location: app/utils/mesh-query.ts
-import { rpc, xdr, Address } from "@stellar/stellar-sdk";
+import { rpc, xdr, Address, StrKey } from "@stellar/stellar-sdk";
 
 const RPC_URL =
   process.env.NEXT_PUBLIC_SOROBAN_RPC_URL || "https://soroban-testnet.stellar.org";
@@ -12,6 +12,15 @@ export interface OnChainEscrow {
   amount: string;
   status: "LOCKED" | "RELEASED" | "REFUNDED";
   timestamp: number;
+}
+
+function isValidAccountOrContractAddress(value?: string | null): value is string {
+  if (!value) return false;
+  const trimmed = value.trim();
+  return (
+    StrKey.isValidEd25519PublicKey(trimmed) ||
+    StrKey.isValidContract(trimmed)
+  );
 }
 
 function getPersistentDurability(): xdr.ContractDataDurability {
@@ -33,20 +42,28 @@ function getPersistentDurability(): xdr.ContractDataDurability {
 }
 
 export async function fetchLiveEscrows(
-  consumerPubKey: string
+  consumerPubKey?: string | null
 ): Promise<OnChainEscrow[]> {
-  if (!CONTRACT_ID || !consumerPubKey) {
+  const normalizedContractId = CONTRACT_ID.trim();
+  const normalizedConsumerKey = consumerPubKey?.trim();
+
+  if (
+    !StrKey.isValidContract(normalizedContractId) ||
+    !isValidAccountOrContractAddress(normalizedConsumerKey)
+  ) {
     return [];
   }
 
   const server = new rpc.Server(RPC_URL, {
     allowHttp: RPC_URL.startsWith("http://"),
   });
-  const contractAddress = Address.fromString(CONTRACT_ID);
+  const contractAddress = Address.fromString(normalizedContractId);
 
   const escrowStorageKey = xdr.ScVal.scvVec([
     xdr.ScVal.scvSymbol("Escrow"),
-    xdr.ScVal.scvAddress(Address.fromString(consumerPubKey).toScAddress()),
+    xdr.ScVal.scvAddress(
+      Address.fromString(normalizedConsumerKey).toScAddress()
+    ),
   ]);
 
   const ledgerKey = xdr.LedgerKey.contractData(
@@ -77,8 +94,7 @@ export async function fetchLiveEscrows(
           : undefined;
 
       if (
-        (entryTypeName === "contractData" ||
-          typeof ledgerEntryData.contractData === "function") &&
+        entryTypeName === "contractData" &&
         typeof ledgerEntryData.contractData === "function"
       ) {
         const _scVal = ledgerEntryData.contractData().val();

@@ -1,11 +1,16 @@
-﻿"use client";
+"use client";
 
 import React, { useState, useEffect } from "react";
-import { Loader2, Coins, CheckCircle2, AlertTriangle, RotateCcw } from "lucide-react";
+import { Loader2, Coins, CheckCircle2, RotateCcw } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
+import {
+  recoverIncompletePaymentOnServer,
+  safePiAuthenticate,
+} from "@/app/utils/safePi";
 
 interface LivePiCheckoutProps {
-  
-  uid?: string;amount?: number;
+  uid?: string;
+  amount?: number;
   memo?: string;
   onSuccess?: (paymentId?: string, txid?: string) => void | Promise<void>;
 }
@@ -13,12 +18,16 @@ interface LivePiCheckoutProps {
 export default function LivePiCheckout({
   amount = 1.0,
   memo = "Bazaar Republic Escrow Settlement Test",
-  
-  uid,onSuccess,
+  uid,
+  onSuccess,
 }: LivePiCheckoutProps) {
+  const { pioneer } = useAuth() as any;
   const [status, setStatus] = useState<string>("READY");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [txDetails, setTxDetails] = useState<{ txid?: string; paymentId?: string } | null>(null);
+  const [txDetails, setTxDetails] = useState<{
+    txid?: string;
+    paymentId?: string;
+  } | null>(null);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -46,157 +55,132 @@ export default function LivePiCheckout({
     }
   }, []);
 
-  const handleCheckout = async () => {
-    // Hard guard: prevent re-firing once succeeded or while in-flight
-    if (status === "SUCCESS" || (status !== "READY" && status !== "ERROR")) {
-      return;
-    }
-
+  const handleReset = () => {
+    setStatus("READY");
     setErrorMsg(null);
-    setStatus("INITIALIZING");
+    setTxDetails(null);
+  };
 
-    if (typeof window === "undefined" || !(window as any).Pi) {
-      setErrorMsg("Pi SDK not detected. Open inside the official Pi Browser.");
+  const handleCheckout = async () => {
+    if (status !== "READY" && status !== "ERROR") return;
+
+    const numericAmount = Number(amount);
+    if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
+      setErrorMsg("Payment amount must be greater than 0.");
       setStatus("ERROR");
       return;
     }
 
-    const w = window as any;
-    const Pi = w.Pi;
-
-    if (!w.__PI_INITIALIZED__) {
-      try {
-        const isPiBrowser = /PiBrowser/i.test(navigator.userAgent);
-        Pi.init({ version: "2.0", sandbox: !isPiBrowser });
-        w.__PI_INITIALIZED__ = true;
-      } catch {
-        w.__PI_INITIALIZED__ = true;
-      }
+    const Pi = typeof window !== "undefined" ? (window as any).Pi : null;
+    if (!Pi || typeof Pi.createPayment !== "function") {
+      setErrorMsg("Pi SDK unavailable. Open inside Pi Browser.");
+      setStatus("ERROR");
+      return;
     }
 
+    setErrorMsg(null);
+    setStatus("AUTHENTICATING");
+
     try {
-      setStatus("AUTHENTICATING");
-
-      const onIncompletePaymentFound = async (payment: any) => {
-        const paymentId = payment?.identifier;
-        const txid = payment?.transaction?.txid;
-        if (!paymentId || !txid) return;
-
-        const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), 5000);
-        try {
-          await fetch("/api/pi/complete", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ paymentId, txid, uid }),
-            signal: controller.signal,
-          });
-        } catch (err) {
-          console.warn("[PI_SDK] Incomplete payment recovery notice:", err);
-        } finally {
-          clearTimeout(timer);
-        }
-      };
-
-      await Promise.race([
-        Pi.authenticate(["username", "payments", "wallet_address"], onIncompletePaymentFound),
-        new Promise((_, reject) =>
+      const authResult = await Promise.race([
+        safePiAuthenticate(
+          ["username", "payments", "wallet_address"],
+          async (incompletePayment) => {
+            setStatus("RESOLVING_INCOMPLETE");
+            await recoverIncompletePaymentOnServer(incompletePayment);
+          }
+        ),
+        new Promise<never>((_, reject) =>
           setTimeout(
             () =>
               reject(
                 new Error(
-                  "Pi SDK auth timed out (8s). Verify this URL is saved in develop.pinet.com and reload Pi Browser."
+                  "Pi SDK auth timed out. Verify your app URL in Developer Portal and reload Pi Browser."
                 )
               ),
-            8000
+            10000
           )
         ),
       ]);
 
+      const resolvedUid = authResult?.user?.uid || uid || pioneer?.uid || "pioneer";
       setStatus("CREATING_PAYMENT");
 
       Pi.createPayment(
         {
-          amount: Number(amount),
+          amount: numericAmount,
           memo: String(memo),
           metadata: {
-            orderId: `ESCROW_${Date.now()}`,
+            orderId: `LIVE_PI_${Date.now()}`,
             type: "ESCROW_LOCK",
-            network: "TESTNET",
+            asset: "PI",
+            currency: "PI",
+            pioneer_uid: resolvedUid,
           },
         },
         {
           onReadyForServerApproval: async (paymentId: string) => {
             setStatus("SERVER_APPROVING");
-            try {
-              const res = await fetch("/api/pi/approve", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ paymentId }),
-              });
-              const data = await res.json().catch(() => ({}));
-              if (!res.ok) {
-                throw new Error(data?.error || "Approval rejected by server.");
-              }
-              setStatus("AWAITING_BIOMETRIC_SIGNATURE");
-            } catch (err: any) {
-              setErrorMsg(err?.message || "Approval network fault.");
+            const res = await fetch("/api/payments/approve", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ paymentId }),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok || !data?.success) {
+              setErrorMsg(data?.error || "Server approval failed.");
               setStatus("ERROR");
+              return;
             }
+            setStatus("AWAITING_PIONEER_SIGN");
           },
-
           onReadyForServerCompletion: async (paymentId: string, txid: string) => {
-            setStatus("FINALIZING_LEDGER");
-            try {
-              const res = await fetch("/api/pi/complete", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ paymentId, txid, uid }),
-              });
-              const data = await res.json().catch(() => ({}));
-              if (!res.ok) {
-                throw new Error(data?.error || "Ledger completion failed.");
-              }
-              setTxDetails({ txid, paymentId });
-              setStatus("SUCCESS");
-              if (onSuccess) await onSuccess(paymentId, txid);
-            } catch (err: any) {
-              setErrorMsg(err?.message || "Completion network fault.");
+            setStatus("SERVER_COMPLETING");
+            const res = await fetch("/api/payments/complete", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                paymentId,
+                txid,
+                pioneerUid: resolvedUid,
+              }),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok || !data?.success) {
+              setErrorMsg(data?.error || "Server completion failed.");
               setStatus("ERROR");
+              return;
+            }
+            setTxDetails({ paymentId, txid });
+            setStatus("SUCCESS");
+            if (onSuccess) {
+              await onSuccess(paymentId, txid);
             }
           },
-
           onCancel: () => {
             setStatus("READY");
           },
-
-          onError: (error: Error) => {
-            setErrorMsg(error?.message || "SDK transaction rejected.");
+          onError: (err: any) => {
+            setErrorMsg(err?.message || "Payment execution error.");
             setStatus("ERROR");
           },
         }
       );
     } catch (err: any) {
-      setErrorMsg(err?.message || "Payment authentication or initialization failed.");
+      setErrorMsg(err?.message || "Authentication or payment setup failed.");
       setStatus("ERROR");
     }
   };
 
-  const handleReset = () => {
-    setTxDetails(null);
-    setErrorMsg(null);
-    setStatus("READY");
-  };
-
   const isCompleted = status === "SUCCESS";
-  const isPending = status !== "READY" && status !== "ERROR" && !isCompleted;
+  const isBusy = status !== "READY" && status !== "ERROR" && status !== "SUCCESS";
 
   return (
     <div className="w-full max-w-[384px] mx-auto p-4 bg-slate-900 border border-slate-800 rounded-xl space-y-3 font-mono text-xs">
       <button
         type="button"
         onClick={handleCheckout}
-        disabled={isPending || isCompleted}
+        disabled={isBusy || isCompleted}
         className={`w-full py-3.5 font-bold text-xs uppercase tracking-wider rounded-lg transition-all shadow-lg flex items-center justify-center gap-2 ${
           isCompleted
             ? "bg-emerald-500 text-slate-950 cursor-default"
@@ -206,12 +190,12 @@ export default function LivePiCheckout({
         {status === "READY" ? (
           <>
             <Coins className="w-4 h-4" />
-            <span>âš¡ Lock {amount} Test-Pi via SDK</span>
+            <span>Lock {amount} Pi via SDK</span>
           </>
         ) : status === "ERROR" ? (
           <>
             <RotateCcw className="w-4 h-4" />
-            <span>Retry {amount} Test-Pi Lock</span>
+            <span>Retry {amount} Pi Lock</span>
           </>
         ) : isCompleted ? (
           <>
@@ -227,14 +211,13 @@ export default function LivePiCheckout({
       </button>
 
       {errorMsg && (
-        <div className="p-3 bg-rose-950/40 border border-rose-900/60 rounded text-rose-400 flex items-start gap-2">
-          <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-          <span className="text-[11px] leading-tight break-all">{errorMsg}</span>
+        <div className="p-3 bg-rose-950/40 border border-rose-900/60 rounded text-rose-400 text-[11px] leading-tight break-all">
+          {errorMsg}
         </div>
       )}
 
       {txDetails && (
-        <div className="p-3 bg-emerald-950/30 border border-emerald-900/50 rounded text-emerald-400 space-y-1.5 text-[10px]">
+        <div className="p-3 bg-emerald-950/30 border border-emerald-900/50 rounded text-emerald-400 space-y-1 text-[10px]">
           <p className="font-bold">TX HASH: {txDetails.txid?.slice(0, 16)}...</p>
           <p className="text-slate-400">ID: {txDetails.paymentId?.slice(0, 16)}...</p>
           {isCompleted && (
