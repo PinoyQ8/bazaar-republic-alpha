@@ -1,4 +1,5 @@
-﻿import './globals.css';
+﻿// Location: app/layout.tsx
+import './globals.css';
 import type { Metadata, Viewport } from 'next';
 import { AuthProvider } from '@/context/AuthContext';
 import { PiSdkScript } from '@/app/components/PiSdkScript';
@@ -8,8 +9,7 @@ import ClientHydrationGuard from '@/components/ClientHydrationGuard';
 
 export const metadata: Metadata = {
   title: 'Project Bazaar DAO | MESH Protocol',
-  description:
-    'Decentralized Autonomous Marketplace & Pioneer Verification Grid',
+  description: 'Decentralized Autonomous Marketplace & Pioneer Verification Grid',
 };
 
 export const viewport: Viewport = {

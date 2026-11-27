@@ -1,11 +1,16 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useState } from "react";
+import {
+  recoverIncompletePaymentOnServer,
+  safePiAuthenticate,
+} from "@/app/utils/safePi";
 
 interface PiPaymentButtonProps {
   amount: number;
   memo: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
+  escrowId?: string | null;
   onSuccess?: (paymentId: string, txid: string) => void | Promise<void>;
 }
 
@@ -13,80 +18,68 @@ export default function PiPaymentButton({
   amount,
   memo,
   metadata = {},
+  escrowId = null,
   onSuccess,
 }: PiPaymentButtonProps) {
   const [status, setStatus] = useState<string>("INIT");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  const numericAmount = Number(amount);
-  const displayAmount = Number.isFinite(numericAmount) ? numericAmount : 0;
-
   useEffect(() => {
-    try {
-      const Pi = typeof window !== "undefined" ? (window as any).Pi : null;
-      if (Pi && typeof Pi.init === "function") {
-        const isPiBrowser =
-          typeof navigator !== "undefined" && /PiBrowser/i.test(navigator.userAgent);
-        Pi.init({
-          version: "2.0",
-          sandbox: !isPiBrowser,
-        });
-      }
-    } catch (err) {
-      console.error("[MESH-SCAN] Pi SDK Init Fracture:", err);
-    }
-  }, []);
-
-  const initiatePayment = async () => {
-    setErrorMsg(null);
-
-    if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
-      setErrorMsg("Payment amount must be a positive PI value.");
-      setStatus("ERROR_DETECTED");
-      return;
-    }
-
-    const Pi = typeof window !== "undefined" ? (window as any).Pi : null;
-    if (!Pi || typeof Pi.authenticate !== "function" || typeof Pi.createPayment !== "function") {
-      setErrorMsg("Pi SDK unavailable. Open inside Pi Browser.");
-      setStatus("FRACTURE_DETECTED");
-      return;
-    }
-
-    try {
-      const isPiBrowser =
-        typeof navigator !== "undefined" && /PiBrowser/i.test(navigator.userAgent);
+    if (typeof window === "undefined") return;
+    const Pi = (window as any).Pi;
+    if (Pi && typeof Pi.init === "function") {
+      const isPiBrowser = /PiBrowser/i.test(navigator.userAgent);
       try {
         Pi.init({ version: "2.0", sandbox: !isPiBrowser });
       } catch {
         // Ignore if already initialized on this window
       }
+    }
+  }, []);
 
-      setStatus("AUTHENTICATING");
-      const scopes = ["payments", "username"];
+  const initiatePayment = async () => {
+    if (
+      status === "COMPLETED" ||
+      [
+        "AUTHENTICATING",
+        "RESOLVING_OLD_PAYMENT",
+        "CREATING_PAYMENT",
+        "VERIFYING_WITH_SERVER",
+        "AWAITING_WALLET_SIGN",
+        "FINALIZING_PAYMENT",
+      ].includes(status)
+    ) {
+      return;
+    }
 
-      const onIncompletePaymentFound = async (payment: any) => {
-        console.warn("[MESH-SCAN] Incomplete Payment Detected:", payment?.identifier);
-        setStatus("RESOLVING_OLD_PAYMENT");
+    const numericAmount = Number(amount);
+    if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
+      setErrorMsg("Payment amount must be a positive number.");
+      setStatus("ERROR_DETECTED");
+      return;
+    }
 
-        if (payment?.identifier && payment?.transaction?.txid) {
-          const res = await fetch("/api/payments", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              action: "complete",
-              paymentId: payment.identifier,
-              txid: payment.transaction.txid,
-            }),
-          });
-          if (res.ok) {
-            setStatus("OLD_PAYMENT_CLEARED");
-          }
+    const Pi = typeof window !== "undefined" ? (window as any).Pi : null;
+    if (!Pi || typeof Pi.createPayment !== "function") {
+      setErrorMsg("Pi SDK unavailable. Open inside Pi Browser.");
+      setStatus("ERROR_DETECTED");
+      return;
+    }
+
+    setErrorMsg(null);
+    setStatus("AUTHENTICATING");
+
+    try {
+      const auth = await safePiAuthenticate(
+        ["username", "payments", "wallet_address"],
+        async (incompletePayment) => {
+          setStatus("RESOLVING_OLD_PAYMENT");
+          await recoverIncompletePaymentOnServer(incompletePayment);
+          setStatus("OLD_PAYMENT_CLEARED");
         }
-      };
+      );
 
-      const auth = await Pi.authenticate(scopes, onIncompletePaymentFound);
-      console.log(`[MESH-SCAN] Pioneer Authenticated: ${auth?.user?.username || "unknown"}`);
+      setStatus("CREATING_PAYMENT");
 
       Pi.createPayment(
         {
@@ -96,84 +89,87 @@ export default function PiPaymentButton({
             ...metadata,
             asset: "PI",
             currency: "PI",
+            pioneer_uid: auth?.user?.uid || null,
+            escrowId,
           },
         },
         {
           onReadyForServerApproval: async (paymentId: string) => {
-            setStatus("VERIFYING_WITH_ADJUDICATOR");
-
-            const res = await fetch("/api/payments", {
+            setStatus("VERIFYING_WITH_SERVER");
+            const res = await fetch("/api/payments/approve", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ action: "approve", paymentId }),
+              body: JSON.stringify({ paymentId }),
             });
-
-            if (res.ok) {
-              setStatus("TRANSACTION_SECURED");
-            } else {
-              const errData = await res.json().catch(() => ({}));
-              setErrorMsg(errData?.error || "Server approval failed.");
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok || !data?.success) {
+              setErrorMsg(data?.error || "Server approval failed.");
               setStatus("HALT_FAILED");
+              return;
             }
+            setStatus("AWAITING_WALLET_SIGN");
           },
-
           onReadyForServerCompletion: async (paymentId: string, txid: string) => {
-            setStatus("FINALIZING_LEDGER");
-
-            const res = await fetch("/api/payments", {
+            setStatus("FINALIZING_PAYMENT");
+            const res = await fetch("/api/payments/complete", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ action: "complete", paymentId, txid }),
+              body: JSON.stringify({
+                paymentId,
+                txid,
+                escrowId,
+                pioneerUid: auth?.user?.uid || null,
+              }),
             });
-
-            if (res.ok) {
-              setStatus("COMPLETED");
-              if (onSuccess) await onSuccess(paymentId, txid);
-            } else {
-              const errData = await res.json().catch(() => ({}));
-              setErrorMsg(errData?.error || "Server completion failed.");
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok || !data?.success) {
+              setErrorMsg(data?.error || "Server completion failed.");
               setStatus("COMPLETION_FAILED");
+              return;
+            }
+            setStatus("COMPLETED");
+            if (onSuccess) {
+              await onSuccess(paymentId, txid);
             }
           },
-
           onCancel: () => {
             setStatus("CANCELLED");
           },
-
           onError: (err: any) => {
-            console.error("[MESH-SCAN] SDK Error:", err);
-            setErrorMsg(err?.message || "Pi SDK payment error.");
+            setErrorMsg(err?.message || "Payment SDK error.");
             setStatus("ERROR_DETECTED");
           },
         }
       );
     } catch (err: any) {
-      console.error("[MESH-SCAN] Authentication Fracture:", err);
-      setErrorMsg(err?.message || "Authentication or payment initiation failed.");
-      setStatus("FRACTURE_DETECTED");
+      setErrorMsg(err?.message || "Authentication failed.");
+      setStatus("ERROR_DETECTED");
     }
   };
 
-  const isDisabled = [
-    "AUTHENTICATING",
-    "RESOLVING_OLD_PAYMENT",
-    "VERIFYING_WITH_ADJUDICATOR",
-    "FINALIZING_LEDGER",
-    "COMPLETED",
-  ].includes(status);
+  const isDisabled =
+    status === "COMPLETED" ||
+    [
+      "AUTHENTICATING",
+      "RESOLVING_OLD_PAYMENT",
+      "CREATING_PAYMENT",
+      "VERIFYING_WITH_SERVER",
+      "AWAITING_WALLET_SIGN",
+      "FINALIZING_PAYMENT",
+    ].includes(status);
 
   return (
-    <div className="space-y-1.5">
+    <div className="space-y-2 font-mono text-xs">
       <button
         type="button"
         onClick={initiatePayment}
         disabled={isDisabled}
-        className="w-full px-6 py-3 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-black font-bold rounded-lg transition-all"
+        className="px-6 py-3 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-800 disabled:text-slate-400 text-black font-bold rounded-lg transition-all cursor-pointer disabled:cursor-not-allowed"
       >
-        {status === "INIT" ? `PAY ${displayAmount} π` : status}
+        {status === "INIT" ? `PAY ${amount} π` : status}
       </button>
       {errorMsg && (
-        <p className="text-xs font-mono text-rose-400 break-all">{errorMsg}</p>
+        <p className="text-[11px] text-rose-400 break-all">{errorMsg}</p>
       )}
     </div>
   );

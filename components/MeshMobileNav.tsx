@@ -119,7 +119,7 @@ export const MESH_NAV_ITEMS: MeshMobileNavItem[] = [
     label: "Menu",
     href: "/menu",
     matchPrefixes: ["/menu"],
-    description: "Pioneer session info, Log Out & secondary protocol links",
+    description: "Pioneer session info, passkeys & secondary protocol links",
     subSectionKey: "GOVERNANCE_VIEW",
     minTier: 1,
     icon: (active) => (
@@ -129,7 +129,6 @@ export const MESH_NAV_ITEMS: MeshMobileNavItem[] = [
 ];
 
 function isItemActive(pathname: string, item: MeshMobileNavItem): boolean {
-  // Keep /dashboard/marketplace highlighted under Market rather than Staking (/dashboard)
   if (
     item.key === "staking" &&
     (pathname === "/dashboard/marketplace" ||
@@ -157,7 +156,7 @@ export default function MeshMobileNav({
 
   const effectiveRole = role ?? pioneer?.role;
   const effectiveTier = normalizeTierLevel(governanceTier ?? pioneer?.tier ?? 1);
-  const derivedHasRole = hasRole ?? hasActiveRole;
+  void (hasRole ?? hasActiveRole);
 
   const hasFounderRole =
     isFounder ??
@@ -181,11 +180,9 @@ export default function MeshMobileNav({
   return (
     <nav
       aria-label="Mesh Mobile Navigation"
-      data-has-role={derivedHasRole ? "true" : "false"}
-      data-tier={String(effectiveTier)}
       className="fixed bottom-0 left-0 right-0 z-50 flex justify-center pointer-events-none"
     >
-      <div className="w-full max-w-[384px] bg-zinc-950/95 backdrop-blur-md border-t border-zinc-800/90 pointer-events-auto shadow-2xl">
+      <div className="w-full max-w-[384px] bg-slate-950/95 backdrop-blur-md border-t border-slate-900 px-2 pt-1.5 pb-[max(env(safe-area-inset-bottom,0px),24px)] flex flex-col items-stretch pointer-events-auto shadow-2xl">
         {showActiveContextBar && activeItem && (
           <div className="border-b border-zinc-800/70 bg-zinc-900/50 px-2.5 py-1 text-[9px] font-mono text-zinc-400 truncate">
             <strong className="text-cyan-300 uppercase">{activeItem.label}:</strong>{" "}
@@ -193,7 +190,7 @@ export default function MeshMobileNav({
           </div>
         )}
 
-        <div className="px-1.5 py-1.5 flex items-center justify-between gap-0.5">
+        <div className="w-full px-1 py-1 flex items-center justify-between gap-0.5">
           {visibleItems.map((item) => {
             const active = isItemActive(pathname, item);
 
@@ -202,7 +199,7 @@ export default function MeshMobileNav({
                 key={item.key}
                 href={item.href}
                 title={`${item.label} — ${item.description}`}
-                className={`flex-1 min-w-0 flex flex-col items-center justify-center py-1 px-1 rounded-lg transition-colors ${
+                className={`flex-1 min-w-0 flex flex-col items-center justify-center py-1 px-0.5 rounded-lg transition-colors ${
                   active
                     ? "bg-zinc-900/90 text-zinc-100"
                     : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/40"

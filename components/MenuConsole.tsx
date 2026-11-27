@@ -8,10 +8,11 @@ import PasskeyEnrollmentCard from "@/components/PasskeyEnrollmentCard";
 import {
   ArrowUpRight,
   Crown,
-  LogOut,
+  Fingerprint,
   Menu,
   ShieldCheck,
   User,
+  X,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import {
@@ -21,14 +22,21 @@ import {
 
 export default function MenuConsole() {
   const router = useRouter();
-  const { pioneer, logout, isFounder } = useAuth();
+  const { pioneer, isFounder } = useAuth();
 
   const tierLevel = normalizeTierLevel(pioneer?.tier ?? 1);
   const tierMeta = GOVERNANCE_TIER_META[tierLevel];
 
-  const handleLogout = () => {
-    logout();
-    router.push("/log-in");
+  const handleBiometricLogin = () => {
+    router.push("/dashboard");
+  };
+
+  const handleClose = () => {
+    if (typeof window !== "undefined" && window.history.length > 1) {
+      router.back();
+    } else {
+      router.push("/dashboard");
+    }
   };
 
   return (
@@ -61,7 +69,7 @@ export default function MenuConsole() {
           <span className="text-emerald-300">
             {pioneer?.status || "SYNCING"}
           </span>{" "}
-          • Role: <span className="text-cyan-300">{pioneer?.role || "NONE"}</span>
+          - Role: <span className="text-cyan-300">{pioneer?.role || "NONE"}</span>
         </div>
         {pioneer?.uid && (
           <div className="text-[9px] text-zinc-500 truncate">
@@ -128,16 +136,29 @@ export default function MenuConsole() {
         </div>
       </div>
 
-      {/* Log Out Action */}
-      <button
-        type="button"
-        onClick={handleLogout}
-        className="w-full rounded-xl border border-rose-800/80 bg-rose-950/40 px-3 py-2.5 text-xs font-bold text-rose-300 hover:bg-rose-900/50 flex items-center justify-center gap-2 cursor-pointer"
-      >
-        <LogOut className="h-3.5 w-3.5" />
-        Log Out
-        <PasskeyEnrollmentCard />
-      </button>
+      {/* Biometric Passkey Enrollment */}
+      <PasskeyEnrollmentCard />
+
+      {/* Biometric Log-in & Close Actions */}
+      <div className="grid grid-cols-2 gap-2">
+        <button
+          type="button"
+          onClick={handleBiometricLogin}
+          className="w-full rounded-xl border border-cyan-700/80 bg-cyan-950/40 px-3 py-2.5 text-xs font-bold text-cyan-200 hover:bg-cyan-900/50 flex items-center justify-center gap-1.5 cursor-pointer"
+        >
+          <Fingerprint className="h-3.5 w-3.5 text-cyan-300" />
+          <span>Biometric Log-in</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={handleClose}
+          className="w-full rounded-xl border border-zinc-700/90 bg-zinc-900/80 px-3 py-2.5 text-xs font-bold text-zinc-200 hover:bg-zinc-800 flex items-center justify-center gap-1.5 cursor-pointer"
+        >
+          <X className="h-3.5 w-3.5 text-zinc-300" />
+          <span>Close</span>
+        </button>
+      </div>
     </section>
   );
 }

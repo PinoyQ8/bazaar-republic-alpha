@@ -1,30 +1,73 @@
+export interface PioneerUser {
+  username: string;
+  uid: string;
+  accessToken?: string;
+}
+
 export interface PiAuthResult {
-  user: { uid: string; username: string; };
+  user: PioneerUser;
   accessToken: string;
 }
 
-export async function safePiAuthenticate(scopes: string[]): Promise<PiAuthResult> {
-  if (typeof window === "undefined" || !(window as any).Pi) throw new Error("Pi SDK missing");
+export type IncompletePaymentCallback = (payment: {
+  identifier?: string;
+  transaction?: { txid?: string } | null;
+}) => void | Promise<void>;
+
+export async function recoverIncompletePaymentOnServer(payment: {
+  identifier?: string;
+}): Promise<void> {
+  const paymentId = payment?.identifier?.trim();
+  if (!paymentId) return;
+
+  const res = await fetch("/api/payments/incomplete", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ paymentId }),
+  });
+
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(
+      typeof data?.error === "string"
+        ? data.error
+        : `Incomplete payment recovery failed (HTTP ${res.status})`
+    );
+  }
+}
+
+export async function safePiAuthenticate(
+  scopes: string[] = ["username", "payments", "wallet_address"],
+  onIncompletePayment?: IncompletePaymentCallback
+): Promise<PiAuthResult> {
+  if (typeof window === "undefined" || !(window as any).Pi) {
+    throw new Error("Pi SDK missing. Open inside Pi Browser.");
+  }
+
   const Pi = (window as any).Pi;
-  
-  // Dynamic native bridge detection
   const isPiBrowser = /PiBrowser/i.test(navigator.userAgent);
 
   try {
     Pi.init({ version: "2.0", sandbox: !isPiBrowser });
-  } catch (e) {
-    // Ignore if already initialized
+  } catch {
+    // Ignore if already initialized on this window
   }
 
-  return new Promise((resolve, reject) => {
-    Pi.authenticate(scopes, async (incomplete: any) => {
-      if (incomplete?.transaction?.txid) {
-        await fetch("/api/payments", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "complete", paymentId: incomplete.identifier, txid: incomplete.transaction.txid })
-        }).catch(() => {});
+  const unifiedScopes = Array.from(
+    new Set([...scopes, "username", "payments", "wallet_address"])
+  );
+
+  const incompleteHandler: IncompletePaymentCallback = async (payment) => {
+    try {
+      if (onIncompletePayment) {
+        await onIncompletePayment(payment);
+      } else {
+        await recoverIncompletePaymentOnServer(payment);
       }
-    }).then(resolve).catch(reject);
-  });
+    } catch (err) {
+      console.warn("[PI_INCOMPLETE_RECOVERY_WARN]", err);
+    }
+  };
+
+  return await Pi.authenticate(unifiedScopes, incompleteHandler);
 }
