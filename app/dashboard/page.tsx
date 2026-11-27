@@ -15,6 +15,7 @@ import {
   Sliders,
 } from "lucide-react";
 import StakingPoolCard from "@/app/dashboard/components/StakingPoolCard";
+import StakingPoolEpochLedger from "@/components/staking/StakingPoolEpochLedger";
 import {
   canAccessDashboardSection,
   canPerformGovernanceAction,
@@ -315,6 +316,8 @@ export default function DashboardPage({
         isFrozen={isNodeFrozen}
         onExecuteStake={executeStakePayment}
       />
+
+      <StakingPoolEpochLedger poolId="GENESIS_LP_1000_PI" pioneerUid={activePioneerUid || undefined} />
 
       {/* Tier 5 Genesis / Elder Protocol Clearance Card */}
       <div

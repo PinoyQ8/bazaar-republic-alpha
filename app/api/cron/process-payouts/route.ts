@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+﻿import { NextResponse } from "next/server";
 import {
   Horizon,
   Networks,
@@ -7,6 +7,8 @@ import {
   Asset,
   Operation,
 } from "@stellar/stellar-sdk";
+
+export const dynamic = "force-dynamic";
 
 const MBRS_CONVERSION_RATIO = 1000;
 
@@ -33,9 +35,58 @@ interface ProcessedPayoutLog {
 
 let isProcessingQueue = false;
 
-export async function GET(req: Request) {
-  void req;
+async function resolveDestinationAddress(
+  payout: { uid: string; testPiAmount: number; memo: string },
+  fallbackAddress: string,
+  apiKey?: string
+): Promise<string> {
+  if (!apiKey || process.env.DISABLE_PI_A2U_LOOKUP === "true") {
+    return fallbackAddress;
+  }
 
+  const piStart = Date.now();
+  try {
+    const res = await fetch("https://api.minepi.com/v2/payments", {
+      method: "POST",
+      headers: {
+        Authorization: `Key ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      signal: AbortSignal.timeout(2500),
+      body: JSON.stringify({
+        payment: {
+          amount: payout.testPiAmount,
+          memo: payout.memo,
+          metadata: {
+            domain: "Project Bazaar DAO",
+            protocol: "MESH-A2U",
+            asset: "TESTMBZR",
+          },
+          uid: payout.uid,
+        },
+      }),
+    });
+
+    if (!res.ok) {
+      console.log(
+        `[NEO NOTE] Pi API returned ${res.status} in ${Date.now() - piStart}ms. Routing to vault target.`
+      );
+      return fallbackAddress;
+    }
+
+    const data = await res.json().catch(() => null);
+    return typeof data?.to_address === "string" && data.to_address.trim()
+      ? data.to_address.trim()
+      : fallbackAddress;
+  } catch {
+    console.log(
+      `[NEO NOTE] Pi API skipped/timed out after ${Date.now() - piStart}ms. Routing to vault target.`
+    );
+    return fallbackAddress;
+  }
+}
+
+export async function GET() {
   if (isProcessingQueue) {
     return NextResponse.json(
       { status: "Queue locked. MESH active." },
@@ -46,11 +97,11 @@ export async function GET(req: Request) {
   isProcessingQueue = true;
   const routeStart = Date.now();
   const processedLogs: ProcessedPayoutLog[] = [];
-  const API_KEY = process.env.PI_API_KEY;
-  const SECRET_SEED = process.env.STELLAR_VAULT_SEED;
+  const apiKey = process.env.PI_API_KEY;
+  const secretSeed = process.env.STELLAR_VAULT_SEED;
 
   try {
-    if (!SECRET_SEED) {
+    if (!secretSeed) {
       throw new Error(
         "STELLAR_VAULT_SEED is missing from environment variables."
       );
@@ -63,14 +114,17 @@ export async function GET(req: Request) {
     const networkPassphrase = isMainnet ? Networks.PUBLIC : Networks.TESTNET;
 
     const server = new Horizon.Server(horizonUrl);
-    const sourceKeypair = Keypair.fromSecret(SECRET_SEED);
+    const sourceKeypair = Keypair.fromSecret(secretSeed);
     const sourcePublicKey = sourceKeypair.publicKey();
     const testMbzrAsset = new Asset("TESTMBZR", sourcePublicKey);
 
-    const feeStart = Date.now();
-    const baseFee = await server.fetchBaseFee();
+    const prepStart = Date.now();
+    const [baseFee, sourceAccount] = await Promise.all([
+      server.fetchBaseFee(),
+      server.loadAccount(sourcePublicKey),
+    ]);
     console.log(
-      `[NEO-SYNC] Fetched base fee (${baseFee}) in ${Date.now() - feeStart}ms`
+      `[NEO-SYNC] Loaded account & base fee (${baseFee}) in ${Date.now() - prepStart}ms`
     );
 
     for (const payout of pendingDistributions) {
@@ -80,54 +134,13 @@ export async function GET(req: Request) {
       const tokenAmount = (payout.testPiAmount * MBRS_CONVERSION_RATIO).toFixed(
         7
       );
-      let destinationId = sourcePublicKey;
+      const destinationId = await resolveDestinationAddress(
+        payout,
+        sourcePublicKey,
+        apiKey
+      );
 
-      const piStart = Date.now();
-      try {
-        const headers: Record<string, string> = {
-          "Content-Type": "application/json",
-        };
-        if (API_KEY) {
-          headers.Authorization = `Key ${API_KEY}`;
-        }
-
-        const createRes = await fetch("https://api.minepi.com/v2/payments", {
-          method: "POST",
-          headers,
-          signal: AbortSignal.timeout(5000),
-          body: JSON.stringify({
-            payment: {
-              amount: payout.testPiAmount,
-              memo: payout.memo,
-              metadata: {
-                domain: "Project Bazaar DAO",
-                protocol: "MESH-A2U",
-                asset: "TESTMBZR",
-              },
-              uid: payout.uid,
-            },
-          }),
-        });
-
-        if (createRes.ok) {
-          const paymentData = await createRes.json();
-          if (paymentData?.to_address) {
-            destinationId = paymentData.to_address;
-          }
-        } else {
-          console.log(
-            `[NEO NOTE] Pi API returned ${createRes.status} in ${Date.now() - piStart}ms. Routing to vault target.`
-          );
-        }
-      } catch {
-        console.log(
-          `[NEO NOTE] Pi API Sandbox offline or timed out after ${Date.now() - piStart}ms. Routing to local vault target.`
-        );
-      }
-
-      const txPrepStart = Date.now();
-      const sourceAccount = await server.loadAccount(sourcePublicKey);
-
+      const txSubmitStart = Date.now();
       const transaction = new TransactionBuilder(sourceAccount, {
         fee: baseFee.toString(),
         networkPassphrase,
@@ -149,7 +162,7 @@ export async function GET(req: Request) {
       const nodeElapsedMs = Date.now() - nodeStart;
 
       console.log(
-        `[NEO-SYNC] Completed ${payout.uid} (prep+submit: ${Date.now() - txPrepStart}ms, total: ${nodeElapsedMs}ms, hash: ${txResponse.hash})`
+        `[NEO-SYNC] Completed ${payout.uid} (submit: ${Date.now() - txSubmitStart}ms, total: ${nodeElapsedMs}ms, hash: ${txResponse.hash})`
       );
 
       processedLogs.push({
@@ -171,20 +184,17 @@ export async function GET(req: Request) {
       elapsedMs: totalElapsedMs,
       processed: processedLogs,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message =
+      error instanceof Error ? error.message : "Unknown Fracture";
     console.error("[NEO ERROR] Queue Halted during processing loop.");
-    console.error(
-      `[NEO ERROR] Message: ${error?.message || "Unknown Fracture"}`
-    );
-    if (error?.stack) {
-      console.error(error.stack);
-    }
+    console.error(`[NEO ERROR] Message: ${message}`);
 
     return NextResponse.json(
       {
         success: false,
         elapsedMs: Date.now() - routeStart,
-        message: `QUEUE_HALTED: ${error?.message || "Unknown Fracture"}`,
+        message: `QUEUE_HALTED: ${message}`,
       },
       { status: 500 }
     );
