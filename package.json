@@ -13,7 +13,8 @@
     "typecheck": "tsc --noEmit",
     "prepare": "husky",
     "tunnel": "tsx lib/tunnel-agent.ts",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "audit:security": "node scripts/audit-payments.mjs && node scripts/audit-escrow-staking.mjs && npx tsc --noEmit"
   },
   "dependencies": {
     "@ai-sdk/openai": "^0.0.72",

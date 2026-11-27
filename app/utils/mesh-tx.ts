@@ -12,8 +12,12 @@ export async function executeVaultMutation(
   pioneerUid?: string
 ): Promise<string> {
   try {
-    const normalizedEscrowId = escrowId.trim();
-    const normalizedAddress = consumerPubKey.trim();
+    if (method !== "release" && method !== "refund") {
+      throw new Error(`Unsupported vault mutation method: ${String(method)}`);
+    }
+
+    const normalizedEscrowId = String(escrowId || "").trim();
+    const normalizedAddress = String(consumerPubKey || "").trim();
 
     if (!normalizedEscrowId) {
       throw new Error("Missing escrow identifier for vault mutation.");
@@ -59,12 +63,15 @@ export async function executeVaultMutation(
       );
     }
 
-    return typeof data.txHash === "string" && data.txHash.trim()
-      ? data.txHash.trim()
-      : "SETTLED_ON_CHAIN";
+    const txHash = typeof data.txHash === "string" ? data.txHash.trim() : "";
+    if (!txHash) {
+      throw new Error("Vault mutation succeeded without returning a valid transaction hash.");
+    }
+
+    return txHash;
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
     console.error("[MESH-TX Error]:", message);
-    throw new Error(message);
+    throw new Error(message, { cause: error });
   }
 }
