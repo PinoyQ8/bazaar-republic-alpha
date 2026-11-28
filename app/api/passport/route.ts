@@ -1,17 +1,19 @@
 // app/api/passport/route.ts
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { clearScreenDown } from "readline";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
-  const wallet = searchParams.get("wallet");
+  const wallet = (searchParams.get("wallet") || "").trim();
+  const uid = (searchParams.get("uid") || "").trim();
 
-  if (!wallet) {
+  if (!wallet && !uid) {
     return NextResponse.json(
-      { active: false, error: "Missing wallet address parameter." },
+      { active: false, error: "Missing wallet or uid query parameter." },
       { status: 400 }
     );
   }
@@ -21,19 +23,28 @@ export async function GET(req: Request) {
       throw new Error("Prisma client uninitialized");
     }
 
+    const whereClause =
+      wallet && uid
+        ? { OR: [{ walletAddress: wallet }, { uid }] }
+        : wallet
+        ? { walletAddress: wallet }
+        : { uid };
+
     const pioneer = await prisma.pioneerNode.findFirst({
-      where: {
-        walletAddress: wallet,
-      },
+      where: whereClause,
       select: {
         id: true,
         uid: true,
         username: true,
         walletAddress: true,
+        tier: true,
+        assignedChamber: true,
         status: true,
+        isFrozen: true,
         trustScore: true,
         syncState: true,
         createdAt: true,
+        updatedAt: true,
       },
     });
 
@@ -50,14 +61,9 @@ export async function GET(req: Request) {
 
     return NextResponse.json(
       {
-        active: true,
+        active: !pioneer.isFrozen,
         registered: true,
-        pioneer: {
-          ...pioneer,
-          tier: "CITIZEN-NODE",
-          uptimeShield: true,
-          modulesCleared: [1, 2],
-        },
+        pioneer,
       },
       { status: 200 }
     );
@@ -73,4 +79,4 @@ export async function GET(req: Request) {
       { status: 500 }
     );
   }
-}
+}clearScreenDown

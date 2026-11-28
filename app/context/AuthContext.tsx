@@ -1,4 +1,4 @@
-﻿// Location: context/AuthContext.tsx
+﻿// Location: app/context/AuthContext.tsx
 "use client";
 
 import {
@@ -34,16 +34,37 @@ export interface PioneerState {
   accessToken: string | null;
 }
 
+export interface RoleSwitchParams {
+  targetTier: NodeTier;
+  requestedRole: string;
+  allowDevOverride?: boolean;
+}
+
 export interface AuthContextType {
   pioneer: PioneerState;
   setPioneer: React.Dispatch<React.SetStateAction<PioneerState>>;
   login: (data: Partial<PioneerState>) => void;
   logout: () => void;
+  syncSessionFromServer: (overrideUid?: string) => Promise<PioneerState | null>;
+  switchFounderRole: (params: RoleSwitchParams) => Promise<PioneerState>;
   executeStakePayment: (amount: number) => Promise<void>;
   isHydrated: boolean;
   accessToken: string | null;
   hasActiveRole: boolean;
   isFounder: boolean;
+}
+
+const PLACEHOLDER_TOKENS = new Set([
+  "",
+  "CACHED_SESSION_TOKEN",
+  "NEO_SYNC_TOKEN",
+  "LOCAL_DEV_TOKEN",
+]);
+
+function sanitizeToken(raw?: string | null): string | null {
+  const cleaned = typeof raw === "string" ? raw.trim() : "";
+  if (!cleaned || PLACEHOLDER_TOKENS.has(cleaned)) return null;
+  return cleaned;
 }
 
 const FALLBACK_PIONEER: PioneerState = {
@@ -64,6 +85,8 @@ const FALLBACK_AUTH: AuthContextType = {
   setPioneer: () => {},
   login: () => {},
   logout: () => {},
+  syncSessionFromServer: async () => null,
+  switchFounderRole: async () => FALLBACK_PIONEER,
   executeStakePayment: async () => {},
   isHydrated: false,
   accessToken: null,
@@ -100,45 +123,24 @@ function assertSignedTxMatchesPrepared(
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [pioneer, setPioneer] = useState<PioneerState>(FALLBACK_PIONEER);
 
-  // 🛡️ UNIFIED HYDRATION ENGINE (No synthetic tokens or unverified auto-auth)
-  useEffect(() => {
-    try {
-      if (typeof window === "undefined") return;
-
-      const meshUid =
-        localStorage.getItem("mesh_pioneer_uid") ||
-        localStorage.getItem("BZR_PIONEER_UID") ||
-        undefined;
-      const meshUser =
-        localStorage.getItem("mesh_pioneer_id") ||
-        localStorage.getItem("BZR_PIONEER_USER") ||
-        undefined;
-      const storedToken = localStorage.getItem("pi_access_token") || null;
-
-      setPioneer((prev) => ({
-        ...prev,
-        uid: prev.uid || meshUid,
-        username: prev.username || meshUser,
-        accessToken: prev.accessToken || storedToken,
-        isAuthenticated: false,
-        isHydrated: true,
-      }));
-    } catch (e) {
-      console.error("[MESH-AUTH] Failed to hydrate pioneer session:", e);
-      setPioneer((prev) => ({ ...prev, isHydrated: true }));
-    }
-  }, []);
-
   const login = useCallback((data: Partial<PioneerState>) => {
     setPioneer((prev) => {
       const nextAuthenticated =
         typeof data.isAuthenticated === "boolean" ? data.isAuthenticated : true;
+      const nextToken =
+        data.accessToken !== undefined
+          ? sanitizeToken(data.accessToken)
+          : sanitizeToken(prev.accessToken);
+
       const newState: PioneerState = {
         ...prev,
         ...data,
+        tier: (data.tier as NodeTier) || prev.tier || "CITIZEN",
+        role: data.role || prev.role || "NONE",
+        status: (data.status as NodeStatus) || prev.status || "ACTIVE",
+        accessToken: nextToken,
         isAuthenticated: nextAuthenticated,
         isHydrated: true,
-        status: (data.status as NodeStatus) || prev.status || "ACTIVE",
       };
 
       if (typeof window !== "undefined") {
@@ -148,13 +150,172 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         } else {
           localStorage.removeItem("mesh_session_active");
         }
-        if (data.uid) localStorage.setItem("mesh_pioneer_uid", data.uid);
-        if (data.username) localStorage.setItem("mesh_pioneer_id", data.username);
-        if (data.accessToken) localStorage.setItem("pi_access_token", data.accessToken);
+        if (newState.uid) localStorage.setItem("mesh_pioneer_uid", newState.uid);
+        if (newState.username) localStorage.setItem("mesh_pioneer_id", newState.username);
+        if (nextToken) {
+          localStorage.setItem("pi_access_token", nextToken);
+        } else {
+          localStorage.removeItem("pi_access_token");
+        }
       }
       return newState;
     });
   }, []);
+
+  // 🛡️ UNIFIED HYDRATION ENGINE (Preserves valid cached tier/role without synthetic tokens)
+  useEffect(() => {
+    try {
+      if (typeof window === "undefined") return;
+
+      const cachedRaw = localStorage.getItem("pi_auth_user");
+      const cachedUser = cachedRaw ? JSON.parse(cachedRaw) : null;
+      const meshUid =
+        cachedUser?.uid ||
+        localStorage.getItem("mesh_pioneer_uid") ||
+        localStorage.getItem("BZR_PIONEER_UID") ||
+        undefined;
+      const meshUser =
+        cachedUser?.username ||
+        localStorage.getItem("mesh_pioneer_id") ||
+        localStorage.getItem("BZR_PIONEER_USER") ||
+        undefined;
+      const sessionActive = localStorage.getItem("mesh_session_active") === "true";
+      const storedToken = sanitizeToken(
+        cachedUser?.accessToken || localStorage.getItem("pi_access_token")
+      );
+
+      setPioneer((prev) => ({
+        ...prev,
+        uid: meshUid || prev.uid,
+        username: meshUser || prev.username,
+        publicKey: cachedUser?.publicKey || prev.publicKey,
+        tier: (cachedUser?.tier as NodeTier) || prev.tier || "CITIZEN",
+        role: cachedUser?.role || prev.role || "NONE",
+        status: (cachedUser?.status as NodeStatus) || prev.status || "ACTIVE",
+        trustScore: cachedUser?.trustScore ?? prev.trustScore ?? 100,
+        accessToken: storedToken,
+        isAuthenticated: Boolean(meshUid && (sessionActive || storedToken)),
+        isHydrated: true,
+      }));
+    } catch (e) {
+      console.error("[MESH-AUTH] Failed to hydrate pioneer session:", e);
+      setPioneer((prev) => ({ ...prev, isHydrated: true }));
+    }
+  }, []);
+
+  const syncSessionFromServer = useCallback(
+    async (overrideUid?: string): Promise<PioneerState | null> => {
+      const targetUid = (overrideUid || pioneer.uid || "").trim();
+      if (!targetUid) return null;
+
+      try {
+        const res = await fetch(
+          `/api/passport?uid=${encodeURIComponent(targetUid)}`,
+          { cache: "no-store" }
+        );
+        if (!res.ok) return null;
+
+        const data = await res.json().catch(() => null);
+        const node = data?.pioneer;
+        if (!node?.uid) return null;
+
+        let syncedState: PioneerState | null = null;
+        setPioneer((prev) => {
+          syncedState = {
+            ...prev,
+            uid: node.uid,
+            username: node.username || prev.username,
+            publicKey: node.walletAddress ?? prev.publicKey,
+            tier: (node.tier as NodeTier) || prev.tier,
+            role: node.assignedChamber || prev.role,
+            status: (node.status as NodeStatus) || prev.status || "ACTIVE",
+            trustScore: node.trustScore ?? prev.trustScore ?? 100,
+            isAuthenticated: true,
+            isHydrated: true,
+          };
+          if (typeof window !== "undefined") {
+            localStorage.setItem("pi_auth_user", JSON.stringify(syncedState));
+            localStorage.setItem("mesh_session_active", "true");
+            localStorage.setItem("mesh_pioneer_uid", node.uid);
+            if (node.username) localStorage.setItem("mesh_pioneer_id", node.username);
+          }
+          return syncedState;
+        });
+
+        return syncedState;
+      } catch (err) {
+        console.error("[MESH-AUTH] Server passport sync failed:", err);
+        return null;
+      }
+    },
+    [pioneer.uid]
+  );
+
+  const switchFounderRole = useCallback(
+    async (params: RoleSwitchParams): Promise<PioneerState> => {
+      const targetUid = (pioneer.uid || "").trim();
+      if (!targetUid) {
+        throw new Error("MISSING_TARGET_UID: Authenticate a Pioneer session first.");
+      }
+
+      const realToken =
+        sanitizeToken(pioneer.accessToken) ||
+        (typeof window !== "undefined"
+          ? sanitizeToken(window.localStorage.getItem("pi_access_token"))
+          : null);
+
+      const useDevOverride =
+        !realToken &&
+        process.env.NODE_ENV !== "production" &&
+        (params.allowDevOverride ?? true);
+
+      if (!realToken && !useDevOverride) {
+        throw new Error(
+          "MISSING_PI_ACCESS_TOKEN: Sign in via Pi Browser or enable local dev override."
+        );
+      }
+
+      const res = await fetch("/api/founder/account-role", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(realToken ? { Authorization: `Bearer ${realToken}` } : {}),
+        },
+        body: JSON.stringify({
+          targetUid,
+          username: pioneer.username,
+          targetTier: params.targetTier,
+          requestedRole: params.requestedRole,
+          ...(realToken ? { accessToken: realToken } : {}),
+          ...(useDevOverride ? { devOverride: true } : {}),
+        }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data?.success || !data?.pioneer) {
+        throw new Error(data?.error || `HTTP_${res.status}: Role update rejected.`);
+      }
+
+      const persisted = data.pioneer;
+      const nextState: PioneerState = {
+        ...pioneer,
+        uid: persisted.uid,
+        username: persisted.username,
+        publicKey: persisted.walletAddress ?? pioneer.publicKey,
+        tier: persisted.tier as NodeTier,
+        role: persisted.assignedChamber ?? params.requestedRole,
+        status: (persisted.status as NodeStatus) || "ACTIVE",
+        trustScore: persisted.trustScore ?? pioneer.trustScore ?? 100,
+        accessToken: realToken,
+        isAuthenticated: true,
+        isHydrated: true,
+      };
+
+      login(nextState);
+      return nextState;
+    },
+    [pioneer, login]
+  );
 
   const logout = useCallback((): void => {
     if (typeof window !== "undefined") {
@@ -358,7 +519,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         throw error;
       }
     },
-    [pioneer?.publicKey, pioneer?.status, pioneer?.isAuthenticated]
+    [pioneer?.publicKey, pioneer?.status]
   );
 
   const contextValue = useMemo(() => {
@@ -369,9 +530,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         normalizedRole !== "NONE" &&
         normalizedRole !== "GUEST"
     );
-    const founder = isFounderSubject({
-      role: pioneer.role || pioneer.tier,
-    });
+    const founder =
+      isFounderSubject({ role: pioneer.role }) ||
+      isFounderSubject({ role: pioneer.tier });
     void normalizeTierLevel(pioneer.tier);
 
     return {
@@ -379,13 +540,22 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setPioneer,
       login,
       logout,
+      syncSessionFromServer,
+      switchFounderRole,
       executeStakePayment,
       isHydrated: pioneer.isHydrated,
       accessToken: pioneer.accessToken,
       hasActiveRole,
       isFounder: founder,
     };
-  }, [pioneer, setPioneer, login, logout, executeStakePayment]);
+  }, [
+    pioneer,
+    login,
+    logout,
+    syncSessionFromServer,
+    switchFounderRole,
+    executeStakePayment,
+  ]);
 
   return <AuthContext.Provider value={contextValue}>{children}</AuthContext.Provider>;
 };

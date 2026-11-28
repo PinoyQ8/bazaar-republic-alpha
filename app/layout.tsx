@@ -6,6 +6,7 @@ import { PiSdkScript } from '@/app/components/PiSdkScript';
 import { TestnetNoticeBanner } from '@/components/TestnetNoticeBanner';
 import MeshMobileNav from '@/components/MeshMobileNav';
 import ClientHydrationGuard from '@/components/ClientHydrationGuard';
+import DemoTourPill from '@/components/DemoTourPill';
 
 export const metadata: Metadata = {
   title: 'Project Bazaar DAO | MESH Protocol',
@@ -37,6 +38,7 @@ export default function RootLayout({
               <main className="flex-1 px-3 pt-3 pb-32 transition-all duration-200">
                 {children}
               </main>
+              <DemoTourPill />
               <MeshMobileNav />
             </div>
           </ClientHydrationGuard>
