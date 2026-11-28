@@ -1,4 +1,4 @@
-﻿// Location: app/page.tsx
+// Location: app/page.tsx
 "use client";
 
 import { useState, useEffect } from "react";
@@ -6,7 +6,7 @@ import Link from "next/link";
 import VaultDashboard from "@/components/VaultDashboard";
 
 const FALLBACK_NODE_ADDRESS =
-  "GDNL2PDN23QNUNWDTPVVYDHSGQTPPALHUIW7GOEGQNSSR4QVW2FDB2RZ";
+  "GAU5Y5UWUQ5ETIEI5HWVJR7VDMXUETTSKQ4UKOIIGIW6GVIMCR354UJ3";
 
 export default function BazaarEscrowNode() {
   const [consumerAddress, setConsumerAddress] = useState<string | null>(null);

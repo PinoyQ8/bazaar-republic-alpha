@@ -1,0 +1,23 @@
+[
+  {
+    "version": "0.2.0",
+    "previousVersion": "0.2.0",
+    "proposal": "GOV-008",
+    "reason": "Align v0.2.0 app release and separate protocol versions",
+    "updatedFiles": [],
+    "timestamp": "2026-11-28T06:08:56.926Z"
+  },
+  {
+    "version": "0.2.0",
+    "previousVersion": "0.1.1",
+    "proposal": "GOV-008",
+    "reason": "Add governance version sync",
+    "updatedFiles": [
+      "package.json",
+      "solohost.json",
+      "app\\utils\\meshConfig.ts",
+      "prisma/schema.prisma"
+    ],
+    "timestamp": "2026-11-28T05:54:52.550Z"
+  }
+]
