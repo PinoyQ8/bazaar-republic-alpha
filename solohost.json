@@ -1,7 +1,7 @@
-﻿{
+{
   "name": "bazaar-republic-alpha",
   "displayName": "Bazaar Republic Alpha",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "The alpha genesis release of Bazaar Republic — a decentralized autonomous organization (DAO) and secure E-Network marketplace built natively on the Pi Network infrastructure. Powered by the MESH Protocol for decentralized coordination and secure local node validation.",
   "author": "Bazaar Tech (PinoyQ8)",
   "repository": "https://github.com/PinoyQ8/bazaar-republic-alpha",

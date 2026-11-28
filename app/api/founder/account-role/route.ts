@@ -1,126 +1,87 @@
-﻿import { NextResponse } from "next/server";
+﻿// app/api/founder/account-role/route.ts
+import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
-const ALLOWED_TIERS = new Set([
-  "CITIZEN",
-  "NOVICE",
-  "ACADEMY_CORE",
-  "MESH_GUARDIAN",
-  "BAZAAR_FOUNDER",
-]);
-
-const ALLOWED_ROLES = new Set([
-  "NONE",
-  "PIONEER",
-  "MERCHANT",
-  "ECO_DEVELOPER",
-  "MESH_VALIDATOR",
-  "MESH_GUARDIAN",
-  "GENESIS_ELDER",
-  "BAZAAR_FOUNDER",
-]);
-
-function getFounderUidAllowlist(): Set<string> {
-  const raw = [
-    process.env.FOUNDER_PI_UID || "",
-    process.env.NEXT_PUBLIC_FOUNDER_PI_UID || "",
-  ]
-    .join(",")
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
-  return new Set(raw);
-}
-
 export async function POST(req: Request) {
   try {
     const body = await req.json().catch(() => ({}));
-    const uid = typeof body?.uid === "string" ? body.uid.trim() : "";
-    const nextTier =
-      typeof body?.tier === "string" ? body.tier.trim().toUpperCase() : "";
-    const nextRole =
-      typeof body?.role === "string" ? body.role.trim().toUpperCase() : "";
 
-    if (!uid) {
+    const targetUid = String(
+      body?.targetUid ?? body?.uid ?? body?.pioneerUid ?? ""
+    ).trim();
+
+    if (!targetUid) {
       return NextResponse.json(
-        { success: false, error: "Missing Pioneer uid." },
+        { success: false, error: "MISSING_TARGET_UID" },
         { status: 400 }
       );
     }
 
-    if (!ALLOWED_TIERS.has(nextTier) || !ALLOWED_ROLES.has(nextRole)) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Invalid tier or role selection.",
-        },
-        { status: 400 }
-      );
-    }
+    const rawUsername =
+      typeof body?.verifiedUsername === "string" && body.verifiedUsername.trim()
+        ? body.verifiedUsername.trim()
+        : typeof body?.username === "string" && body.username.trim()
+        ? body.username.trim()
+        : `pioneer_${targetUid.slice(0, 8)}`;
 
-    const existing = await prisma.pioneerNode.findUnique({
-      where: { uid },
+    const requestedRole = String(body?.requestedRole ?? body?.role ?? "").toUpperCase();
+    const targetTier = String(body?.targetTier ?? body?.tier ?? "").toUpperCase();
+
+    const isFounder =
+      requestedRole === "BAZAAR_FOUNDER" ||
+      requestedRole === "FOUNDER" ||
+      targetTier === "BAZAAR_FOUNDER";
+
+    const resolvedTier = isFounder ? "BAZAAR_FOUNDER" : "CITIZEN";
+    const resolvedChamber = isFounder ? "FOUNDER" : "CITIZEN";
+    const now = new Date();
+
+    // Prevent PioneerNode_username_key collision if another uid already holds rawUsername
+    const conflictingUser = await prisma.pioneerNode.findFirst({
+      where: {
+        username: rawUsername,
+        NOT: { uid: targetUid },
+      },
+      select: { uid: true },
     });
 
-    const allowlist = getFounderUidAllowlist();
-    const isVerifiedFounder =
-      allowlist.has(uid) ||
-      existing?.tier === "BAZAAR_FOUNDER" ||
-      String(existing?.role || "").toUpperCase().includes("FOUNDER") ||
-      (process.env.NODE_ENV !== "production" &&
-        uid === "5f747bc9-1302-4135-a40d-af7880174f16");
-
-    if (!isVerifiedFounder) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "FORBIDDEN: Founder cryptographic/UID anchor required.",
-        },
-        { status: 403 }
-      );
-    }
+    const safeUsername = conflictingUser
+      ? `${rawUsername}_${targetUid.slice(0, 6)}`
+      : rawUsername;
 
     const updated = await prisma.pioneerNode.upsert({
-      where: { uid },
+      where: {
+        uid: targetUid,
+      },
       update: {
-        tier: nextTier as never,
-        role: nextRole,
+        username: safeUsername,
+        tier: resolvedTier,
+        assignedChamber: resolvedChamber,
         status: "ACTIVE",
-        isElderEligible: nextRole === "GENESIS_ELDER",
+        isElderEligible: false,
+        lastActivityTimestamp: now,
+        lastHeartbeat: now,
       },
       create: {
-        uid,
-        username:
-          typeof body?.username === "string" && body.username.trim()
-            ? body.username.trim()
-            : "PinoyQ8",
-        tier: nextTier as never,
-        role: nextRole,
+        uid: targetUid,
+        username: safeUsername,
+        tier: resolvedTier,
+        assignedChamber: resolvedChamber,
         status: "ACTIVE",
         trustScore: 100,
-        isElderEligible: nextRole === "GENESIS_ELDER",
+        isElderEligible: false,
+        lastActivityTimestamp: now,
+        lastHeartbeat: now,
       },
     });
 
-    return NextResponse.json({
-      success: true,
-      pioneer: {
-        uid: updated.uid,
-        username: updated.username,
-        tier: updated.tier,
-        role: updated.role,
-        status: updated.status,
-        trustScore: updated.trustScore,
-      },
-    });
-  } catch (err: unknown) {
-    const message =
-      err instanceof Error ? err.message : "Failed to update Founder account role.";
-    console.error("[FOUNDER_ROLE_SWITCH_FAULT]:", err);
+    return NextResponse.json({ success: true, pioneer: updated }, { status: 200 });
+  } catch (error: any) {
+    console.error("[FOUNDER_ROLE_SWITCH_FAULT]:", error);
     return NextResponse.json(
-      { success: false, error: message },
+      { success: false, error: error?.message || "ROLE_UPDATE_FAILED" },
       { status: 500 }
     );
   }

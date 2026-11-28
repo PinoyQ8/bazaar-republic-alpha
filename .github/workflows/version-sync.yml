@@ -1,0 +1,138 @@
+name: Governance & Architecture Version Sync
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Explicit SemVer (e.g. 0.2.0). Leave blank to auto-bump."
+        required: false
+        type: string
+      bump:
+        description: "Auto-bump strategy when version is omitted"
+        required: false
+        default: "patch"
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+      proposal_id:
+        description: "Ratified governance proposal or RFC ID (e.g. RFC-002 / PROP-14)"
+        required: false
+        type: string
+      seal_hash:
+        description: "Governance executionSealHash or architectural ADR hash"
+        required: false
+        type: string
+      reason:
+        description: "Summary of governance or architectural change"
+        required: false
+        type: string
+
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - "releases/version-history.json"
+
+concurrency:
+  group: version-sync-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  sync-version:
+    name: Sync Module & Protocol Versions
+    runs-on: ubuntu-latest
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (!contains(github.event.head_commit.message, '[skip version-sync]') &&
+       (startsWith(github.event.head_commit.message, 'feat!:') ||
+        startsWith(github.event.head_commit.message, 'feat(') ||
+        startsWith(github.event.head_commit.message, 'feat:') ||
+        startsWith(github.event.head_commit.message, 'gov:') ||
+        startsWith(github.event.head_commit.message, 'gov(')))
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Determine bump and run sync-versions.ts
+        id: version_step
+        env:
+          COMMIT_MSG: ${{ github.event.head_commit.message || '' }}
+          INPUT_VERSION: ${{ inputs.version || '' }}
+          INPUT_BUMP: ${{ inputs.bump || 'patch' }}
+          PROPOSAL_ID: ${{ inputs.proposal_id || '' }}
+          SEAL_HASH: ${{ inputs.seal_hash || '' }}
+          REASON: ${{ inputs.reason || '' }}
+        run: |
+          BUMP="$INPUT_BUMP"
+          if [ -z "$INPUT_VERSION" ] && [ "${{ github.event_name }}" = "push" ]; then
+            if echo "$COMMIT_MSG" | grep -qE '^[a-z]+(\([^)]+\))?!:'; then
+              BUMP="major"
+            elif echo "$COMMIT_MSG" | grep -qE '^(feat|gov)(\([^)]+\))?:'; then
+              BUMP="minor"
+            else
+              BUMP="patch"
+            fi
+          fi
+
+          CMD="npx tsx scripts/sync-versions.ts --bump \"$BUMP\""
+          if [ -n "$INPUT_VERSION" ]; then
+            CMD="npx tsx scripts/sync-versions.ts --version \"$INPUT_VERSION\""
+          fi
+          if [ -n "$PROPOSAL_ID" ]; then
+            CMD="$CMD --proposal \"$PROPOSAL_ID\""
+          fi
+          if [ -n "$SEAL_HASH" ]; then
+            CMD="$CMD --seal \"$SEAL_HASH\""
+          fi
+          if [ -n "$REASON" ]; then
+            CMD="$CMD --reason \"$REASON\""
+          fi
+
+          eval "$CMD"
+          NEW_VER=$(node -p "require('./package.json').version")
+          echo "new_version=$NEW_VER" >> "$GITHUB_OUTPUT"
+
+      - name: Commit version sync on release branch and open PR
+        env:
+          NEW_VER: ${{ steps.version_step.outputs.new_version }}
+          PROPOSAL_ID: ${{ inputs.proposal_id || 'AUTO-COMMIT' }}
+        run: |
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "No version changes to commit."
+            exit 0
+          fi
+
+          BRANCH="chore/version-sync-v${NEW_VER}-${{ github.run_number }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git checkout -b "$BRANCH"
+          git add -A
+          git commit -m "chore(release): sync module & protocol versions to v${NEW_VER} [skip version-sync]" -m "Governance/Architecture Ref: ${PROPOSAL_ID}"
+          git push -u origin "$BRANCH"
+
+          if command -v gh >/dev/null 2>&1; then
+            gh pr create \
+              --base main \
+              --head "$BRANCH" \
+              --title "chore(release): bump Bazaar Republic Alpha to v${NEW_VER}" \
+              --body "Automated version sync to **v${NEW_VER}** (Ref: \`${PROPOSAL_ID}\`)." || true
+          fi

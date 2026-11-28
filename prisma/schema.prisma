@@ -1,3 +1,5 @@
+// @bazaar-version: v0.2.0 | governance-ref: GOV-008
+
 generator client {
   provider      = "prisma-client-js"
   binaryTargets = ["native", "rhel-openssl-3.0.x"]
