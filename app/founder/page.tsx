@@ -1,15 +1,16 @@
-﻿"use client";
+﻿// Location: app/founder/page.tsx
+"use client";
 
 import React, { useMemo } from "react";
 import { Crown, Lock, ShieldAlert } from "lucide-react";
-import { useAuth } from "@/context/AuthContext";
+import { useAuth } from "@/app/context/AuthContext";
 import {
   canAccessSubSection,
   GOVERNANCE_TIER_META,
   normalizeTierLevel,
 } from "@/app/lib/governance/tierRbac";
+import FounderAccountRoleCard from "@/components/FounderAccountRoleCard";
 import HeirSuccessionPanel from "@/components/HeirSuccessionPanel";
-import FounderAccountSettingsCard from "@/components/founder/FounderAccountSettingsCard";
 
 export default function FounderPage() {
   const { pioneer, hasActiveRole, isFounder } = useAuth();
@@ -69,6 +70,9 @@ export default function FounderPage() {
         </span>
       </header>
 
+      {/* Live DB + Session Tier & Role Switcher */}
+      <FounderAccountRoleCard />
+
       <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-3 space-y-1.5 text-xs">
         <div className="flex items-center gap-1.5 font-bold text-amber-300">
           <ShieldAlert className="h-3.5 w-3.5" />
@@ -79,8 +83,6 @@ export default function FounderPage() {
           sovereign heir succession continuity.
         </p>
       </div>
-
-      <FounderAccountSettingsCard />
 
       <HeirSuccessionPanel
         founderAddress={

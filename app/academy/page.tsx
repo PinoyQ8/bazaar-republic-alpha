@@ -4,19 +4,20 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
-import { 
-  Loader2, 
-  AlertTriangle, 
-  ShieldCheck, 
-  Lock, 
-  Unlock, 
-  ArrowLeft, 
-  ChevronRight, 
-  Sparkles, 
-  Zap, 
+import {
+  Loader2,
+  AlertTriangle,
+  ShieldCheck,
+  Lock,
+  Unlock,
+  ArrowLeft,
+  ChevronRight,
+  Sparkles,
+  Zap,
   GraduationCap,
   ArrowRight,
-  Award
+  Award,
+  HeartHandshake,
 } from 'lucide-react';
 import PioneerAuthGate from '@/app/components/PioneerAuthGate';
 
@@ -41,35 +42,35 @@ const ROLE_CONFIGS: Record<DaoRole, RoleBadgeConfig> = {
     color: 'text-purple-400',
     border: 'border-purple-800/60',
     bg: 'bg-purple-950/40',
-    duty: 'VRF Adjudication & Multisig Governance',
+    duty: '5-Elder VRF adjudication, multisig governance & Genesis 100 Academy stewardship',
   },
   MESH_VALIDATOR: {
     label: 'Mesh Validator',
     color: 'text-emerald-400',
     border: 'border-emerald-800/60',
     bg: 'bg-emerald-950/40',
-    duty: 'SoloHost RPC Relay & Telemetry Keeper',
+    duty: 'SoloHost RPC relay, 92% Uptime Shield & TTL keeper operations',
   },
   DEFI_ARBITRAGEUR: {
     label: 'DeFi Arbitrageur',
     color: 'text-amber-400',
     border: 'border-amber-800/60',
     bg: 'bg-amber-950/40',
-    duty: 'Vault Staking & 1:1,000 Peg Stability',
+    duty: 'Vault liquidity, 1:1,000 mBZR peg stability & epoch fee audits',
   },
   ECO_DEVELOPER: {
     label: 'Eco Developer',
     color: 'text-cyan-400',
     border: 'border-cyan-800/60',
     bg: 'bg-cyan-950/40',
-    duty: 'Merchant Escrow & ZK Attestation Integration',
+    duty: 'Merchant 48h escrow locks, PPP commerce & ZK attestations',
   },
   CADET_INITIATE: {
     label: 'Cadet Initiate',
     color: 'text-slate-400',
     border: 'border-slate-800',
     bg: 'bg-slate-900/60',
-    duty: 'Complete Academy Modules to Unlock DAO Deployment',
+    duty: 'Open curriculum study & module attestation to unlock DAO deployment',
   },
 };
 
@@ -85,6 +86,57 @@ interface AcademyPhase {
   tierUnlocked: string;
 }
 
+const PHASES: AcademyPhase[] = [
+  {
+    phaseNumber: 1,
+    code: 'MESH-101',
+    title: 'Genesis Identity & Passkeys',
+    subtitle: 'Hardware Enclave & Republic Mandate',
+    summary:
+      'Review the Republic Mandate & mutual-aid ethos, anchor your Pioneer identity, and bind WebAuthn/hardware passkeys.',
+    primaryRoute: '/academy/module-01',
+    secondaryRoute: '/mesh/harness',
+    secondaryLabel: 'Passkey Harness',
+    tierUnlocked: 'NOVICE',
+  },
+  {
+    phaseNumber: 2,
+    code: 'MESH-201',
+    title: 'DAO Architecture & $mBZR AMM',
+    subtitle: '5-Tier Governance & Genesis 100 Stewardship',
+    summary:
+      'Learn 5-tier chamber routing, quorum rules, mutual-aid/welfare safeguards, and zero-gas relayer mechanics.',
+    primaryRoute: '/academy/module-02',
+    secondaryRoute: '/governance',
+    secondaryLabel: 'DAO Council',
+    tierUnlocked: 'ACADEMY_CORE',
+  },
+  {
+    phaseNumber: 3,
+    code: 'MESH-301',
+    title: 'Alpha Track & Merchant Escrow',
+    subtitle: '48-Hour Timelocks & Dispute Adjudication',
+    summary:
+      'Practice timelocked merchant escrows, PPP pricing, and 5-Elder VRF dispute resolution rules.',
+    primaryRoute: '/alpha-track',
+    secondaryRoute: '/mesh/escrow',
+    secondaryLabel: 'Escrow Vaults',
+    tierUnlocked: 'ACADEMY_CORE',
+  },
+  {
+    phaseNumber: 4,
+    code: 'MESH-401',
+    title: 'DePIN Operations & 70/30 Matrix',
+    subtitle: 'Uptime Shield, TTL Keepers & Epoch Splits',
+    summary:
+      'Monitor node health, TTL preservation, staking pools, and 70/30 staker/POL fee distributions.',
+    primaryRoute: '/mesh/node',
+    secondaryRoute: '/dashboard',
+    secondaryLabel: 'Vault & Staking',
+    tierUnlocked: 'MESH_GUARDIAN',
+  },
+];
+
 export default function AcademyPage() {
   const { pioneer, login, isHydrated } = useAuth();
   const [isUpgrading, setIsUpgrading] = useState(false);
@@ -93,36 +145,48 @@ export default function AcademyPage() {
   const [completedModules, setCompletedModules] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
-  // 🛡️ Active Node Status Check
   const isActive = useMemo(() => {
     if (!pioneer?.isAuthenticated) return false;
     const status = pioneer?.status?.toUpperCase();
-    return status === 'ACTIVE' || status === 'FROZEN' || status === 'SUSPENDED' || !!pioneer?.tier;
+    return (
+      status === 'ACTIVE' ||
+      status === 'FROZEN' ||
+      status === 'SUSPENDED' ||
+      Boolean(pioneer?.tier)
+    );
   }, [pioneer]);
 
-  // 🛡️ Sync Academy Progression
   useEffect(() => {
+    let cancelled = false;
     async function fetchAcademyState() {
-      if (!isHydrated || !pioneer?.uid) {
-        setIsLoading(false);
+      if (!isHydrated) return;
+      if (!pioneer?.uid) {
+        if (!cancelled) setIsLoading(false);
         return;
       }
       try {
-        const res = await fetch(`/api/academy/progress?uid=${pioneer.uid}`);
+        const res = await fetch(
+          `/api/academy/progress?uid=${encodeURIComponent(pioneer.uid)}`,
+          { cache: 'no-store' }
+        );
         if (res.ok) {
           const data = await res.json();
-          setCompletedModules(data.completedModules || []);
+          if (!cancelled && Array.isArray(data.completedModules)) {
+            setCompletedModules(data.completedModules);
+          }
         }
       } catch (err) {
         console.error('Failed to sync Academy state:', err);
       } finally {
-        setIsLoading(false);
+        if (!cancelled) setIsLoading(false);
       }
     }
     fetchAcademyState();
+    return () => {
+      cancelled = true;
+    };
   }, [pioneer?.uid, isHydrated]);
 
-  // 🛡️ Dynamic Role Evaluation
   const assignedRole: DaoRole = useMemo(() => {
     const count = completedModules.length;
     const ts = pioneer?.trustScore ?? 100;
@@ -136,7 +200,6 @@ export default function AcademyPage() {
 
   const roleMeta = ROLE_CONFIGS[assignedRole];
 
-  // 🛡️ Genesis Upgrade Pipeline
   const handleGenesisUpgrade = async () => {
     if (!pioneer?.uid) {
       setError('MESH_ERROR: Node Identity Missing. Reboot session.');
@@ -172,66 +235,18 @@ export default function AcademyPage() {
     }
   };
 
-  const phases: AcademyPhase[] = [
-    {
-      phaseNumber: 1,
-      code: 'MESH-101',
-      title: 'Genesis Identity & Passkeys',
-      subtitle: 'Samsung Knox Enclave & Hardware Attestation',
-      summary: 'Acknowledge the Republic Mandate, anchor your node identity to the MESH Ledger, and configure Knox WebAuthn hardware passkeys.',
-      primaryRoute: '/academy/module-01',
-      secondaryRoute: '/mesh/harness',
-      secondaryLabel: 'S23 Test Harness',
-      tierUnlocked: 'NOVICE',
-    },
-    {
-      phaseNumber: 2,
-      code: 'MESH-201',
-      title: 'DAO Architecture & $mBZR AMM',
-      subtitle: 'Constant Product (x * y = k) & Relayer Trade',
-      summary: 'Master 5-Tier DAO governance rules, 0.3% protocol fee distributions, and zero-gas state relayer operations.',
-      primaryRoute: '/academy/module-02',
-      secondaryRoute: '/mesh/swap',
-      secondaryLabel: 'AMM Swap Lab',
-      tierUnlocked: 'ACADEMY_CORE',
-    },
-    {
-      phaseNumber: 3,
-      code: 'MESH-301',
-      title: 'Alpha Track & Merchant Escrow',
-      subtitle: '48-Hour Timelocks & Noir ZK Dispute Audits',
-      summary: 'Execute Genesis Minting payloads, non-custodial merchant escrow locks, and evaluate ZK dispute proofs.',
-      primaryRoute: '/alpha-track',
-      secondaryRoute: '/mesh/escrow',
-      secondaryLabel: 'Escrow Vaults',
-      tierUnlocked: 'ACADEMY_CORE',
-    },
-    {
-      phaseNumber: 4,
-      code: 'MESH-401',
-      title: 'DePIN Operations & 70/30 Matrix',
-      subtitle: 'Proof-of-Capacity/Staking & Telemetry Daemon',
-      summary: 'Operate off-chain ZK relayers, monitor real-time CPU/RAM telemetry, stake mBZR collateral, and collect 30-day epoch yield splits.',
-      primaryRoute: '/mesh/node',
-      secondaryRoute: '/mesh',
-      secondaryLabel: 'L2 Hub Center',
-      tierUnlocked: 'MESH_GUARDIAN',
-    },
-  ];
-
   return (
     <PioneerAuthGate>
       <main className="w-full max-w-[384px] mx-auto p-3 sm:p-4 pb-24 min-h-screen text-slate-100 font-mono selection:bg-emerald-500/30 flex flex-col gap-4">
-        
         {/* HEADER */}
         <div className="border-b border-slate-800 pb-3 mt-1">
           <div className="flex justify-between items-end">
             <div>
               <div className="flex items-center gap-2">
-                <Link 
-                  href="/mesh"
+                <Link
+                  href="/dashboard"
                   className="p-1 bg-slate-900/80 hover:bg-slate-800 border border-slate-700 text-slate-400 hover:text-cyan-400 rounded transition-colors"
-                  title="Return to MESH Hub"
+                  title="Return to Staking & Vault"
                 >
                   <ArrowLeft className="w-4 h-4" />
                 </Link>
@@ -241,38 +256,50 @@ export default function AcademyPage() {
               </div>
               <div className="flex items-center gap-2 mt-2 ml-7">
                 <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
                 </span>
-                <p className="text-[10px] text-slate-500 uppercase tracking-widest">Genesis 100 Cohort</p>
+                <p className="text-[10px] text-slate-500 uppercase tracking-widest">
+                  Open Curriculum • Genesis 100 Stewards
+                </p>
               </div>
             </div>
 
             <div className="text-right flex flex-col gap-0.5">
               <span className="text-[9px] text-slate-500 tracking-widest">NODE TIER</span>
-              <span className={`text-[11px] font-bold ${isActive ? 'text-emerald-400' : 'text-amber-400'}`}>
+              <span
+                className={`text-[11px] font-bold ${
+                  isActive ? 'text-emerald-400' : 'text-amber-400'
+                }`}
+              >
                 [{pioneer?.tier || 'CITIZEN'}]
               </span>
             </div>
           </div>
         </div>
 
-        {/* TALENT CARD */}
-        <section className={`p-3.5 rounded-xl border ${roleMeta.border} ${roleMeta.bg} flex flex-col gap-2 shadow-lg`}>
+        {/* TALENT & ROLE ALIGNMENT CARD */}
+        <section
+          className={`p-3.5 rounded-xl border ${roleMeta.border} ${roleMeta.bg} flex flex-col gap-2 shadow-lg`}
+        >
           <div className="flex justify-between items-center">
             <span className="text-[10px] uppercase tracking-wider text-slate-400 font-bold flex items-center gap-1.5">
               <Award className="w-3.5 h-3.5 text-amber-400" /> DAO Assignment
             </span>
-            <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded border ${roleMeta.border} ${roleMeta.color}`}>
+            <span
+              className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded border ${roleMeta.border} ${roleMeta.color}`}
+            >
               {roleMeta.label}
             </span>
           </div>
-          <p className="text-[11px] text-slate-300 leading-relaxed">
-            {roleMeta.duty}
-          </p>
+          <p className="text-[11px] text-slate-300 leading-relaxed">{roleMeta.duty}</p>
           <div className="pt-2 border-t border-slate-800/80 flex justify-between items-center text-[10px] text-slate-400">
             <span>Curriculum Progress:</span>
-            <span className="text-white font-bold">{completedModules.length} / 3 Modules Cleared</span>
+            <span className="text-white font-bold">
+              {isLoading
+                ? 'Syncing…'
+                : `${completedModules.length} / ${PHASES.length} Phases Cleared`}
+            </span>
           </div>
         </section>
 
@@ -280,17 +307,20 @@ export default function AcademyPage() {
         <div className="bg-slate-900/50 border border-slate-800 p-3 rounded-2xl space-y-2">
           <div className="flex justify-between items-center text-[10px] text-slate-400 font-bold uppercase tracking-wider">
             <span>Curriculum Pipeline</span>
-            <span className="text-emerald-400">{isActive ? 'Node Activated' : 'Pending Activation'}</span>
+            <span className="text-emerald-400">
+              {isActive ? 'Node Activated' : 'Pending Activation'}
+            </span>
           </div>
 
           <div className="grid grid-cols-4 gap-1 pt-1">
-            {phases.map((p) => {
+            {PHASES.map((p) => {
               const unlocked = p.phaseNumber === 1 || isActive;
               const isCurrent = activePhaseNum === p.phaseNumber;
 
               return (
                 <button
                   key={p.phaseNumber}
+                  type="button"
                   onClick={() => unlocked && setActivePhaseNum(p.phaseNumber)}
                   className={`py-1.5 px-1 rounded-lg text-center border transition-all ${
                     isCurrent
@@ -318,7 +348,7 @@ export default function AcademyPage() {
 
         {/* ACCORDION MODULE CARDS */}
         <div className="space-y-3">
-          {phases.map((phase) => {
+          {PHASES.map((phase) => {
             const isPhaseUnlocked = phase.phaseNumber === 1 || isActive;
             const isSelected = activePhaseNum === phase.phaseNumber;
 
@@ -334,7 +364,11 @@ export default function AcademyPage() {
                 }`}
               >
                 <button
-                  onClick={() => isPhaseUnlocked && setActivePhaseNum(isSelected ? 0 : phase.phaseNumber)}
+                  type="button"
+                  onClick={() =>
+                    isPhaseUnlocked &&
+                    setActivePhaseNum(isSelected ? 0 : phase.phaseNumber)
+                  }
                   className="w-full p-3 text-left flex items-center justify-between gap-2"
                 >
                   <div className="flex items-center gap-2.5">
@@ -367,7 +401,9 @@ export default function AcademyPage() {
                   </div>
 
                   <ChevronRight
-                    className={`w-4 h-4 text-slate-500 transition-transform ${isSelected ? 'rotate-90 text-emerald-400' : ''}`}
+                    className={`w-4 h-4 text-slate-500 transition-transform ${
+                      isSelected ? 'rotate-90 text-emerald-400' : ''
+                    }`}
                   />
                 </button>
 
@@ -379,31 +415,35 @@ export default function AcademyPage() {
 
                     {phase.phaseNumber === 1 && !isActive ? (
                       <button
+                        type="button"
                         onClick={handleGenesisUpgrade}
                         disabled={isUpgrading}
                         className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-800 disabled:text-slate-500 text-slate-950 text-[10px] font-bold uppercase tracking-wider rounded transition-colors flex justify-center items-center gap-2 shadow-lg"
                       >
                         {isUpgrading ? (
-                          <><Loader2 className="w-3 h-3 animate-spin" /> SYNCHRONIZING LEDGER...</>
+                          <>
+                            <Loader2 className="w-3 h-3 animate-spin" /> SYNCHRONIZING LEDGER...
+                          </>
                         ) : (
-                          "ACKNOWLEDGE & UPGRADE NODE"
+                          'ACKNOWLEDGE & UPGRADE NODE'
                         )}
                       </button>
                     ) : (
                       <div className="space-y-1.5 pt-1">
-                        <Link 
-                          href={phase.primaryRoute} 
+                        <Link
+                          href={phase.primaryRoute}
                           className="w-full py-2.5 bg-emerald-950/50 text-emerald-400 border border-emerald-800 hover:bg-emerald-900/60 text-center text-[10px] font-bold uppercase tracking-wider rounded flex items-center justify-center gap-2 transition-colors"
                         >
                           Enter Core Module <ArrowRight className="w-3 h-3" />
                         </Link>
 
                         {phase.secondaryRoute && (
-                          <Link 
-                            href={phase.secondaryRoute} 
+                          <Link
+                            href={phase.secondaryRoute}
                             className="w-full py-2 bg-slate-800/80 hover:bg-slate-700 text-cyan-300 border border-slate-700/80 text-center text-[9px] font-bold uppercase tracking-wider rounded flex items-center justify-center gap-1.5 transition-colors"
                           >
-                            <Zap className="w-3 h-3 text-cyan-400" /> Launch {phase.secondaryLabel}
+                            <Zap className="w-3 h-3 text-cyan-400" /> Launch{' '}
+                            {phase.secondaryLabel}
                           </Link>
                         )}
                       </div>
@@ -415,19 +455,31 @@ export default function AcademyPage() {
           })}
         </div>
 
+        {/* COMMUNITY HEALTH & SOCIAL SUPPORT NOTE */}
+        <div className="p-3 bg-slate-900/40 border border-slate-800/80 rounded-xl space-y-1 text-[10px]">
+          <div className="flex justify-between items-center text-slate-300">
+            <span className="font-bold flex items-center gap-1 text-emerald-400">
+              <HeartHandshake className="w-3 h-3" /> Health & Social Support
+            </span>
+            <span className="text-slate-500">Mutual Aid</span>
+          </div>
+          <p className="text-slate-400 leading-relaxed">
+            Community welfare and node operator emergency reserves are governed transparently under Republic rules alongside open Academy education[cite: 3, 10].
+          </p>
+        </div>
+
         {/* FOOTER */}
-        <div className="mt-2 p-3 bg-slate-900/40 border border-slate-800/80 rounded-xl space-y-1 text-[10px]">
+        <div className="p-3 bg-slate-900/40 border border-slate-800/80 rounded-xl space-y-1 text-[10px]">
           <div className="flex justify-between items-center text-slate-400">
             <span className="font-bold flex items-center gap-1 text-emerald-400">
               <Sparkles className="w-3 h-3" /> Genesis Mandate
             </span>
-            <span className="text-slate-500">v2.7 Schema</span>
+            <span className="text-slate-500">Open Access</span>
           </div>
           <p className="text-slate-500 leading-relaxed">
-            Completing Phase 1 upgrades your identity in MongoDB Atlas and unlocks the entire MESH Layer-2 trade suite.
+            Curriculum guides remain open to all Pioneers; module completions and node standing unlock higher chamber/tier execution[cite: 1, 8, 10].
           </p>
         </div>
-
       </main>
     </PioneerAuthGate>
   );

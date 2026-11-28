@@ -1,20 +1,20 @@
 // Location: components/MenuConsole.tsx
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import PasskeyEnrollmentCard from "@/components/PasskeyEnrollmentCard";
 import {
   ArrowUpRight,
   Crown,
-  Fingerprint,
+  LogOut,
   Menu,
+  RefreshCw,
   ShieldCheck,
   User,
-  X,
 } from "lucide-react";
-import { useAuth } from "@/context/AuthContext";
+import { useAuth } from "@/app/context/AuthContext";
 import {
   GOVERNANCE_TIER_META,
   normalizeTierLevel,
@@ -22,20 +22,43 @@ import {
 
 export default function MenuConsole() {
   const router = useRouter();
-  const { pioneer, isFounder } = useAuth();
+  const { pioneer, logout, isFounder, switchFounderRole } = useAuth();
+  const [restoring, setRestoring] = useState(false);
+  const [restoreError, setRestoreError] = useState<string | null>(null);
 
   const tierLevel = normalizeTierLevel(pioneer?.tier ?? 1);
   const tierMeta = GOVERNANCE_TIER_META[tierLevel];
 
-  const handleBiometricLogin = () => {
-    router.push("/dashboard");
+  const configuredFounderUid = (
+    process.env.NEXT_PUBLIC_FOUNDER_PI_UID || ""
+  ).trim();
+  const canRestoreFounder =
+    isFounder ||
+    Boolean(
+      configuredFounderUid &&
+        pioneer?.uid &&
+        pioneer.uid.trim() === configuredFounderUid
+    );
+
+  const handleLogout = () => {
+    logout();
+    router.push("/log-in");
   };
 
-  const handleClose = () => {
-    if (typeof window !== "undefined" && window.history.length > 1) {
-      router.back();
-    } else {
-      router.push("/dashboard");
+  const handleQuickRestoreFounder = async () => {
+    setRestoring(true);
+    setRestoreError(null);
+    try {
+      await switchFounderRole({
+        targetTier: "BAZAAR_FOUNDER",
+        requestedRole: "FOUNDER",
+        allowDevOverride: process.env.NODE_ENV !== "production",
+      });
+      router.push("/founder");
+    } catch (err: any) {
+      setRestoreError(err?.message || "RESTORE_FOUNDER_FAILED");
+    } finally {
+      setRestoring(false);
     }
   };
 
@@ -69,7 +92,7 @@ export default function MenuConsole() {
           <span className="text-emerald-300">
             {pioneer?.status || "SYNCING"}
           </span>{" "}
-          - Role: <span className="text-cyan-300">{pioneer?.role || "NONE"}</span>
+          • Role: <span className="text-cyan-300">{pioneer?.role || "NONE"}</span>
         </div>
         {pioneer?.uid && (
           <div className="text-[9px] text-zinc-500 truncate">
@@ -134,31 +157,42 @@ export default function MenuConsole() {
             </Link>
           )}
         </div>
+
+        {/* One-tap Founder Recovery when testing downgraded T1-T4 tiers */}
+        {canRestoreFounder && !isFounder && (
+          <div className="pt-1 space-y-1.5">
+            <button
+              type="button"
+              disabled={restoring}
+              onClick={handleQuickRestoreFounder}
+              className="w-full rounded-lg border border-amber-700/80 bg-amber-950/50 px-3 py-2 text-[11px] font-bold text-amber-200 hover:bg-amber-900/50 flex items-center justify-center gap-1.5 disabled:opacity-50"
+            >
+              {restoring ? (
+                <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Crown className="h-3.5 w-3.5 text-amber-400" />
+              )}
+              <span>Restore Founder Clearance</span>
+            </button>
+            {restoreError && (
+              <p className="text-[10px] text-rose-400">{restoreError}</p>
+            )}
+          </div>
+        )}
       </div>
 
-      {/* Biometric Passkey Enrollment */}
+      {/* Hardware Passkey Enrollment */}
       <PasskeyEnrollmentCard />
 
-      {/* Biometric Log-in & Close Actions */}
-      <div className="grid grid-cols-2 gap-2">
-        <button
-          type="button"
-          onClick={handleBiometricLogin}
-          className="w-full rounded-xl border border-cyan-700/80 bg-cyan-950/40 px-3 py-2.5 text-xs font-bold text-cyan-200 hover:bg-cyan-900/50 flex items-center justify-center gap-1.5 cursor-pointer"
-        >
-          <Fingerprint className="h-3.5 w-3.5 text-cyan-300" />
-          <span>Biometric Log-in</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={handleClose}
-          className="w-full rounded-xl border border-zinc-700/90 bg-zinc-900/80 px-3 py-2.5 text-xs font-bold text-zinc-200 hover:bg-zinc-800 flex items-center justify-center gap-1.5 cursor-pointer"
-        >
-          <X className="h-3.5 w-3.5 text-zinc-300" />
-          <span>Close</span>
-        </button>
-      </div>
+      {/* Log Out Action */}
+      <button
+        type="button"
+        onClick={handleLogout}
+        className="w-full rounded-xl border border-rose-800/80 bg-rose-950/40 px-3 py-2.5 text-xs font-bold text-rose-300 hover:bg-rose-900/50 flex items-center justify-center gap-2 cursor-pointer"
+      >
+        <LogOut className="h-3.5 w-3.5" />
+        <span>Log Out</span>
+      </button>
     </section>
   );
 }
